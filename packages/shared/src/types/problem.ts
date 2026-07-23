@@ -37,50 +37,73 @@ const ProblemConceptRefSchema = z.object({
  * what `problem_versions.content` stores. It must never be serialized directly to a client — only
  * `toPublicProblem()` may derive a client-safe projection from it.
  */
-export const ProblemVersionSchema = z.object({
-  problem_id: z.string(),
-  version: z.number().int().positive(),
-  title: z.string(),
-  internal_name: z.string(),
-  statement_md: z.string(),
-  constraints_md: z.string(),
-  signature: SignatureSchema,
-  examples: z.array(ExampleSchema).min(1),
-  concepts: z.array(ProblemConceptRefSchema).min(1),
-  difficulty: z.object({
-    rating: z.number().int(),
-    confidence: z.enum(["generated", "verified", "calibrated"]),
-  }),
-  expected_active_minutes: z.tuple([z.number().int(), z.number().int()]),
-  target_complexity: z.object({ time: z.string(), space: z.string() }),
-  reference_solution_py: z.string(),
-  brute_force_py: z.string(),
-  input_generator_py: z.string(),
-  comparator: z.enum(["exact", "float_tol", "unordered", "checker_py"]),
-  // See the note on TestCaseSchema.seed: Python emits `null` for an unset optional, so this must
-  // be nullish. A `.optional()` here sent every checker-less problem's judge job to `dead` after
-  // 3 attempts — found by scripts/demo.sh, not by any unit test.
-  checker_py: z
-    .string()
-    .nullish()
-    .transform((v) => v ?? undefined),
-  hidden_tests: z.array(TestCaseSchema).default([]), // SERVER ONLY
-  mutants_py: z.array(z.string()).default([]), // SERVER ONLY
-  hints: z.object({
-    l1_orientation: z.string(),
-    l2_conceptual: z.string(),
-    l3_structural: z.string(),
-    outline: z.string(),
-    editorial_md: z.string(),
-  }),
-  provenance: z.object({
-    mode: z.enum(["novel", "template", "composed"]),
-    model: z.string(),
-    prompt_version: z.string(),
-    generated_at: z.string(),
-  }),
-  state: z.enum(["candidate", "verifying", "approved", "rejected", "retired"]),
-});
+export const ProblemVersionSchema = z
+  .object({
+    problem_id: z.string(),
+    version: z.number().int().positive(),
+    title: z.string(),
+    internal_name: z.string(),
+    statement_md: z.string(),
+    constraints_md: z.string(),
+    signature: SignatureSchema,
+    examples: z.array(ExampleSchema).min(1),
+    concepts: z.array(ProblemConceptRefSchema).min(1),
+    difficulty: z.object({
+      rating: z.number().int(),
+      confidence: z.enum(["generated", "verified", "calibrated"]),
+    }),
+    expected_active_minutes: z.tuple([z.number().int(), z.number().int()]),
+    target_complexity: z.object({ time: z.string(), space: z.string() }),
+    reference_solution_py: z.string(),
+    brute_force_py: z.string(),
+    input_generator_py: z.string(),
+    comparator: z.enum(["exact", "float_tol", "unordered", "checker_py"]),
+    // See the note on TestCaseSchema.seed: Python emits `null` for an unset optional, so this must
+    // be nullish. A `.optional()` here sent every checker-less problem's judge job to `dead` after
+    // 3 attempts — found by scripts/demo.sh, not by any unit test.
+    checker_py: z
+      .string()
+      .nullish()
+      .transform((v) => v ?? undefined),
+    hidden_tests: z.array(TestCaseSchema).default([]), // SERVER ONLY
+    mutants_py: z.array(z.string()).default([]), // SERVER ONLY
+    hints: z.object({
+      l1_orientation: z.string(),
+      l2_conceptual: z.string(),
+      l3_structural: z.string(),
+      outline: z.string(),
+      editorial_md: z.string(),
+    }),
+    provenance: z.object({
+      mode: z.enum(["novel", "template", "composed"]),
+      model: z.string(),
+      prompt_version: z.string(),
+      generated_at: z.string(),
+    }),
+    state: z.enum(["candidate", "verifying", "approved", "rejected", "retired"]),
+  })
+  // Mirrors content/algolift_content/models.py's `ProblemVersion` model_validators exactly —
+  // those two invariants were enforced ONLY on the Python (generation/verification) side; nothing
+  // stopped a row that violated them from being read back and trusted by every TS consumer
+  // (apps/api, apps/judge, the mock server) once it was in the database.
+  .superRefine((content, ctx) => {
+    const totalWeight = content.concepts.reduce((sum, c) => sum + c.weight, 0);
+    if (Math.abs(totalWeight - 1.0) > 0.01) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["concepts"],
+        message: `concept weights must sum to ~1.0 (±0.01); got ${totalWeight}`,
+      });
+    }
+    const primaryCount = content.concepts.filter((c) => c.role === "primary").length;
+    if (primaryCount !== 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["concepts"],
+        message: `exactly one concept must have role='primary'; got ${primaryCount}`,
+      });
+    }
+  });
 export type ProblemVersion = z.infer<typeof ProblemVersionSchema>;
 
 /**

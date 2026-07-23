@@ -6,6 +6,7 @@ import { ensureImage } from "@algolift/sandbox";
 import { createLogger } from "@algolift/shared";
 import { buildJudgeDeps } from "./deps.js";
 import { createJudgeHandler } from "./handler.js";
+import { startStrandedSweep } from "./reconcile.js";
 
 const bootLogger = createLogger("judge");
 
@@ -22,6 +23,7 @@ async function main(): Promise<void> {
   installShutdownHandlers(controller);
 
   const reaper = startReaper({ queue, signal: controller.signal, logger: queueLogger });
+  const strandedSweep = startStrandedSweep(deps, { signal: controller.signal });
 
   await queue.upsertWorkerHeartbeat(config.judgeWorkerId, "judge", { concurrency: config.judgeConcurrency });
 
@@ -41,6 +43,7 @@ async function main(): Promise<void> {
   });
 
   reaper.stop();
+  strandedSweep.stop();
   await closePool();
   logger.info("judge worker shut down");
 }

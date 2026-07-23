@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { formatMs, formatRelativeDays } from "../lib/format";
+import { formatMs, formatDate } from "../lib/format";
 import { Badge, Panel, PanelBody, PanelHeader, PanelTitle, RatingMeter } from "../components/ui";
 
 function asNum(v: unknown, fallback = 0): number {
@@ -10,7 +10,25 @@ function asStr(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
-const TREND_ICON: Record<string, string> = { up: "↑", flat: "→", unstarted: "·" };
+// Real `GET /api/progress` (apps/api/src/routes/progress.ts) only ever emits 'up'/'flat'/'down' —
+// 'down' was missing here, so a declining concept silently rendered identical to a flat one
+// (confirmed live).
+const TREND_ICON: Record<string, string> = { up: "↑", flat: "→", down: "↓" };
+
+const HISTORY_KIND_LABEL: Record<string, string> = {
+  submission: "Submission",
+  skip: "Skipped",
+  give_up: "Gave up",
+  diagnostic: "Diagnostic",
+  review: "Review",
+  decay: "Decay",
+};
+
+function formatDaysOverdue(days: number): string {
+  if (days < 1) return "due today";
+  const rounded = Math.round(days);
+  return `${rounded}d overdue`;
+}
 
 export function Progress() {
   const query = useQuery({ queryKey: ["progress"], queryFn: api.progress });
@@ -19,13 +37,32 @@ export function Progress() {
     return <div className="flex h-full items-center justify-center text-text-faint">Loading…</div>;
   }
 
-  const { concepts, reviews_due, stats, records, history } = query.data;
+  if (query.isError) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-text-dim">
+        <p>Couldn't load progress.</p>
+        <button className="text-accent underline" onClick={() => query.refetch()}>
+          Retry
+        </button>
+      </div>
+    );
+  }
 
-  const solvesByDifficulty = (stats.solves_by_difficulty ?? {}) as Record<
-    string,
-    { solved: number; with_hints: number; without_hints: number }
-  >;
-  const errorRecurrences = (stats.error_category_recurrences ?? {}) as Record<string, number>;
+  const { concepts, reviews_due, stats, records, history } = query.data;
+  const nameByConceptId = new Map(concepts.map((c) => [asStr(c.concept_id), asStr(c.name)]));
+
+  // `stats.solve_bands` / `stats.error_categories` are arrays of `{band, ...}` / `{kind, count}`
+  // rows (apps/api/src/routes/progress.ts), not the mock-only `solves_by_difficulty` /
+  // `error_category_recurrences` keyed objects this page used to read (always empty against the
+  // real API — confirmed live "No submissions yet" beside a real non-zero median active time).
+  const solveBands = (stats.solve_bands ?? []) as Array<{
+    band: number;
+    solved_without_hints: number;
+    solved_with_hints: number;
+    attempts: number;
+  }>;
+  const errorCategories = (stats.error_categories ?? []) as Array<{ kind: string; count: number }>;
+  const totalAttempts = solveBands.reduce((sum, b) => sum + asNum(b.attempts), 0);
 
   return (
     <div className="mx-auto h-full max-w-5xl space-y-8 overflow-y-auto p-6">
@@ -37,10 +74,14 @@ export function Progress() {
             const uncertainty = asNum(c.uncertainty, 350);
             const trend = asStr(c.trend);
             return (
-              <Panel key={asStr(c.id)} className="p-3.5">
-                <div className="mb-1.5 flex items-center justify-between text-sm">
-                  <span className="text-text">{asStr(c.name) || asStr(c.id)}</span>
-                  <span className="font-mono text-xs text-text-dim">
+              <Panel key={asStr(c.concept_id)} className="p-3.5">
+                {/* items-start + min-w-0, not items-center: a long concept name wraps to two
+                    lines inside this narrow card, and items-center was vertically centering the
+                    single-line rating badge against the wrapped name's full height instead of
+                    its first line — misaligned (confirmed live). */}
+                <div className="mb-1.5 flex items-start justify-between gap-2 text-sm">
+                  <span className="min-w-0 text-text">{asStr(c.name) || asStr(c.concept_id)}</span>
+                  <span className="shrink-0 font-mono text-xs text-text-dim">
                     {Math.round(rating)} ± {Math.round(uncertainty)} {TREND_ICON[trend] ?? ""}
                   </span>
                 </div>
@@ -61,12 +102,15 @@ export function Progress() {
           <p className="text-sm text-text-faint">Nothing due — spaced review will surface concepts here as they age.</p>
         ) : (
           <div className="space-y-1.5">
-            {reviews_due.map((r) => (
-              <div key={asStr(r.concept_id)} className="flex items-center justify-between rounded-md border border-border bg-bg-raised px-3 py-2 text-sm">
-                <span className="text-text">{asStr(r.name) || asStr(r.concept_id)}</span>
-                <Badge tone="warn">due {formatRelativeDays(r.due_at as string)}</Badge>
-              </div>
-            ))}
+            {reviews_due.map((r) => {
+              const conceptId = asStr(r.concept_id);
+              return (
+                <div key={conceptId} className="flex items-center justify-between rounded-md border border-border bg-bg-raised px-3 py-2 text-sm">
+                  <span className="text-text">{nameByConceptId.get(conceptId) || conceptId}</span>
+                  <Badge tone="warn">{formatDaysOverdue(asNum(r.days_overdue))}</Badge>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>
@@ -77,16 +121,19 @@ export function Progress() {
             <PanelTitle>Solves by difficulty band</PanelTitle>
           </PanelHeader>
           <PanelBody className="space-y-1.5">
-            {Object.keys(solvesByDifficulty).length === 0 ? (
+            {solveBands.length === 0 ? (
               <p className="text-sm text-text-faint">No submissions yet.</p>
             ) : (
-              Object.entries(solvesByDifficulty)
-                .sort((a, b) => Number(a[0]) - Number(b[0]))
-                .map(([band, s]) => (
-                  <div key={band} className="flex items-center justify-between text-sm">
-                    <span className="font-mono text-text-dim">{band}+</span>
+              [...solveBands]
+                .sort((a, b) => a.band - b.band)
+                .map((s) => (
+                  <div key={s.band} className="flex items-center justify-between text-sm">
+                    <span className="font-mono text-text-dim">{s.band}+</span>
                     <span className="text-text">
-                      {s.solved} solved <span className="text-text-faint">({s.without_hints} unassisted, {s.with_hints} hinted)</span>
+                      {s.solved_without_hints + s.solved_with_hints} solved{" "}
+                      <span className="text-text-faint">
+                        ({s.solved_without_hints} unassisted, {s.solved_with_hints} hinted)
+                      </span>
                     </span>
                   </div>
                 ))
@@ -100,18 +147,18 @@ export function Progress() {
           </PanelHeader>
           <PanelBody>
             <div className="text-2xl font-display text-text">{formatMs(asNum(stats.median_active_ms))}</div>
-            <p className="mt-1 text-xs text-text-faint">median active time per submission ({asNum(stats.total_submissions)} total)</p>
+            <p className="mt-1 text-xs text-text-faint">median active time per submission ({totalAttempts} total)</p>
           </PanelBody>
         </Panel>
       </section>
 
       <section>
         <h2 className="mb-3 font-display text-lg text-text">Error category recurrences</h2>
-        {Object.keys(errorRecurrences).length === 0 ? (
+        {errorCategories.length === 0 ? (
           <p className="text-sm text-text-faint">No recurring error categories yet.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {Object.entries(errorRecurrences).map(([kind, count]) => (
+            {errorCategories.map(({ kind, count }) => (
               <Badge key={kind} tone="error">
                 {kind.replace(/_/g, " ")} × {count}
               </Badge>
@@ -123,10 +170,10 @@ export function Progress() {
       <section>
         <h2 className="mb-3 font-display text-lg text-text">Personal records</h2>
         <Panel className="p-4">
-          {records.highest_unassisted_difficulty ? (
+          {records.highest_unassisted_difficulty_solved ? (
             <p className="text-sm text-text">
-              Highest unassisted solve: <strong>{asStr(records.highest_unassisted_title)}</strong> at rating{" "}
-              <span className="font-mono">{asNum(records.highest_unassisted_difficulty)}</span>
+              Highest unassisted solve: rating{" "}
+              <span className="font-mono">{asNum(records.highest_unassisted_difficulty_solved)}</span>
             </p>
           ) : (
             <p className="text-sm text-text-faint">No unassisted solves recorded yet.</p>
@@ -135,21 +182,22 @@ export function Progress() {
       </section>
 
       <section>
-        <h2 className="mb-3 font-display text-lg text-text">Workout history</h2>
+        <h2 className="mb-3 font-display text-lg text-text">Recent activity</h2>
         {history.length === 0 ? (
-          <p className="text-sm text-text-faint">No workouts yet.</p>
+          <p className="text-sm text-text-faint">No activity yet.</p>
         ) : (
           <div className="space-y-1.5">
-            {history.map((h, i) => (
-              <div key={i} className="flex items-center justify-between rounded-md border border-border bg-bg-raised px-3 py-2 text-sm">
-                <span className="text-text">
-                  {asStr(h.kind)} · {asStr(h.status)}
-                </span>
-                <span className="text-text-faint">
-                  {asNum(h.items_completed)} / {asNum(h.items_total)} items
-                </span>
-              </div>
-            ))}
+            {history.map((h, i) => {
+              const kind = asStr(h.kind);
+              return (
+                <div key={asStr(h.id) || i} className="flex items-center justify-between rounded-md border border-border bg-bg-raised px-3 py-2 text-sm">
+                  <span className="text-text">{HISTORY_KIND_LABEL[kind] ?? kind}</span>
+                  <span className="text-text-faint">
+                    outcome {asNum(h.outcome).toFixed(2)} · {formatDate(h.created_at as string)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>

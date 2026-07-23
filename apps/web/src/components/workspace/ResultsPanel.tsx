@@ -94,8 +94,6 @@ export function ResultsPanel({
         input_preview?: unknown;
         expected_preview?: unknown;
         actual_preview?: unknown;
-        editorial_md?: string;
-        complexity?: { time: string; space: string };
       })
     | undefined;
 
@@ -105,11 +103,15 @@ export function ResultsPanel({
     <div className="space-y-4 p-4" data-testid="verdict-panel" data-mode={mode ?? undefined}>
       <div className="flex flex-wrap items-center gap-3">
         <Badge tone={tone.badge} className="text-sm normal-case">
-          {friendlyVerdict(verdict.verdict)}
+          {/* Run mode never grades anything (CONTRACTS §4.5) — "accepted" implies a pass/fail
+              judgment that didn't happen; "ran" says what actually occurred. */}
+          {mode === "run" && verdict.verdict === "accepted" ? "ran" : friendlyVerdict(verdict.verdict)}
         </Badge>
-        <span className="font-mono text-xs text-text-dim">
-          {verdict.passed_tests}/{verdict.total_tests} passed
-        </span>
+        {!(mode === "run" && verdict.verdict === "accepted") && (
+          <span className="font-mono text-xs text-text-dim">
+            {verdict.passed_tests}/{verdict.total_tests} passed
+          </span>
+        )}
         {verdict.runtime_ms != null && <span className="font-mono text-xs text-text-faint">{verdict.runtime_ms} ms</span>}
         {verdict.memory_kb != null && (
           <span className="font-mono text-xs text-text-faint">{(verdict.memory_kb / 1024).toFixed(1)} MB</span>
@@ -120,6 +122,12 @@ export function ResultsPanel({
 
       {mode === "run" && (
         <p className="text-xs text-text-faint">Run mode — checked against custom input only. This does not affect mastery.</p>
+      )}
+
+      {mode === "submit" && verdict.practice && (
+        <p className="text-xs text-text-faint">
+          Practice — not scored. You already gave up on this problem, so this attempt doesn't affect mastery.
+        </p>
       )}
 
       {failure?.message && verdict.verdict !== "accepted" && <p className="text-sm text-text-dim">{failure.message}</p>}
@@ -160,17 +168,15 @@ export function ResultsPanel({
         </pre>
       )}
 
-      {verdict.verdict === "accepted" && mode === "submit" && failure?.editorial_md && (
+      {verdict.verdict === "accepted" && mode === "submit" && verdict.reveal && (
         <div className="space-y-2 border-t border-border pt-3">
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">Editorial</h3>
-            {failure.complexity && (
-              <span className="font-mono text-[11px] text-text-faint">
-                time {failure.complexity.time} · space {failure.complexity.space}
-              </span>
-            )}
+            <span className="font-mono text-[11px] text-text-faint">
+              time {verdict.reveal.target_complexity.time} · space {verdict.reveal.target_complexity.space}
+            </span>
           </div>
-          <Markdown>{failure.editorial_md}</Markdown>
+          <Markdown>{verdict.reveal.editorial_md}</Markdown>
         </div>
       )}
     </div>

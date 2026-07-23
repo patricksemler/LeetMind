@@ -51,10 +51,35 @@ def test_multiple_hits_all_reported() -> None:
     assert set(hits) == {"heap", "memo", "dp", "dfs"}
 
 
-def test_memo_word_boundary_does_not_match_memoize() -> None:
-    # "memoize"/"memoization" contain "memo" as a prefix but are not the standalone word
-    # "memo" — \bmemo\b must not match inside a longer word either.
-    assert find_banned_terms("you could memoize this recursive call") == []
+def test_memo_matches_common_inflections() -> None:
+    # QA-PLAN.md §2.10: "memoize"/"memoization" are trivial rephrasings of the banned "memo", not
+    # unrelated words containing it as a substring (unlike "adapt"/"dprint" for "dp", which must
+    # still never match) — a generator could otherwise slip the banned concept past the gate just
+    # by inflecting it.
+    assert "memo" in find_banned_terms("you could memoize this recursive call")
+    assert "memo" in find_banned_terms("this relies on memoization")
+
+
+def test_backtrack_matches_backtracking() -> None:
+    assert "backtrack" in find_banned_terms("use backtracking to explore all paths")
+
+
+def test_heap_matches_heaps() -> None:
+    assert "heap" in find_banned_terms("maintain two heaps for the running median")
+
+
+def test_multi_word_terms_match_hyphenated_compounds() -> None:
+    # A model rephrasing "two pointer" as "two-pointer" (or "sliding window" as "sliding-window",
+    # "union find" as "union-find") is not a different concept — it must still be caught.
+    assert "two pointer" in find_banned_terms("a two-pointer scan works")
+    assert "sliding window" in find_banned_terms("try a sliding-window approach")
+    assert "union find" in find_banned_terms("use union-find for connectivity")
+
+
+def test_dp_does_not_false_positive_inside_adapts_or_adapted() -> None:
+    # Inflection tolerance must not reopen the "dp" inside "adapt" false-positive: the LEADING
+    # boundary (never relaxed) is what prevents this, regardless of what follows.
+    assert find_banned_terms("she adapts and adapted her approach") == []
 
 
 def test_empty_and_none_like_input_is_clean() -> None:

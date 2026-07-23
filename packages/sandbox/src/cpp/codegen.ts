@@ -262,6 +262,13 @@ bool exact_equal(const json& a, const json& b) {
     }
     if (a.is_boolean() != b.is_boolean()) return false;
     if (is_number_not_bool(a) && is_number_not_bool(b)) {
+        // Two JSON integers are compared as integers, never coerced through double first:
+        // double only has 53 bits of exact mantissa, so two DIFFERENT int64 values above/below
+        // +/-2^53 can round to the identical double and compare equal here even though Python's
+        // arbitrary-precision == (runner.py) correctly says they differ - a real false-accept.
+        if (a.is_number_integer() && b.is_number_integer()) {
+            return a.get<long long>() == b.get<long long>();
+        }
         return a.get<double>() == b.get<double>();
     }
     return a == b;
@@ -586,12 +593,27 @@ void run_harness(const std::string& bundle_dir) {
 }
 `;
 
+/** A bare C++/JSON identifier — matches the C++ standard grammar closely enough for this purpose:
+ * a letter or underscore, then any run of letters/digits/underscores. */
+const CPP_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 /**
  * Generates the full `main.cpp` translation unit for a given problem `Signature`. Deterministic —
  * the same `Signature` always produces byte-identical output, which is what makes it snapshottable
  * in unit tests without Docker.
  */
 export function generateMainCpp(signature: Signature): string {
+  // `signature.name` is spliced directly into generated, COMPILED code as
+  // `solution_instance.${signature.name}(...)` below — unlike `param.name` (comments only), this
+  // one is a real code-injection point. `signature` comes from LLM-generated problem content,
+  // which this system's own threat model treats as untrusted; a malformed or adversarial name
+  // (e.g. containing `();` or a raw `//`) would otherwise land straight in a compiled, executed
+  // C++ translation unit. Fail loudly here rather than let the compiler (or worse, the compiler
+  // successfully accepting something unintended) be the first thing to notice.
+  if (!CPP_IDENTIFIER.test(signature.name)) {
+    throw new Error(`generateMainCpp: signature.name is not a valid identifier: ${JSON.stringify(signature.name)}`);
+  }
+
   const paramAsts = signature.params.map((p) => parseParamType(p.type));
   const paramTypes = paramAsts.map(cppType);
   const returnAst = parseParamType(signature.returns);

@@ -27,6 +27,30 @@ export async function getConceptState(
   return client ? queryOneWith<UserConceptStateRow>(client, sql, params) : queryOne<UserConceptStateRow>(sql, params);
 }
 
+/**
+ * Row-locks `user_concept_state` for update within the caller's transaction. Every mastery
+ * consequence (a judge verdict, a give-up, a skip) follows a read-modify-write shape: read the
+ * current rating/uncertainty, compute a new value, write it back. Without a lock, two concurrent
+ * transactions touching the same user+concept both read the same `before_rating`, and whichever
+ * commits second silently clobbers the first's write — a lost update (confirmed live via a
+ * double-submit race: one delta lost, counters double-incremented, the audit trail disagreeing
+ * with the final state). `SELECT ... FOR UPDATE` blocks the second transaction until the first
+ * commits, so it reads the already-updated row instead of a stale one. Every concept for the
+ * single seeded user already has a `user_concept_state` row from migration time (see
+ * `002_seed_taxonomy.sql`), so there is no "insert races insert" case to also worry about here.
+ */
+export async function getConceptStateForUpdate(
+  client: PoolClient,
+  userId: string,
+  conceptId: string,
+): Promise<UserConceptStateRow | null> {
+  return queryOneWith<UserConceptStateRow>(
+    client,
+    "select * from user_concept_state where user_id = $1 and concept_id = $2 for update",
+    [userId, conceptId],
+  );
+}
+
 export async function listConceptStates(userId: string): Promise<UserConceptStateRow[]> {
   return query<UserConceptStateRow>(
     "select ucs.* from user_concept_state ucs join concepts c on c.id = ucs.concept_id where ucs.user_id = $1 order by c.sort_order asc",

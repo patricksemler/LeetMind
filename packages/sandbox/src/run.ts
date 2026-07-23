@@ -237,18 +237,100 @@ function runDockerChild(
 }
 
 /**
- * Very small heuristic OOM detector. The container runs with `--rm`, so by the time
- * `docker inspect` could be called the container (and its OOMKilled flag) is already gone —
- * inspecting before removal would need `--rm` dropped or a wait/inspect race we don't want to
- * introduce. Instead: exit code 137 (128 + SIGKILL) combined with a stderr string a Python
- * process typically produces when the OS kills it for memory pressure. This is a best-effort
- * signal, not a certainty — 137 alone can also mean "we killed it for the wall timeout" (ruled
- * out by checking `!timedOut` first) or an unrelated SIGKILL. Documented limitation, not hidden.
+ * Fallback heuristic OOM detector, used only if `watchForOomEvent` below (the real signal)
+ * somehow saw nothing — exit code 137 (128 + SIGKILL) combined with a stderr string a Python
+ * process typically produces when the OS kills it for memory pressure. This alone was the ONLY
+ * signal previously, and it is nearly always wrong: a cgroup OOM-kill is a raw SIGKILL from the
+ * kernel with no chance for the process to print anything, so this pattern essentially never
+ * matches a real one — `memory_limit` was effectively unreachable. Kept only as a last resort;
+ * 137 alone can also mean "we killed it for the wall timeout" (ruled out via `!timedOut`) or an
+ * unrelated SIGKILL.
  */
-function looksLikeOom(exitCode: number | null, stderr: string, timedOut: boolean): boolean {
+function looksLikeOomFallback(exitCode: number | null, stderr: string, timedOut: boolean): boolean {
   if (timedOut) return false;
   if (exitCode !== 137) return false;
   return /MemoryError|Killed|Out of memory|Cannot allocate memory|OOM/i.test(stderr);
+}
+
+/**
+ * The real OOM signal: subscribes to `docker events --filter container=<name> --filter event=oom`
+ * for the container's own name (assigned via `--name` in `buildDockerArgs`, before `docker run`
+ * even starts) and watches for ANY output — Docker's daemon emits an `oom` event the instant the
+ * container's cgroup is OOM-killed, well before the container exits/is removed. This is what
+ * `docker inspect .State.OOMKilled` would tell you too, but without needing to inspect an already-
+ * `--rm`-removed container (CONTRACTS §6 mandates `--rm` in the exact flag list; this sidesteps
+ * that entirely rather than fighting it). Call `start()` BEFORE `docker run`, `stop()` after it
+ * exits.
+ */
+function watchForOomEvent(dockerBin: string, containerName: string): { stop: () => Promise<boolean> } {
+  let oomSeen = false;
+  let spawnFailed = false;
+
+  const child = spawn(dockerBin, ["events", "--filter", `container=${containerName}`, "--filter", "event=oom"], {
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  child.stdout.on("data", () => {
+    oomSeen = true;
+  });
+  child.on("error", (err) => {
+    spawnFailed = true;
+    logger.warn({ err: String(err), containerName }, "docker events OOM watcher failed to spawn; falling back to the stderr heuristic");
+  });
+
+  return {
+    stop: () =>
+      new Promise((resolve) => {
+        if (spawnFailed) {
+          resolve(false);
+          return;
+        }
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          resolve(oomSeen);
+        };
+        child.once("close", finish);
+        child.once("error", finish);
+        // `docker events` streams forever until told to stop; SIGTERM is usually enough, but it
+        // doesn't always land promptly, so force it shortly after if `close` hasn't fired yet.
+        try {
+          child.kill("SIGTERM");
+        } catch {
+          finish();
+          return;
+        }
+        const forceKill = setTimeout(() => {
+          try {
+            child.kill("SIGKILL");
+          } catch {
+            // already dead
+          }
+        }, 500);
+        forceKill.unref?.();
+        child.once("close", () => clearTimeout(forceKill));
+      }),
+  };
+}
+
+/**
+ * Dev-only artificial delay, injected right before `runSandboxed` returns (QA-PLAN.md "Prevent
+ * recurrence" §3). A real judge run finishes in ~150-300ms — fast enough that the UI's
+ * pending/running intermediate states (`ResultsPanel`'s progress bar, the SSE `status`/`progress`
+ * events) have never actually been observed by anyone, dev or QA. Sets no delay unless explicitly
+ * opted into via `ALGOLIFT_SANDBOX_ARTIFICIAL_DELAY_MS` (never on by default, so it can never leak
+ * into CI or a real judge deployment) — matches the file's existing `ALGOLIFT_KEEP_BUNDLES`
+ * escape-hatch convention.
+ */
+function artificialDelayMs(): number {
+  const raw = process.env.ALGOLIFT_SANDBOX_ARTIFICIAL_DELAY_MS;
+  if (!raw) return 0;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function runSandboxed(req: SandboxRequest): Promise<SandboxResult> {
@@ -270,10 +352,23 @@ export async function runSandboxed(req: SandboxRequest): Promise<SandboxResult> 
   try {
     const dockerArgs = buildDockerArgs({ image, bundleDir, argv, limits, name: containerName });
 
-    const { outcome, timedOut } = await runDockerChild(dockerBin, dockerArgs, limits, containerName);
+    // Started BEFORE `docker run` — the container doesn't exist yet, but `docker events` filters
+    // by name and starts watching from "now", so it's already listening by the time `--name`
+    // makes the container come into existence and (if it does) get OOM-killed. Stopped in this
+    // `finally`, exactly once, regardless of whether `runDockerChild` itself throws — otherwise a
+    // `docker run` spawn failure would leak the watcher process.
+    const oomWatcher = watchForOomEvent(dockerBin, containerName);
+    let oomEventSeen = false;
+    let outcome: ChildRunOutcome;
+    let timedOut: boolean;
+    try {
+      ({ outcome, timedOut } = await runDockerChild(dockerBin, dockerArgs, limits, containerName));
+    } finally {
+      oomEventSeen = await oomWatcher.stop();
+    }
     const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
 
-    const oomKilled = looksLikeOom(outcome.exitCode, outcome.stderr, timedOut);
+    const oomKilled = oomEventSeen || looksLikeOomFallback(outcome.exitCode, outcome.stderr, timedOut);
     const imageDigest = await resolveImageDigest(image);
 
     logger.info(
@@ -288,6 +383,12 @@ export async function runSandboxed(req: SandboxRequest): Promise<SandboxResult> 
       },
       "sandbox run finished",
     );
+
+    const delayMs = artificialDelayMs();
+    if (delayMs > 0) {
+      logger.info({ correlationId, containerName, delayMs }, "ALGOLIFT_SANDBOX_ARTIFICIAL_DELAY_MS: holding before returning");
+      await sleep(delayMs);
+    }
 
     return {
       exitCode: outcome.exitCode,

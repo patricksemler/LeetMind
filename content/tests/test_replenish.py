@@ -205,6 +205,39 @@ def test_replenish_once_second_pass_enqueues_nothing_new() -> None:
     assert count_after_second == count_after_first
 
 
+def test_replenish_once_does_not_plateau_once_every_slot_is_terminally_dead() -> None:
+    # QA-PLAN.md §2.11, confirmed live: a fixed 0..watermark-1 slot range plateaus a cell below
+    # watermark forever once every slot's generate job has resolved without contributing to the
+    # approved pool (dead-lettered here for a deterministic repro; a `done`-but-rejected outcome
+    # hits the exact same "every slot key already exists" wall). Deficit stays 3 throughout — no
+    # inventory is ever seeded — so a healthy replenish must keep finding fresh slot numbers.
+    _seed_concept_state("arrays_hashing", rating=1250)  # band 1200
+    settings = get_settings()
+    assert settings.BUFFER_LOW_WATERMARK == 3
+
+    first = replenish_once(TEST_USER_ID, settings=settings, max_enqueue_per_pass=200)
+    first_slots = sorted(k for k in first.jobs_enqueued if k.startswith("generate:arrays_hashing:1200:"))
+    assert first_slots == [
+        "generate:arrays_hashing:1200:0",
+        "generate:arrays_hashing:1200:1",
+        "generate:arrays_hashing:1200:2",
+    ]
+
+    # Simulate every one of those attempts exhausting its retries — the fixed-range bug's
+    # trigger condition: every slot key in 0..watermark-1 now permanently exists.
+    query("update jobs set status = 'dead' where kind = 'generate';")
+
+    second = replenish_once(TEST_USER_ID, settings=settings, max_enqueue_per_pass=200)
+    second_slots = sorted(k for k in second.jobs_enqueued if k.startswith("generate:arrays_hashing:1200:"))
+    # The old fixed 0..2 range would find every key already taken and enqueue nothing here —
+    # the cell would be stuck below watermark forever. Fresh slot numbers must appear instead.
+    assert second_slots == [
+        "generate:arrays_hashing:1200:3",
+        "generate:arrays_hashing:1200:4",
+        "generate:arrays_hashing:1200:5",
+    ]
+
+
 def test_replenish_once_honours_per_pass_cap_and_logs_skip(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

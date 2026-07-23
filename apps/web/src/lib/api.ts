@@ -18,6 +18,7 @@ import {
   type GiveUpRequest,
   GiveUpResponse,
   GetHintsResponse,
+  GetLatestSubmissionResponse,
   GetProblemResponse,
   GetSubmissionResponse,
   HealthResponse,
@@ -97,6 +98,9 @@ export const api = {
     postJson("/api/submissions", body, CreateSubmissionResponse),
 
   getSubmission: (id: string) => request(`/api/submissions/${id}`, GetSubmissionResponse),
+
+  latestSubmission: (versionId: string) =>
+    request(`/api/problems/${versionId}/submissions/latest`, GetLatestSubmissionResponse),
 
   takeHint: (body: TakeHintRequest) => postJson("/api/hints", body, TakeHintResponse),
 

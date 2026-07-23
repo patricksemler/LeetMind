@@ -1,7 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import {
   getApprovedProblemVersion,
+  getLatestSubmission,
   getSubmission,
+  getWorkoutItem,
+  hasGivenUp,
   insertSubmission,
   notify,
   queryOne,
@@ -15,6 +18,17 @@ import { sha256Hex } from "../lib/hash.js";
 import { buildReveal, sanitizeFailure, toSafeSubmission } from "../mappers/submission.js";
 import { requireId } from "../server.js";
 import { notifyBus } from "../sse.js";
+
+/** Full client-facing submission projection: safe fields + reveal (if earned) + practice flag (if
+ * this submit-mode submission followed a recorded give-up on the same version). Shared by
+ * `GET /api/submissions/:id` and `GET /api/problems/:versionId/submissions/latest`. */
+async function enrichSubmission(userId: string, row: SubmissionRow) {
+  const [reveal, practice] = await Promise.all([
+    buildReveal(userId, row.problem_version_id),
+    row.mode === "submit" ? hasGivenUp(userId, row.problem_version_id) : Promise.resolve(false),
+  ]);
+  return { ...toSafeSubmission(row), ...(reveal ? { reveal } : {}), ...(practice ? { practice: true } : {}) };
+}
 
 const MAX_SOURCE_BYTES = 256 * 1024;
 const SUPPORTED_LANGUAGES = new Set(["python", "cpp"]);
@@ -42,8 +56,7 @@ async function loadMasteryEventForSubmission(submissionId: string): Promise<Mast
   };
 }
 
-async function verdictEventPayload(userId: string, row: SubmissionRow) {
-  const reveal = await buildReveal(userId, row.problem_version_id);
+function baseVerdictEventPayload(row: SubmissionRow) {
   return {
     submission_id: row.id,
     verdict: row.verdict,
@@ -52,8 +65,32 @@ async function verdictEventPayload(userId: string, row: SubmissionRow) {
     runtime_ms: row.runtime_ms,
     memory_kb: row.memory_kb,
     ...(row.failure ? { failure: sanitizeFailure(row.failure, row.mode) } : {}),
-    ...(reveal ? { reveal } : {}),
   };
+}
+
+/**
+ * Builds the full `verdict` SSE/`GET` payload (sanitized failure + reveal). `reveal` is fetched
+ * separately from the always-safe base fields so a `buildReveal` failure (e.g. a bad content
+ * blob) never takes the verdict itself down with it — callers get the base payload back instead
+ * of losing the verdict entirely (docs/CONTRACTS.md §4.5, and the root cause of the P0 "live
+ * verdict never reaches the client" bug: the old call site chained `.then` with no `.catch`).
+ */
+async function verdictEventPayload(
+  userId: string,
+  row: SubmissionRow,
+  onRevealError?: (err: unknown) => void,
+) {
+  const base = baseVerdictEventPayload(row);
+  try {
+    const [reveal, practice] = await Promise.all([
+      buildReveal(userId, row.problem_version_id),
+      row.mode === "submit" ? hasGivenUp(userId, row.problem_version_id) : Promise.resolve(false),
+    ]);
+    return { ...base, ...(reveal ? { reveal } : {}), ...(practice ? { practice: true } : {}) };
+  } catch (err) {
+    onRevealError?.(err);
+    return base;
+  }
 }
 
 export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): void {
@@ -76,6 +113,14 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
 
     const versionRow = await getApprovedProblemVersion(body.problem_version_id);
     if (!versionRow) throw notFound("Problem version not found or not approved");
+
+    // Validated up front rather than left to the DB's foreign key — an unknown/bogus
+    // `workout_item_id` used to surface as a raw FK-violation 500 (confirmed live), not the 400 a
+    // client-supplied bad id should produce.
+    if (body.workout_item_id) {
+      const item = await getWorkoutItem(body.workout_item_id);
+      if (!item) throw badRequest("Unknown workout_item_id", { workout_item_id: body.workout_item_id });
+    }
 
     const sourceHash = sha256Hex(body.source);
     const correlationId = request.correlationId;
@@ -129,9 +174,21 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
     const id = requireId(request.params.id);
     const row = await getSubmission(id);
     if (!row || row.user_id !== userId) throw notFound("Submission not found");
-    const reveal = await buildReveal(userId, row.problem_version_id);
-    reply.send({ submission: { ...toSafeSubmission(row), ...(reveal ? { reveal } : {}) } });
+    reply.send({ submission: await enrichSubmission(userId, row) });
   });
+
+  // GET /api/problems/:versionId/submissions/latest — hydrates the workspace on mount/reload.
+  // Without this, refreshing mid-submission (or reopening a problem you already have a result
+  // for) loses the verdict with no recovery: the backend has it, but the client only ever tracked
+  // the active submission id in local, non-persisted React state (confirmed live).
+  fastify.get<{ Params: { versionId: string } }>(
+    "/api/problems/:versionId/submissions/latest",
+    async (request, reply) => {
+      const versionId = requireId(request.params.versionId, "versionId");
+      const row = await getLatestSubmission(userId, versionId);
+      reply.send({ submission: row ? await enrichSubmission(userId, row) : null });
+    },
+  );
 
   fastify.get<{ Params: { id: string } }>("/api/submissions/:id/events", async (request, reply) => {
     const id = requireId(request.params.id);
@@ -194,16 +251,68 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
     // live `verdict` notification from judge only ever carries the verdict/test-count fields; this
     // callback enriches it with `reveal` (same earned-ness rule as the catch-up path above) before
     // forwarding to the connected client.
+    //
+    // The live `verdict` event is routed through the SAME `verdictEventPayload()` helper as the
+    // catch-up path above (sanitized failure included — the live path used to skip this, a
+    // verdict-leak hole) by re-reading the now-completed submission row. If that (or reveal-
+    // building) fails, `.catch` still sends the verdict — sanitized from the notify payload itself
+    // — rather than silently dropping it, which was the root cause of the P0 "live verdict never
+    // reaches the client" bug (a rejected, uncaught `.then` chain).
+    // Guards against delivering the verdict twice — the TOCTOU re-check below and the live
+    // listener race exactly once, at subscribe time (see the re-check's own comment).
+    let verdictDelivered = false;
+
     unsubscribe = notifyBus.subscribe(submission.id, (type, payload) => {
       const { type: _t, user_id: _u, submission_id: _s, ...rest } = payload;
       if (type !== "verdict") {
         send(type, { submission_id: submission.id, ...rest });
         return;
       }
-      void buildReveal(userId, submission.problem_version_id).then((reveal) => {
-        send(type, { submission_id: submission.id, ...rest, ...(reveal ? { reveal } : {}) });
-      });
+      if (verdictDelivered) return;
+      verdictDelivered = true;
+      getSubmission(submission.id)
+        .then((fresh) =>
+          verdictEventPayload(userId, fresh ?? submission, (err) => {
+            fastify.log.error({ err, submission_id: submission.id }, "failed to build reveal for live verdict event");
+          }),
+        )
+        .then((eventPayload) => send(type, eventPayload))
+        .catch((err) => {
+          fastify.log.error({ err, submission_id: submission.id }, "failed to build live verdict event; sending unenriched");
+          const rawFailure = (rest as { failure?: SubmissionRow["failure"] }).failure;
+          send(type, {
+            ...rest,
+            submission_id: submission.id,
+            ...(rawFailure ? { failure: sanitizeFailure(rawFailure, submission.mode) } : {}),
+          });
+        });
     });
+
+    // TOCTOU guard: the snapshot SELECT at the top of this handler could have caught the
+    // submission still non-terminal, and the judge could complete (and NOTIFY) in the gap between
+    // that snapshot and the `subscribe()` call just above — a NOTIFY dispatched in that window is
+    // gone forever, since notifyBus only fans out to subscribers already attached when it fires.
+    // Without this, the connection would sit open waiting for a live event that already happened,
+    // and (being otherwise indistinguishable from "still running") would never resolve. Re-check
+    // once, now that we're guaranteed not to miss anything from this point forward, and if the
+    // submission turned out to already be terminal, deliver it exactly like the catch-up branch
+    // above does.
+    if (!verdictDelivered) {
+      const recheck = await getSubmission(submission.id);
+      if (recheck && recheck.status === "completed" && !verdictDelivered) {
+        verdictDelivered = true;
+        send(
+          "verdict",
+          await verdictEventPayload(userId, recheck, (err) => {
+            fastify.log.error({ err, submission_id: submission.id }, "failed to build reveal for TOCTOU-recheck verdict event");
+          }),
+        );
+        const mastery = await loadMasteryEventForSubmission(submission.id);
+        if (mastery) send("mastery", mastery);
+        cleanup();
+        return;
+      }
+    }
 
     pingTimer = setInterval(() => send("ping", { at: new Date().toISOString() }), PING_INTERVAL_MS);
     pingTimer.unref?.();

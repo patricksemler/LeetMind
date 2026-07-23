@@ -125,7 +125,13 @@ export interface CompleteWorkoutItemInput {
   active_ms?: number | null;
 }
 
-/** Terminal write for a workout item (solved / skipped_* / gave_up), stamping `completed_at`. */
+/**
+ * Terminal write for a workout item (solved / skipped_* / gave_up), stamping `completed_at`.
+ * Guarded to only fire from a non-terminal state (`pending`/`active`) — without this, re-skipping
+ * (or re-completing) an already-terminal item silently rewrites it, e.g.
+ * `skipped_inability -> skipped_preference` with a fresh `completed_at`, confirmed live. Returns
+ * `null` (a no-op) once the item is already terminal, same as "row not found".
+ */
 export async function completeWorkoutItem(
   client: PoolClient,
   id: string,
@@ -138,6 +144,7 @@ export async function completeWorkoutItem(
             active_ms = coalesce($3, active_ms),
             completed_at = now()
       where id = $1
+        and state in ('pending', 'active')
       returning *`,
     [id, input.state, input.active_ms ?? null],
   );

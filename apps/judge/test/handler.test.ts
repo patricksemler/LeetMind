@@ -4,12 +4,16 @@ import { createJudgeHandler } from "../src/handler.js";
 import {
   countExecutionAttempts,
   countLearningEvents,
+  deleteTestWorkout,
   insertTestSubmission,
+  insertTestWorkoutItem,
   isDatabaseReachable,
   isDockerReachable,
   makeCtx,
-  makeJudgeJob,
+  makeLeasedJudgeJob,
+  recordGiveUp,
   reloadSubmission,
+  reloadWorkoutItem,
   restoreConceptState,
   seedApprovedProblem,
   snapshotConceptState,
@@ -60,7 +64,7 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     const before = await snapshotConceptState();
 
     await handler(
-      makeJudgeJob({
+      await makeLeasedJudgeJob(deps, {
         submission_id: submission.id,
         mode: "submit",
         language: "python",
@@ -92,10 +96,13 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
   it("2. wrong answer: verdict wrong_answer, rating moves down, failure never leaks the hidden expected value", async () => {
     const SECRET_EXPECTED = 918273645;
     const problem = await seed({
+      // None of these are origin:"example" — this test is specifically about a GENUINELY hidden
+      // test never leaking its preview in submit mode. See test 2b below for the CONTRACTS §4.5
+      // exception (an origin:"example" failure legitimately does reveal its preview).
       hiddenTests: [
-        { args: [1, 2], expected: 3, origin: "example" },
+        { args: [1, 2], expected: 3, origin: "boundary" },
         { args: [500000, 500000], expected: SECRET_EXPECTED, origin: "random" },
-        { args: [0, 0], expected: 0, origin: "boundary" },
+        { args: [0, 0], expected: 0, origin: "adversarial" },
       ],
     });
     const submission = await insertTestSubmission({
@@ -108,7 +115,7 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     const before = await snapshotConceptState();
 
     await handler(
-      makeJudgeJob({
+      await makeLeasedJudgeJob(deps, {
         submission_id: submission.id,
         mode: "submit",
         language: "python",
@@ -134,6 +141,38 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     expect(after.rating).toBeLessThan(before.rating);
   });
 
+  it("2b. wrong answer on an origin:'example' hidden test DOES reveal its preview, even in submit mode (CONTRACTS §4.5)", async () => {
+    // The exception QA-PLAN.md §3 flagged as unimplemented: a hidden test whose origin is
+    // "example" carries the SAME input/expected already shown in the problem statement, so
+    // revealing its preview isn't a real leak — full end-to-end coverage (judge -> sandbox ->
+    // stored submissions.failure), complementing packages/sandbox's unit-level test.
+    const problem = await seed({
+      hiddenTests: [{ args: [1, 2], expected: 3, origin: "example" }],
+    });
+    const submission = await insertTestSubmission({
+      versionId: problem.versionId,
+      source: "def solve(a, b):\n    return a - b\n",
+      mode: "submit",
+    });
+
+    await handler(
+      await makeLeasedJudgeJob(deps, {
+        submission_id: submission.id,
+        mode: "submit",
+        language: "python",
+        problem_version_id: problem.versionId,
+        user_id: TEST_USER_ID,
+      }),
+      makeCtx(),
+    );
+
+    const reloaded = await reloadSubmission(submission.id);
+    expect(reloaded.verdict).toBe("wrong_answer");
+    expect(reloaded.failure?.input_preview).toEqual([1, 2]);
+    expect(reloaded.failure?.expected_preview).toBe(3);
+    expect(reloaded.failure?.actual_preview).toBe(-1);
+  });
+
   it("3. duplicate delivery: running the handler twice yields exactly one verdict, one learning event, one rating change", async () => {
     const problem = await seed();
     const submission = await insertTestSubmission({
@@ -142,7 +181,7 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
       mode: "submit",
     });
 
-    const job = makeJudgeJob({
+    const job = await makeLeasedJudgeJob(deps, {
       submission_id: submission.id,
       mode: "submit",
       language: "python",
@@ -180,7 +219,7 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     });
 
     await handler(
-      makeJudgeJob({
+      await makeLeasedJudgeJob(deps, {
         submission_id: submission.id,
         mode: "submit",
         language: "python",
@@ -210,7 +249,7 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     });
 
     await handler(
-      makeJudgeJob({
+      await makeLeasedJudgeJob(deps, {
         submission_id: submission.id,
         mode: "run",
         language: "python",
@@ -241,7 +280,7 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     });
 
     await fastHandler(
-      makeJudgeJob({
+      await makeLeasedJudgeJob(deps, {
         submission_id: submission.id,
         mode: "submit",
         language: "python",
@@ -268,7 +307,7 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     const before = await snapshotConceptState();
 
     await handler(
-      makeJudgeJob({
+      await makeLeasedJudgeJob(deps, {
         submission_id: submission.id,
         mode: "submit",
         language: "python",
@@ -288,5 +327,140 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     expect(after.error_counts.compilation ?? 0).toBe((before.error_counts.compilation ?? 0) + 1);
     // Excluded from mastery impact -> rating must not have moved.
     expect(after.rating).toBe(before.rating);
+  });
+
+  it("8. accepted submit completes its workout item as solved — confirmed live, this never happened before", async () => {
+    const problem = await seed();
+    const item = await insertTestWorkoutItem(problem.versionId);
+    const submission = await insertTestSubmission({
+      versionId: problem.versionId,
+      source: "def solve(a, b):\n    return a + b\n",
+      mode: "submit",
+      workoutItemId: item.id,
+    });
+
+    try {
+      await handler(
+        await makeLeasedJudgeJob(deps, {
+          submission_id: submission.id,
+          mode: "submit",
+          language: "python",
+          problem_version_id: problem.versionId,
+          user_id: TEST_USER_ID,
+        }),
+        makeCtx(),
+      );
+
+      const reloaded = await reloadSubmission(submission.id);
+      expect(reloaded.verdict).toBe("accepted");
+
+      const reloadedItem = await reloadWorkoutItem(item.id);
+      expect(reloadedItem.state).toBe("solved");
+      expect(reloadedItem.completed_at).not.toBeNull();
+    } finally {
+      await deleteTestWorkout(item.workout_id);
+    }
+  });
+
+  it("9. a give-up already on record gates mastery entirely — practice, not another scored (and poisoned) attempt", async () => {
+    // Regression test for the confirmed-live P0: give-up followed by a fully correct resubmit
+    // used to apply ANOTHER negative delta every time, because `highestHint: 'editorial'` (from
+    // the give-up's own hint_event) flowed straight into outcome scoring instead of gating
+    // mastery out entirely.
+    const problem = await seed();
+    await recordGiveUp(problem.versionId);
+
+    const submission = await insertTestSubmission({
+      versionId: problem.versionId,
+      source: "def solve(a, b):\n    return a + b\n",
+      mode: "submit",
+    });
+
+    const before = await snapshotConceptState();
+
+    await handler(
+      await makeLeasedJudgeJob(deps, {
+        submission_id: submission.id,
+        mode: "submit",
+        language: "python",
+        problem_version_id: problem.versionId,
+        user_id: TEST_USER_ID,
+      }),
+      makeCtx(),
+    );
+
+    const reloaded = await reloadSubmission(submission.id);
+    expect(reloaded.status).toBe("completed");
+    expect(reloaded.verdict).toBe("accepted");
+
+    // Judged and streamed like any other submission — just no mastery consequence.
+    expect(await countLearningEvents(submission.id)).toBe(0);
+    const after = await snapshotConceptState();
+    expect(after.rating).toBe(before.rating);
+    expect(after.attempts).toBe(before.attempts);
+  });
+
+  it("10. two concurrent accepted submissions on the same concept both apply — no lost update", async () => {
+    // Regression test for the confirmed-live mastery lost-update race (QA-PLAN.md §2.2): two
+    // transactions reading the same `before_rating`/`attempts` and independently upserting used to
+    // silently drop one side's write. `getConceptStateForUpdate`'s row lock forces the second
+    // transaction to wait and read the FIRST transaction's already-applied state, so both land.
+    const problem = await seed();
+    const [subA, subB] = await Promise.all([
+      insertTestSubmission({ versionId: problem.versionId, source: "def solve(a, b):\n    return a + b\n", mode: "submit" }),
+      insertTestSubmission({ versionId: problem.versionId, source: "def solve(a, b):\n    return a + b\n", mode: "submit" }),
+    ]);
+
+    const before = await snapshotConceptState();
+
+    const [jobA, jobB] = await Promise.all([
+      makeLeasedJudgeJob(deps, { submission_id: subA.id, mode: "submit", language: "python", problem_version_id: problem.versionId, user_id: TEST_USER_ID }),
+      makeLeasedJudgeJob(deps, { submission_id: subB.id, mode: "submit", language: "python", problem_version_id: problem.versionId, user_id: TEST_USER_ID }),
+    ]);
+    await Promise.all([handler(jobA, makeCtx()), handler(jobB, makeCtx())]);
+
+    expect((await reloadSubmission(subA.id)).verdict).toBe("accepted");
+    expect((await reloadSubmission(subB.id)).verdict).toBe("accepted");
+    expect(await countLearningEvents(subA.id)).toBe(1);
+    expect(await countLearningEvents(subB.id)).toBe(1);
+
+    const after = await snapshotConceptState();
+    // Both applications' counter increments must be present — a lost update would leave this at
+    // +1 (whichever transaction wrote last, from the same stale read both started from).
+    expect(after.attempts).toBe(before.attempts + 2);
+    expect(after.solves).toBe(before.solves + 2);
+  }, 15_000);
+
+  it("11. lease reassigned before the terminal write: the transaction refuses to write a verdict another worker now owns", async () => {
+    // Regression test for QA-PLAN.md §3 "reaper vs. active worker": `ctx.signal.aborted` is an
+    // in-memory flag that can be stale by the time the terminal-write transaction actually runs —
+    // the real guard has to be in the DB, atomic with the write itself. Simulates the reaper
+    // reassigning the lease to a different worker while this handler is mid-flight (it has no way
+    // to observe that in-process, so `ctx.signal` stays un-aborted throughout).
+    const problem = await seed();
+    const submission = await insertTestSubmission({
+      versionId: problem.versionId,
+      source: "def solve(a, b):\n    return a + b\n",
+      mode: "submit",
+    });
+    const job = await makeLeasedJudgeJob(deps, {
+      submission_id: submission.id,
+      mode: "submit",
+      language: "python",
+      problem_version_id: problem.versionId,
+      user_id: TEST_USER_ID,
+    });
+
+    // Reassign the lease out from under this job — exactly what the reaper does on an expired
+    // lease, just without waiting for one to actually expire.
+    await query("update jobs set leased_by = 'some-other-worker' where id = $1", [job.id]);
+
+    await handler(job, makeCtx());
+
+    const reloaded = await reloadSubmission(submission.id);
+    expect(reloaded.status).not.toBe("completed");
+    expect(reloaded.verdict).toBeNull();
+    expect(await countExecutionAttempts(submission.id)).toBe(0);
+    expect(await countLearningEvents(submission.id)).toBe(0);
   });
 });

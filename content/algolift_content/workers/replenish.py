@@ -192,6 +192,29 @@ def _approved_unattempted_count(user_id: str, concept_id: str, band: int) -> int
     return int(rows[0]["n"]) if rows else 0
 
 
+def _existing_attempt_count(cell: BandCell) -> int:
+    """How many `generate` job attempts for this cell have reached a TERMINAL state (`done` or
+    `dead` — excludes `queued`/`leased`, still-pending attempts that might yet fill the deficit on
+    their own) — the starting offset for this pass's new slot numbers, instead of always starting
+    a fixed `0..watermark-1` range from 0.
+
+    A terminal `done` job is counted here even though `handle_generate` never records whether the
+    problem version it produced was ultimately `approved` or `rejected` by verification (no column
+    links a `jobs` row to that outcome) — but that's fine: if it HAD contributed to the approved
+    pool, `_approved_unattempted_count` would already reflect that and `replenish_once` would have
+    skipped this cell before ever calling this function (the `covered >= watermark` check). Being
+    counted here specifically means "this attempt is over, whatever its outcome" — which is
+    exactly the condition under which its slot number should never be retried again. See
+    `replenish_once`'s docstring for why a fixed 0..watermark-1 range plateaus the buffer below
+    watermark forever once every slot in it has been consumed by a rejected attempt."""
+    rows = query(
+        "select count(*) as n from jobs "
+        "where kind = 'generate' and idempotency_key like %s and status not in ('queued', 'leased');",
+        (cell.idempotency_prefix + "%",),
+    )
+    return int(rows[0]["n"]) if rows else 0
+
+
 def _recent_titles(concept_id: str, limit: int = SIMILARITY_EXCLUSION_LIMIT) -> list[str]:
     """Recent titles touching `concept_id` (any non-rejected state), newest first — fed back as
     `similarity_exclusions` (CONTRACTS.md §4.4) so replenishment-driven generation doesn't repeat
@@ -254,27 +277,25 @@ def replenish_once(
     For every predicted cell (`compute_demand`), counts approved-and-unattempted inventory; if
     it's below `BUFFER_LOW_WATERMARK`, enqueues `generate` jobs (lowest queue priority — the
     default `generate` priority from `JOB_PRIORITY`, CONTRACTS.md §4.4) for the missing slots,
-    using `idempotency_key = generate:<concept>:<band>:<slot>` with `slot` ranging over
-    `0..BUFFER_LOW_WATERMARK-1` — `enqueue`'s `on conflict (idempotency_key) do nothing`
-    (CONTRACTS.md §5) is what makes a repeated pass over an already-covered slot a no-op, so
-    restarts (or back-to-back ticks before a prior job has resolved) don't pile up duplicate
-    generate jobs for the same slot.
+    using `idempotency_key = generate:<concept>:<band>:<slot>` (CONTRACTS.md §4.4's exact format)
+    — `enqueue`'s `on conflict (idempotency_key) do nothing` (CONTRACTS.md §5) is what makes a
+    repeated pass over an already-covered slot a no-op, so restarts (or back-to-back ticks before
+    a prior job has resolved) don't pile up duplicate generate jobs for the same slot.
+
+    `slot` is NOT a fixed `0..watermark-1` range recomputed fresh each pass — it starts from
+    `_existing_attempt_count(cell)`, the number of `generate` attempts EVER made for this cell
+    (any outcome). A fixed range would plateau the buffer below watermark forever once every slot
+    in it happened to be consumed by a `rejected` (not `approved`) problem version: `rejected`
+    still leaves the job row in place, `on conflict` still no-ops every future attempt at that
+    same key, and a fixed range has nowhere else to go. Starting from the all-time attempt count
+    means every pass's new attempts get slot numbers nothing has ever used, so a string of
+    rejections thins the pass rate but never blocks progress outright — confirmed as the
+    mechanism behind a real plateau (QA-PLAN.md §2.11).
 
     Never enqueues more than `max_enqueue_per_pass` jobs in one call: once that many slots have
     been attempted (successful or not — an `on conflict` no-op still costs a statement), every
     remaining candidate slot across every remaining cell is recorded in `jobs_skipped` and
     logged, rather than silently dropped.
-
-    Known limitation, called out rather than silently accepted: the `<slot>` index is a fixed
-    0..watermark-1 range per cell, per CONTRACTS.md §4.4's exact idempotency-key format — it
-    does not include an attempt/epoch counter. If a slot's `generate` job ultimately produces a
-    `rejected` (not `approved`) problem version, that slot's key is permanently "used" (the job
-    row exists, `on conflict` will forever no-op future attempts at the same key) without ever
-    contributing to buffer depth. In practice this self-heals as long as the six-stage gate's
-    pass rate isn't near zero (most passes will find *some* slot still genuinely unclaimed as
-    watermark targets shift with the user's rating), but a sustained near-0% pass rate for a
-    cell would starve it. A follow-up fix would need to widen the key format (e.g. an epoch
-    suffix) — out of scope here since CONTRACTS.md §4.4 specifies the key shape exactly.
     """
     s = settings or get_settings()
     uid = user_id or s.SINGLE_USER_ID
@@ -295,9 +316,11 @@ def replenish_once(
             continue
         cells_below_watermark += 1
         deficit = watermark - covered
+        slot_offset = _existing_attempt_count(cell)
 
         request: GenerationRequest | None = None
-        for slot in range(deficit):
+        for i in range(deficit):
+            slot = slot_offset + i
             idempotency_key = f"{cell.idempotency_prefix}{slot}"
             if attempted >= max_enqueue_per_pass:
                 skipped.append(idempotency_key)

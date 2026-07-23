@@ -94,3 +94,15 @@ export async function listHintEvents(
   const params = [userId, versionId];
   return client ? queryWith<HintEventRow>(client, sql, params) : query<HintEventRow>(sql, params);
 }
+
+/**
+ * A recorded give-up always takes the `editorial` hint rung (the ONLY way to reach it —
+ * `POST /api/hints` rejects `level: 'editorial'` outright) and is irreversible ("no undo"), so its
+ * existence alone is authoritative and needs no time-ordering against any particular submission.
+ * Used to gate mastery (a give-up poisoning every later resubmission's score was a confirmed-live
+ * P0) and to label later submit-mode submissions on this version as practice-only.
+ */
+export async function hasGivenUp(userId: string, versionId: string, client?: PoolClient): Promise<boolean> {
+  const events = await listHintEvents(userId, versionId, client);
+  return events.some((h) => h.level === "editorial");
+}

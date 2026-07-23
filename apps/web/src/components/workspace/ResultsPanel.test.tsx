@@ -76,6 +76,37 @@ describe("ResultsPanel", () => {
     expect(container.textContent).toContain(JSON.stringify(runValues.actual));
   });
 
+  it("shows the program's actual output on an accepted run — the one thing custom-input Run is for", () => {
+    const { container } = render(
+      <ResultsPanel
+        mode="run"
+        status="completed"
+        progress={null}
+        verdict={{
+          submission_id: "sub_run_1",
+          verdict: "accepted",
+          passed_tests: 0,
+          total_tests: 0,
+          runtime_ms: 12,
+          memory_kb: 13000,
+          failure: {
+            kind: "ok",
+            message: "Ran successfully.",
+            input_preview: [2, 7, 11, 15],
+            actual_preview: [0, 1],
+          },
+        }}
+        connectionState="closed"
+      />,
+    );
+
+    // Not a graded pass/fail — the badge says "ran", not "accepted", and doesn't claim a
+    // passed-test count that never existed.
+    expect(screen.getByText("ran")).toBeInTheDocument();
+    expect(screen.queryByText(/passed$/)).not.toBeInTheDocument();
+    expect(container.textContent).toContain(JSON.stringify([0, 1]));
+  });
+
   it("renders stderr_tail in a monospace block for a runtime error", () => {
     render(
       <ResultsPanel
@@ -110,5 +141,33 @@ describe("ResultsPanel", () => {
   it("shows an empty state before anything has run", () => {
     render(<ResultsPanel mode={null} status={null} progress={null} verdict={null} connectionState="idle" />);
     expect(screen.getByText(/run against custom input or submit/i)).toBeInTheDocument();
+  });
+
+  it("renders the editorial + complexity from verdict.reveal on an accepted submit — the real API shape, not the mock-only failure.editorial_md", () => {
+    const { container } = render(
+      <ResultsPanel
+        mode="submit"
+        status="completed"
+        progress={null}
+        verdict={{
+          submission_id: "sub_3",
+          verdict: "accepted",
+          passed_tests: 4,
+          total_tests: 4,
+          runtime_ms: 20,
+          memory_kb: 14000,
+          failure: { kind: "solved", message: "Accepted" },
+          reveal: {
+            editorial_md: "Use a hash map to track complements.",
+            target_complexity: { time: "O(n)", space: "O(n)" },
+            concepts: [{ id: "arrays_hashing", name: "Arrays & Hashing", role: "primary", weight: 1 }],
+          },
+        }}
+        connectionState="closed"
+      />,
+    );
+
+    expect(screen.getByText(/use a hash map to track complements/i)).toBeInTheDocument();
+    expect(container.textContent).toContain("O(n)");
   });
 });

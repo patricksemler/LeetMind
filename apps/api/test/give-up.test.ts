@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { loadApiConfig } from "@algolift/shared";
+import { insertSubmission, insertWorkout, insertWorkoutItem, withTransaction } from "@algolift/db";
 import { buildDeps, type Deps } from "../src/deps.js";
 import { buildServer } from "../src/server.js";
 import { cleanup, isDatabaseReachable, seedApprovedProblem, testPool } from "./helpers.js";
@@ -13,6 +14,8 @@ describe.skipIf(!dbReachable)("give-up idempotency", () => {
   const pool = testPool();
   const problemVersionIds: string[] = [];
   const problemIds: string[] = [];
+  const workoutIds: string[] = [];
+  const submissionIds: string[] = [];
 
   beforeAll(async () => {
     deps = buildDeps(loadApiConfig());
@@ -23,6 +26,8 @@ describe.skipIf(!dbReachable)("give-up idempotency", () => {
     await cleanup(pool, {
       problemVersionIds: problemVersionIds.splice(0),
       problemIds: problemIds.splice(0),
+      workoutIds: workoutIds.splice(0),
+      submissionIds: submissionIds.splice(0),
       userId: deps.config.singleUserId,
       conceptIds: ["arrays_hashing"],
     });
@@ -86,5 +91,70 @@ describe.skipIf(!dbReachable)("give-up idempotency", () => {
     expect(revealed).not.toBeNull();
     expect(revealed[0].id).toBe("arrays_hashing");
     expect(revealed[0].name).toBe("Arrays & Hashing");
+  });
+
+  it("completes the workout item as gave_up when workout_item_id is provided — previously parsed and ignored entirely", async () => {
+    const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
+    problemVersionIds.push(seeded.problemVersionId);
+    problemIds.push(seeded.problemId);
+
+    const item = await withTransaction(async (client) => {
+      const workout = await insertWorkout(client, { id: `wo_${seeded.problemVersionId}`, user_id: deps.config.singleUserId, kind: "standard" });
+      workoutIds.push(workout.id);
+      return insertWorkoutItem(client, {
+        id: `wi_${seeded.problemVersionId}`,
+        workout_id: workout.id,
+        position: 0,
+        role: "working",
+        problem_version_id: seeded.problemVersionId,
+      });
+    });
+
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/problems/${seeded.problemVersionId}/give-up`,
+      payload: { workout_item_id: item.id, active_ms: 30_000 },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const row = await pool.query<{ state: string; completed_at: Date | null }>(
+      "select state, completed_at from workout_items where id = $1",
+      [item.id],
+    );
+    expect(row.rows[0]?.state).toBe("gave_up");
+    expect(row.rows[0]?.completed_at).not.toBeNull();
+  });
+
+  it("rejects give-up with 409 while a judge job is still in flight for this problem version", async () => {
+    const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
+    problemVersionIds.push(seeded.problemVersionId);
+    problemIds.push(seeded.problemId);
+
+    const submission = await withTransaction((client) =>
+      insertSubmission(client, {
+        id: `sub_${seeded.problemVersionId}`,
+        user_id: deps.config.singleUserId,
+        problem_version_id: seeded.problemVersionId,
+        mode: "submit",
+        language: "python",
+        source: "def twoSum(nums, target):\n    return []\n",
+        source_hash: "irrelevant",
+        status: "running",
+      }),
+    );
+    submissionIds.push(submission.id);
+
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/problems/${seeded.problemVersionId}/give-up`,
+      payload: {},
+    });
+    expect(res.statusCode).toBe(409);
+
+    const events = await pool.query<{ count: string }>(
+      "select count(*)::text as count from learning_events where problem_version_id = $1 and kind = 'give_up'",
+      [seeded.problemVersionId],
+    );
+    expect(events.rows[0]?.count).toBe("0");
   });
 });

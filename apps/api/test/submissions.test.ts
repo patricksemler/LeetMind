@@ -233,7 +233,26 @@ describe.skipIf(!dbReachable)("submissions", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("GET /api/submissions/:id strips expected_preview/input_preview for mode:'submit' but keeps them for mode:'run'", async () => {
+  it("rejects an unknown workout_item_id with 400, not a raw FK-violation 500", async () => {
+    const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
+    problemVersionIds.push(seeded.problemVersionId);
+    problemIds.push(seeded.problemId);
+
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/submissions",
+      payload: {
+        problem_version_id: seeded.problemVersionId,
+        language: "python",
+        source: "def solve(): pass",
+        mode: "submit",
+        workout_item_id: "not-a-real-workout-item",
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("GET /api/submissions/:id strips expected_preview/input_preview/actual_preview for mode:'submit' but keeps them for mode:'run'", async () => {
     const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
@@ -267,12 +286,46 @@ describe.skipIf(!dbReachable)("submissions", () => {
     const submitBody = JSON.parse(submitRes.body);
     expect(submitBody.submission.failure.expected_preview).toBeUndefined();
     expect(submitBody.submission.failure.input_preview).toBeUndefined();
-    expect(submitBody.submission.failure.actual_preview).toEqual([1, 0]);
+    // CONTRACTS.md §4.5: all three preview fields are populated "only for run mode and for
+    // example-derived tests" — actual_preview must be stripped for submit mode too, not just
+    // expected/input (confirmed-missing case, QA-PLAN.md §3 "sanitizeFailure misses actual_preview").
+    expect(submitBody.submission.failure.actual_preview).toBeUndefined();
     expect(submitBody.submission.failure.kind).toBe("wrong_answer");
 
     const runRes = await server.inject({ method: "GET", url: `/api/submissions/${runId}` });
     const runBody = JSON.parse(runRes.body);
     expect(runBody.submission.failure.expected_preview).toEqual([0, 1]);
     expect(runBody.submission.failure.input_preview).toEqual({ nums: [1, 2], target: 3 });
+    expect(runBody.submission.failure.actual_preview).toEqual([1, 0]);
+  });
+
+  it("GET /api/problems/:versionId/submissions/latest hydrates the workspace after a refresh mid-submission", async () => {
+    const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
+    problemVersionIds.push(seeded.problemVersionId);
+    problemIds.push(seeded.problemId);
+
+    const nullRes = await server.inject({ method: "GET", url: `/api/problems/${seeded.problemVersionId}/submissions/latest` });
+    expect(nullRes.statusCode).toBe(200);
+    expect(JSON.parse(nullRes.body).submission).toBeNull();
+
+    const older = newId();
+    await pool.query(
+      `insert into submissions (id, user_id, problem_version_id, mode, language, source, source_hash, status, created_at)
+       values ($1, $2, $3, 'submit', 'python', 'src', 'h', 'running', now() - interval '1 minute')`,
+      [older, deps.config.singleUserId, seeded.problemVersionId],
+    );
+    submissionIds.push(older);
+
+    const newer = newId();
+    await pool.query(
+      `insert into submissions (id, user_id, problem_version_id, mode, language, source, source_hash, status, created_at)
+       values ($1, $2, $3, 'submit', 'python', 'src', 'h', 'running', now())`,
+      [newer, deps.config.singleUserId, seeded.problemVersionId],
+    );
+    submissionIds.push(newer);
+
+    const res = await server.inject({ method: "GET", url: `/api/problems/${seeded.problemVersionId}/submissions/latest` });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).submission.id).toBe(newer);
   });
 });

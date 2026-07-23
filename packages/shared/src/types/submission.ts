@@ -53,6 +53,27 @@ export const SubmissionFailureSchema = z
   .passthrough();
 export type SubmissionFailure = z.infer<typeof SubmissionFailureSchema>;
 
+/**
+ * Post-solve reveal, docs/CONTRACTS.md §4.5 — present only when the user has earned it (an
+ * accepted submit, or a recorded give-up) on `GET /api/submissions/:id` and the SSE `verdict`
+ * event. Never smuggled through `failure` (a verdict is not a failure).
+ */
+export const RevealSchema = z
+  .object({
+    editorial_md: z.string(),
+    target_complexity: z.object({ time: z.string(), space: z.string() }),
+    concepts: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        role: z.string(),
+        weight: z.number(),
+      }),
+    ),
+  })
+  .passthrough();
+export type Reveal = z.infer<typeof RevealSchema>;
+
 /** Safe projection of a `submissions` row — what `GET /api/submissions/:id` returns. */
 export const SubmissionSchema = z
   .object({
@@ -74,6 +95,10 @@ export const SubmissionSchema = z
     correlation_id: z.string().nullable().optional(),
     created_at: timestampSchema,
     completed_at: timestampSchema.nullable().optional(),
+    reveal: RevealSchema.optional(),
+    /** True when this submit-mode submission was judged after a recorded give-up on this problem
+     * version — judged and streamed like any other, but never applies a mastery consequence. */
+    practice: z.boolean().optional(),
   })
   .passthrough();
 export type Submission = z.infer<typeof SubmissionSchema>;
@@ -162,6 +187,13 @@ export const GetSubmissionResponse = z.object({
 });
 export type GetSubmissionResponse = z.infer<typeof GetSubmissionResponse>;
 
+// --- GET /api/problems/:versionId/submissions/latest ---------------------------------------
+
+export const GetLatestSubmissionResponse = z.object({
+  submission: SubmissionSchema.nullable(),
+});
+export type GetLatestSubmissionResponse = z.infer<typeof GetLatestSubmissionResponse>;
+
 // --- POST /api/hints -----------------------------------------------------------------------
 
 export const TakeHintRequest = z.object({
@@ -207,29 +239,137 @@ export const GiveUpResponse = z
 export type GiveUpResponse = z.infer<typeof GiveUpResponse>;
 
 // --- GET /api/progress -------------------------------------------------------------------------
-// "concept mastery, reviews due, stats, records, history" — kept permissive so M3 can extend.
+// Tightened to apps/api/src/routes/progress.ts's actual field names (QA-PLAN.md "Prevent
+// recurrence" §1: a `z.record(string, unknown)` catch-all "validates" against almost any shape,
+// including the wrong one — it never would have caught `solves_by_difficulty` vs the real
+// `solve_bands`, `id` vs the real `concept_id`, or any of Phase 1's other mock/real drift bugs.
+// `.passthrough()` at every level so a genuinely new field is still forward-compatible; only the
+// fields the web app actually reads are required.
+
+const ProgressConceptSchema = z
+  .object({
+    concept_id: z.string(),
+    name: z.string(),
+    rating: z.number(),
+    uncertainty: z.number(),
+    attempts: z.number().int(),
+    solves: z.number().int(),
+    unassisted_solves: z.number().int(),
+    trend: z.string(),
+  })
+  .passthrough();
+
+const ProgressReviewDueSchema = z
+  .object({
+    concept_id: z.string(),
+    days_overdue: z.number(),
+  })
+  .passthrough();
+
+const ProgressSolveBandSchema = z
+  .object({
+    band: z.number(),
+    solved_without_hints: z.number().int(),
+    solved_with_hints: z.number().int(),
+    attempts: z.number().int(),
+  })
+  .passthrough();
+
+const ProgressErrorCategorySchema = z
+  .object({
+    kind: z.string(),
+    count: z.number().int(),
+  })
+  .passthrough();
+
+const ProgressHistoryEntrySchema = z
+  .object({
+    id: z.string(),
+    kind: z.string(),
+    outcome: z.number(),
+    created_at: timestampSchema,
+  })
+  .passthrough();
 
 export const ProgressResponse = z
   .object({
-    concepts: z.array(z.record(z.string(), z.unknown())).default([]),
-    reviews_due: z.array(z.record(z.string(), z.unknown())).default([]),
-    stats: z.record(z.string(), z.unknown()).default({}),
-    records: z.record(z.string(), z.unknown()).default({}),
-    history: z.array(z.record(z.string(), z.unknown())).default([]),
+    concepts: z.array(ProgressConceptSchema).default([]),
+    reviews_due: z.array(ProgressReviewDueSchema).default([]),
+    stats: z
+      .object({
+        solve_bands: z.array(ProgressSolveBandSchema).default([]),
+        error_categories: z.array(ProgressErrorCategorySchema).default([]),
+        median_active_ms: z.number().nullable().default(null),
+      })
+      .passthrough()
+      .default({}),
+    records: z
+      .object({
+        highest_unassisted_difficulty_solved: z.number().nullable().default(null),
+      })
+      .passthrough()
+      .default({}),
+    history: z.array(ProgressHistoryEntrySchema).default([]),
   })
   .passthrough();
 export type ProgressResponse = z.infer<typeof ProgressResponse>;
 
 // --- GET /api/system/stats ----------------------------------------------------------------------
-// "queue depth/waits, workers, verdicts, buffer depth, gen pass rate, dead jobs" — permissive.
+// Tightened to apps/api/src/routes/system.ts / @algolift/queue's Queue.stats() actual field names
+// (QA-PLAN.md "Prevent recurrence" §1 — see ProgressResponse's comment above for why the previous
+// `z.record` catch-alls never would have caught this page's Phase-1 drift bugs: "0 / 0 / 0 ms",
+// literal "window × 0" badges, "0% / by_stage").
+
+const SystemQueueSchema = z
+  .object({
+    kinds: z
+      .array(z.object({ kind: z.string(), counts: z.record(z.string(), z.number()), oldest_queued_age_ms: z.number().nullable() }).passthrough())
+      .default([]),
+    wait_time_ms: z.object({ p50: z.number().nullable(), p95: z.number().nullable() }).passthrough(),
+    dead_count: z.number().int(),
+  })
+  .passthrough();
+
+const SystemWorkerSchema = z
+  .object({
+    worker_id: z.string(),
+    kind: z.string(),
+    last_seen_at: timestampSchema,
+    stale: z.boolean(),
+  })
+  .passthrough();
+
+const SystemVerdictsSchema = z
+  .object({
+    window: z.string(),
+    counts: z.array(z.object({ verdict: z.string(), count: z.number().int() }).passthrough()).default([]),
+  })
+  .passthrough();
+
+const SystemBufferDepthSchema = z
+  .object({
+    by_concept_band: z
+      .array(z.object({ concept_id: z.string(), band: z.number(), count: z.number().int() }).passthrough())
+      .default([]),
+  })
+  .passthrough();
+
+const SystemGenerationPassRateSchema = z
+  .object({
+    by_stage: z
+      .array(z.object({ stage: z.string(), passed: z.number().int(), total: z.number().int() }).passthrough())
+      .default([]),
+  })
+  .passthrough();
 
 export const SystemStatsResponse = z
   .object({
-    queue: z.record(z.string(), z.unknown()).default({}),
-    workers: z.array(z.record(z.string(), z.unknown())).default([]),
-    verdicts: z.record(z.string(), z.unknown()).default({}),
-    buffer_depth: z.record(z.string(), z.unknown()).default({}),
-    generation_pass_rate: z.record(z.string(), z.unknown()).default({}),
+    queue: SystemQueueSchema,
+    workers: z.array(SystemWorkerSchema).default([]),
+    verdicts: SystemVerdictsSchema,
+    buffer_depth: SystemBufferDepthSchema,
+    generation_pass_rate: SystemGenerationPassRateSchema,
+    model_runs: z.array(z.record(z.string(), z.unknown())).default([]),
     dead_jobs: z.array(z.record(z.string(), z.unknown())).default([]),
   })
   .passthrough();

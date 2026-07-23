@@ -6,10 +6,13 @@ import { getProblemVersion, query, type ConceptRow, type SubmissionFailure, type
 import { ProblemVersionSchema, type Submission } from "@algolift/shared";
 import { hasEarnedReveal } from "./publicProblem.js";
 
-/** Strips `expected_preview`/`input_preview` from a failure object when `mode === 'submit'`. */
+/** Strips `expected_preview`/`input_preview`/`actual_preview` from a failure object when
+ * `mode === 'submit'` — CONTRACTS.md §4.5 lists all three as populated "only for `run` mode and
+ * for example-derived tests"; `actual_preview` was previously left in place, contra this file's
+ * own doc comment above. */
 export function sanitizeFailure(failure: SubmissionFailure, mode: SubmissionMode): SubmissionFailure {
   if (mode !== "submit") return failure;
-  const { expected_preview: _expectedPreview, input_preview: _inputPreview, ...rest } = failure;
+  const { expected_preview: _expectedPreview, input_preview: _inputPreview, actual_preview: _actualPreview, ...rest } = failure;
   return rest;
 }
 

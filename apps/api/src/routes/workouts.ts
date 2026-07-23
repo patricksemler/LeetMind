@@ -8,6 +8,7 @@ import {
   completeWorkout,
   completeWorkoutItem,
   getActiveWorkout,
+  getConceptStateForUpdate,
   getProblemVersion,
   getWorkout,
   getWorkoutItem,
@@ -116,18 +117,12 @@ async function applyInabilitySkip(
       return { changes: evidence?.changes ?? [], explanation: evidence?.explanation ?? "", outcome: existing.outcome };
     }
 
-    const stateRows = await Promise.all(
-      conceptIds.map((id) =>
-        queryOneWith<UserConceptStateRow>(
-          client,
-          "select * from user_concept_state where user_id = $1 and concept_id = $2",
-          [userId, id],
-        ),
-      ),
-    );
+    // Row-locked and in a globally consistent sorted order — see getConceptStateForUpdate's doc
+    // comment (@algolift/db): the same read-modify-write-without-a-lock shape caused a confirmed-
+    // live mastery lost-update race elsewhere (QA-PLAN.md §2.2).
     const stateMap: Record<string, UserConceptStateRow> = {};
-    conceptIds.forEach((id, i) => {
-      stateMap[id] = stateRows[i] ?? {
+    for (const id of [...conceptIds].sort()) {
+      stateMap[id] = (await getConceptStateForUpdate(client, userId, id)) ?? {
         user_id: userId,
         concept_id: id,
         rating: 1200,
@@ -148,7 +143,7 @@ async function applyInabilitySkip(
         review_reps: 0,
         updated_at: new Date(),
       };
-    });
+    }
 
     const beforeSnapshot = Object.fromEntries(
       Object.entries(stateMap).map(([id, s]) => [id, { rating: s.rating, uncertainty: s.uncertainty }]),

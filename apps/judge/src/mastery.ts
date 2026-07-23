@@ -11,7 +11,7 @@
 // there is no "check if it exists, then decide" race window because the check *is* the write.
 import type { PoolClient } from "pg";
 import {
-  getConceptState,
+  getConceptStateForUpdate,
   insertLearningEvent,
   listHintEvents,
   notify,
@@ -201,10 +201,19 @@ export async function applyMastery(input: ApplyMasteryInput): Promise<ApplyMaste
     compileErrors,
   });
 
-  const stateRows = await Promise.all(conceptIds.map((id) => getConceptState(userId, id, client)));
+  // Lock rows in a globally consistent order (sorted, not the problem's declared concept order,
+  // which can differ between problems that share a concept) — otherwise two concurrent
+  // transactions locking the same two concepts in opposite orders can deadlock instead of one
+  // simply waiting for the other. Sequential (not `Promise.all`): acquiring locks one at a time,
+  // in order, is what makes the ordering guarantee actually hold.
+  const lockOrder = [...conceptIds].sort();
+  const stateByConceptId: Record<string, UserConceptStateRow> = {};
+  for (const id of lockOrder) {
+    stateByConceptId[id] = (await getConceptStateForUpdate(client, userId, id)) ?? defaultConceptStateRow(userId, id);
+  }
   const stateMap: Record<string, UserConceptStateRow> = {};
-  conceptIds.forEach((id, i) => {
-    stateMap[id] = stateRows[i] ?? defaultConceptStateRow(userId, id);
+  conceptIds.forEach((id) => {
+    stateMap[id] = stateByConceptId[id]!;
   });
 
   if (outcome.excluded || outcome.skipped) {

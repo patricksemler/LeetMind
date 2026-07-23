@@ -122,10 +122,16 @@ function buildExplanation(args: {
     `${Math.round(problemRating)}); scored ${formatScore(outcome)}${hintPhrase(highestHint)}.`;
 
   const changeParts = changes.map((c) => {
-    const sign = c.delta >= 0 ? "+" : "";
-    const roundedDelta = Math.round(c.delta);
+    // Derived from the ROUNDED endpoints, not `c.delta` rounded independently — rounding all
+    // three separately can disagree (e.g. "+0 (1500→1501)": the raw delta rounds to 0 while the
+    // endpoints, rounded separately, round to a 1-point difference). Deriving the displayed delta
+    // from the same rounded numbers the copy shows guarantees they always agree.
+    const roundedBefore = Math.round(c.before_rating);
+    const roundedAfter = Math.round(c.after_rating);
+    const roundedDelta = roundedAfter - roundedBefore;
+    const sign = roundedDelta >= 0 ? "+" : "";
     return (
-      `${c.concept_id} ${sign}${roundedDelta} (${Math.round(c.before_rating)}→${Math.round(c.after_rating)}, ` +
+      `${c.concept_id} ${sign}${roundedDelta} (${roundedBefore}→${roundedAfter}, ` +
       `±${Math.round(c.before_uncertainty)}→±${Math.round(c.after_uncertainty)})`
     );
   });

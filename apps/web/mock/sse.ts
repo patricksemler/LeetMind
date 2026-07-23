@@ -45,11 +45,3 @@ export function publish(submissionId: string, event: string, data: unknown): voi
   if (!set) return;
   for (const res of set) sendEvent(res, event, data);
 }
-
-/** For the "kill the connection mid-judge, verify the client reconciles" story: force-drop every
- * currently-open stream for a submission without ending the underlying job. */
-export function dropAllConnections(submissionId: string): void {
-  const set = subscribers.get(submissionId);
-  if (!set) return;
-  for (const res of Array.from(set)) res.end();
-}

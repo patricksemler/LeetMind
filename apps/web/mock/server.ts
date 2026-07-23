@@ -8,7 +8,7 @@
  * (the *only* legal constructor of a client-facing problem, per §4.2) is imported rather than
  * reimplemented.
  */
-import express, { type NextFunction, type Request, type Response } from "express";
+import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import {
   ConceptSchema,
   CreateSubmissionRequest,
@@ -51,7 +51,7 @@ for (const fixture of problemFixtures) {
 
 const HINT_LADDER: HintLevel[] = ["l1_orientation", "l2_conceptual", "l3_structural", "outline"];
 
-const app = express();
+const app: Express = express();
 app.use(express.json({ limit: "2mb" }));
 
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -224,6 +224,19 @@ app.get(
   }),
 );
 
+// --- GET /api/problems/:versionId/submissions/latest ---------------------------------------
+
+app.get(
+  "/api/problems/:versionId/submissions/latest",
+  handle((req, res) => {
+    const versionId = pparam(req.params.versionId);
+    const latest = [...submissions.values()]
+      .filter((s) => s.problemVersionId === versionId)
+      .sort((a, b) => new Date(b.row.created_at).getTime() - new Date(a.row.created_at).getTime())[0];
+    res.json({ submission: latest?.row ?? null });
+  }),
+);
+
 // --- GET /api/submissions/:id/events -----------------------------------------------------------
 
 app.get("/api/submissions/:id/events", (req, res) => {
@@ -289,6 +302,17 @@ app.post(
     const parsed = GiveUpRequest.safeParse(req.body ?? {});
     if (!parsed.success) return badRequest(res, "invalid give-up body", parsed.error.flatten());
     const body = parsed.data;
+
+    const inFlight = [...submissions.values()].some(
+      (s) => s.mode === "submit" && s.problemVersionId === versionId && s.row.status !== "completed" && s.row.status !== "cancelled",
+    );
+    if (inFlight) {
+      res.status(409).json({
+        error: { code: "conflict", message: "A submission for this problem is still being judged — wait for it to finish before giving up." },
+        correlation_id: res.getHeader("x-correlation-id"),
+      });
+      return;
+    }
 
     const userState = getProblemUserState(versionId);
     userState.gaveUp = true;
@@ -364,6 +388,12 @@ app.post(
 
 // --- GET /api/progress -------------------------------------------------------------------------
 
+// Mirrors the real `GET /api/progress` shape (apps/api/src/routes/progress.ts) exactly — field
+// names here used to drift from it (`solves_by_difficulty` vs real `solve_bands`, `id` vs real
+// `concept_id`, etc.), which is exactly the class of bug this endpoint's own web consumer
+// (Progress.tsx) was silently broken by (QA-PLAN.md §1.4): everything here shipped green against
+// this mock while rendering "No submissions yet" / duplicate-key errors / "due —" against the
+// real API.
 app.get(
   "/api/progress",
   handle((_req, res) => {
@@ -371,48 +401,60 @@ app.get(
     const concepts = CONCEPTS.map((c) => {
       const cs = conceptState.get(c.id)!;
       return {
-        id: c.id,
+        concept_id: c.id,
         name: c.name,
         rating: Math.round(cs.rating),
         uncertainty: Math.round(cs.uncertainty),
-        trend: cs.solves > cs.attempts / 2 ? "up" : cs.attempts > 0 ? "flat" : "unstarted",
         attempts: cs.attempts,
         solves: cs.solves,
         unassisted_solves: cs.unassisted_solves,
+        skips: cs.skips,
         current_streak: cs.current_streak,
         best_streak: cs.best_streak,
         last_practiced_at: cs.last_practiced_at,
+        next_review_at: cs.next_review_at,
+        trend: cs.solves > cs.attempts / 2 ? "up" : cs.attempts > 0 ? "flat" : "flat",
       };
     });
 
     const reviewsDue = CONCEPTS.map((c) => {
       const cs = conceptState.get(c.id)!;
-      return { concept_id: c.id, name: c.name, due_at: cs.next_review_at, interval_days: cs.review_interval_days };
-    }).filter((r) => r.due_at && new Date(r.due_at).getTime() <= now);
+      if (!cs.next_review_at) return null;
+      const dueAtMs = new Date(cs.next_review_at).getTime();
+      if (dueAtMs > now) return null;
+      return { concept_id: c.id, days_overdue: (now - dueAtMs) / 86_400_000, state: cs };
+    }).filter((r): r is NonNullable<typeof r> => r !== null);
 
     const submissionRows = [...submissions.values()].filter((s) => s.mode === "submit" && s.row.status === "completed");
-    const byDifficulty: Record<string, { solved: number; with_hints: number; without_hints: number }> = {};
+    const byBand = new Map<number, { solved_without_hints: number; solved_with_hints: number; attempts: number }>();
     for (const s of submissionRows) {
       const fixture = problemsById.get(s.problemVersionId);
-      const band = fixture ? `${Math.floor(fixture.content.difficulty.rating / 100) * 100}` : "unknown";
-      byDifficulty[band] ??= { solved: 0, with_hints: 0, without_hints: 0 };
+      const band = fixture ? Math.floor(fixture.content.difficulty.rating / 200) * 200 : 0;
+      const entry = byBand.get(band) ?? { solved_without_hints: 0, solved_with_hints: 0, attempts: 0 };
+      entry.attempts += 1;
       if (s.row.verdict === "accepted") {
-        byDifficulty[band].solved += 1;
         const hinted = getProblemUserState(s.problemVersionId).hintsTaken.length > 0;
-        if (hinted) byDifficulty[band].with_hints += 1;
-        else byDifficulty[band].without_hints += 1;
+        if (hinted) entry.solved_with_hints += 1;
+        else entry.solved_without_hints += 1;
       }
+      byBand.set(band, entry);
     }
+    const solveBands = [...byBand.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([band, entry]) => ({ band, ...entry }));
 
     const activeMsSamples = submissionRows.map((s) => s.activeMs).filter((n) => n > 0).sort((a, b) => a - b);
     const medianActiveMs = activeMsSamples.length
       ? activeMsSamples[Math.floor(activeMsSamples.length / 2)]!
       : 0;
 
-    const errorCategoryRecurrences: Record<string, number> = {};
+    const errorCounts = new Map<string, number>();
     for (const cs of conceptState.values()) {
-      for (const [k, v] of Object.entries(cs.error_counts)) errorCategoryRecurrences[k] = (errorCategoryRecurrences[k] ?? 0) + v;
+      for (const [k, v] of Object.entries(cs.error_counts)) errorCounts.set(k, (errorCounts.get(k) ?? 0) + v);
     }
+    const errorCategories = [...errorCounts.entries()]
+      .sort(([, a], [, b]) => b - a)
+      .map(([kind, count]) => ({ kind, count }));
 
     const highestUnassisted = problemFixtures
       .filter((p) => getProblemUserState(p.problemVersionId).solved && getProblemUserState(p.problemVersionId).hintsTaken.length === 0)
@@ -422,72 +464,74 @@ app.get(
       concepts,
       reviews_due: reviewsDue,
       stats: {
-        solves_by_difficulty: byDifficulty,
+        solve_bands: solveBands,
+        error_categories: errorCategories,
         median_active_ms: medianActiveMs,
-        error_category_recurrences: errorCategoryRecurrences,
-        total_submissions: submissionRows.length,
       },
       records: {
-        highest_unassisted_difficulty: highestUnassisted?.content.difficulty.rating ?? null,
-        highest_unassisted_title: highestUnassisted?.content.title ?? null,
-        comparable_time_improvements: [],
+        highest_unassisted_difficulty_solved: highestUnassisted?.content.difficulty.rating ?? null,
+        best_comparable_time_improvement: null,
       },
-      history: workoutState.workout
-        ? [
-            {
-              workout_id: workoutState.workout.id,
-              kind: workoutState.workout.kind,
-              status: workoutState.workout.status,
-              created_at: workoutState.workout.created_at,
-              items_completed: (workoutState.workout.items ?? []).filter((i) => i.state === "solved").length,
-              items_total: (workoutState.workout.items ?? []).length,
-            },
-          ]
-        : [],
+      history: [...learningEvents].reverse().slice(0, 20),
     });
   }),
 );
 
 // --- GET /api/system/stats -----------------------------------------------------------------
 
+// Mirrors the real `GET /api/system/stats` shape (apps/api/src/routes/system.ts /
+// @algolift/queue's `Queue.stats()`) — this used to be its own dialect entirely
+// (`queue.depth`/`by_kind`/`wait_p50_ms`, flat `verdicts`/`buffer_depth`/`generation_pass_rate`
+// maps, a single `model_runs` object) and every one of those shapes rendered garbage against the
+// real API (QA-PLAN.md §1.5): "0 / 0 / 0 ms", literal "window × 0" badges, "0% / by_stage".
 app.get(
   "/api/system/stats",
   handle((_req, res) => {
     const jitter = () => Math.round(Math.random() * 3);
-    const verdictCounts: Record<string, number> = {};
+    const verdictCounts = new Map<string, number>();
     for (const s of submissions.values()) {
-      if (s.row.verdict) verdictCounts[s.row.verdict] = (verdictCounts[s.row.verdict] ?? 0) + 1;
+      if (s.row.verdict) verdictCounts.set(s.row.verdict, (verdictCounts.get(s.row.verdict) ?? 0) + 1);
     }
 
-    const bufferDepth: Record<string, number> = {};
+    const bufferByBand = new Map<string, { concept_id: string; band: number; count: number }>();
     for (const p of problemFixtures) {
-      const band = `${p.content.concepts[0]!.id}:${Math.floor(p.content.difficulty.rating / 200) * 200}`;
-      bufferDepth[band] = (bufferDepth[band] ?? 0) + 1;
+      const conceptId = p.content.concepts[0]!.id;
+      const band = Math.floor(p.content.difficulty.rating / 200) * 200;
+      const key = `${conceptId}:${band}`;
+      const entry = bufferByBand.get(key) ?? { concept_id: conceptId, band, count: 0 };
+      entry.count += 1;
+      bufferByBand.set(key, entry);
     }
 
     res.json({
       queue: {
-        depth: jitter(),
-        by_kind: { judge: jitter(), verify: jitter(), generate: jitter() },
-        wait_p50_ms: 120 + jitter() * 10,
-        wait_p95_ms: 480 + jitter() * 20,
-        wait_p99_ms: 900 + jitter() * 40,
+        kinds: [
+          { kind: "judge", counts: { queued: jitter() }, oldest_queued_age_ms: jitter() * 1000 },
+          { kind: "verify", counts: { queued: jitter() }, oldest_queued_age_ms: jitter() * 1000 },
+          { kind: "generate", counts: { queued: jitter() }, oldest_queued_age_ms: jitter() * 1000 },
+        ],
+        wait_time_ms: { p50: 120 + jitter() * 10, p95: 480 + jitter() * 20 },
+        dead_count: 0,
+        recent_dead: [],
+        lease_recovery: { recovered: 0, redead: 0 },
       },
       workers: [
-        { worker_id: "judge-mock-1", kind: "judge", last_seen_at: new Date().toISOString(), leased_jobs: 0 },
-        { worker_id: "content-mock-1", kind: "content", last_seen_at: new Date(Date.now() - 4000).toISOString(), leased_jobs: 0 },
+        { worker_id: "judge-mock-1", kind: "judge", last_seen_at: new Date().toISOString(), stale: false },
+        { worker_id: "content-mock-1", kind: "content", last_seen_at: new Date(Date.now() - 4000).toISOString(), stale: false },
       ],
-      verdicts: verdictCounts,
-      buffer_depth: bufferDepth,
+      verdicts: { window: "24h", counts: [...verdictCounts.entries()].map(([verdict, count]) => ({ verdict, count })) },
+      buffer_depth: { by_concept_band: [...bufferByBand.values()] },
       generation_pass_rate: {
-        schema: 0.94,
-        compile: 0.91,
-        differential: 0.83,
-        boundary: 0.78,
-        examples: 0.98,
-        mutation: 0.71,
+        by_stage: [
+          { stage: "schema", passed: 94, total: 100 },
+          { stage: "compile", passed: 91, total: 100 },
+          { stage: "differential", passed: 83, total: 100 },
+          { stage: "boundary", passed: 78, total: 100 },
+          { stage: "examples", passed: 98, total: 100 },
+          { stage: "mutation", passed: 71, total: 100 },
+        ],
       },
-      model_runs: { p50_ms: 8200, p95_ms: 21400, avg_cost_usd: 0.043 },
+      model_runs: [{ kind: "generate", invoker: "claude", runs: 12, avg_duration_ms: 8200, avg_cost_usd: 0.043, total_cost_usd: 0.516 }],
       dead_jobs: [],
     });
   }),
@@ -632,8 +676,18 @@ app.get(
   }),
 );
 
-const PORT = Number(process.env.MOCK_PORT ?? process.env.VITE_API_BASE?.split(":").pop() ?? 8080);
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`[mock-api] listening on http://localhost:${PORT} (${problemFixtures.length} fixture problems)`);
-});
+// Exported (rather than only ever `app.listen()`-ed below) so mock/server.test.ts can drive it
+// in-process with supertest — no port binding, and no risk of colliding with an already-running
+// dev instance.
+export { app };
+
+// Only bind a real port when this file is run directly (`pnpm mock` / `pnpm dev:mock`), not when
+// it's imported as a module (by the test file above).
+const isMain = import.meta.url === `file://${process.argv[1]}`;
+if (isMain) {
+  const PORT = Number(process.env.MOCK_PORT ?? process.env.VITE_API_BASE?.split(":").pop() ?? 8080);
+  app.listen(PORT, () => {
+    // eslint-disable-next-line no-console
+    console.log(`[mock-api] listening on http://localhost:${PORT} (${problemFixtures.length} fixture problems)`);
+  });
+}

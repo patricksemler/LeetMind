@@ -45,7 +45,11 @@ export function selectTests(
 ): SelectedTests {
   if (mode === "submit") {
     return {
-      tests: content.hidden_tests.map((t) => ({ args: t.args, expected: t.expected })),
+      // `origin` is carried through so `buildExecutionResult` (packages/sandbox) can reveal
+      // preview fields for a failing test whose origin is `"example"` even in submit mode
+      // (CONTRACTS §4.5) — those inputs/expected values are already shown in the problem
+      // statement, not actually hidden from the user.
+      tests: content.hidden_tests.map((t) => ({ args: t.args, expected: t.expected, origin: t.origin })),
       revealInputs: false,
     };
   }

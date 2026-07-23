@@ -62,6 +62,37 @@ export async function getSubmission(id: string): Promise<SubmissionRow | null> {
   return queryOne<SubmissionRow>("select * from submissions where id = $1", [id]);
 }
 
+/**
+ * The most recent submission this user made against a problem version, or `null`. Backs hydrating
+ * the workspace on mount/reload — without this, refreshing mid-submission (or reopening a problem
+ * you already have a result for) loses the verdict with no recovery: the backend has it, but the
+ * client only ever tracked the active submission id in local React state (confirmed live).
+ */
+export async function getLatestSubmission(userId: string, versionId: string): Promise<SubmissionRow | null> {
+  return queryOne<SubmissionRow>(
+    "select * from submissions where user_id = $1 and problem_version_id = $2 order by created_at desc limit 1",
+    [userId, versionId],
+  );
+}
+
+/**
+ * True if this user has a `submit`-mode submission on this problem version that hasn't reached a
+ * terminal status yet. Used to reject a give-up while a judge job is in flight (409) — without
+ * this, a give-up racing an in-flight accept applies mastery consequences in both directions for
+ * the same evidence (confirmed live).
+ */
+export async function hasInFlightSubmission(userId: string, versionId: string): Promise<boolean> {
+  const row = await queryOne<{ exists: boolean }>(
+    `select exists(
+       select 1 from submissions
+        where user_id = $1 and problem_version_id = $2 and mode = 'submit'
+          and status not in ('completed', 'cancelled')
+     ) as exists`,
+    [userId, versionId],
+  );
+  return row?.exists ?? false;
+}
+
 export async function updateSubmissionStatus(
   client: PoolClient,
   id: string,

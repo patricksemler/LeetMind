@@ -104,6 +104,14 @@ export interface BundleTestCase {
    * `buildCppExecutionResult` key off presence, never off `=== null`.
    */
   expected?: unknown;
+  /**
+   * Carried through from `content.hidden_tests[i].origin` for `submit`-mode tests (CONTRACTS
+   * §4.5). When it's `"example"` — the same input/expected values already shown in the problem
+   * statement — `buildExecutionResult` reveals preview fields for THAT test even in `submit`
+   * mode, same as it always does for `run` mode. Never set for `run`-mode tests (which reveal via
+   * the `revealInputs` flag instead, not per-test origin).
+   */
+  origin?: string;
 }
 
 /** True iff `test` carries a real (possibly-null) expected value to grade against — as opposed to

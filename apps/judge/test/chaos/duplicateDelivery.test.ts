@@ -20,7 +20,7 @@ import {
   isDatabaseReachable,
   isDockerReachable,
   makeCtx,
-  makeJudgeJob,
+  makeLeasedJudgeJob,
   reloadSubmission,
   restoreConceptState,
   seedApprovedProblem,
@@ -63,7 +63,7 @@ describe.skipIf(!canRun)("chaos 1: duplicate delivery, N concurrent handler invo
       mode: "submit",
     });
 
-    const job = makeJudgeJob({
+    const job = await makeLeasedJudgeJob(deps, {
       submission_id: submission.id,
       mode: "submit",
       language: "python",

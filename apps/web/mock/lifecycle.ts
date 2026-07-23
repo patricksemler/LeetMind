@@ -16,6 +16,7 @@ import {
   workoutItems,
 } from "./state.js";
 import { outcomeScore, scheduleReview, updateConcepts } from "./mastery.js";
+import { buildMockReveal } from "./reveal.js";
 import { publish } from "./sse.js";
 import { gradeRun, gradeSubmit } from "./verdict.js";
 
@@ -75,6 +76,16 @@ export async function runLifecycle(submissionId: string): Promise<void> {
   sub.row.failure = grade.failure ?? null;
   sub.row.completed_at = new Date().toISOString();
 
+  const justEarnedReveal = sub.mode === "submit" && grade.verdict === "accepted";
+  const reveal = buildMockReveal(problem, justEarnedReveal || undefined);
+  sub.row.reveal = reveal;
+
+  // A recorded give-up gates mastery entirely, not just this submission's field on the row —
+  // every later submit-mode submission on this version is practice (mirrors apps/api/apps/judge;
+  // see QA-PLAN.md §1.3, the confirmed-live "give-up poisons all later scoring" bug).
+  const gaveUpAlready = sub.mode === "submit" && getProblemUserState(sub.problemVersionId).gaveUp;
+  sub.row.practice = gaveUpAlready || undefined;
+
   publish(submissionId, "verdict", {
     submission_id: submissionId,
     verdict: grade.verdict,
@@ -83,10 +94,13 @@ export async function runLifecycle(submissionId: string): Promise<void> {
     runtime_ms: grade.runtimeMs,
     memory_kb: grade.memoryKb,
     failure: grade.failure,
+    ...(reveal ? { reveal } : {}),
+    ...(gaveUpAlready ? { practice: true } : {}),
   });
 
-  // Run mode never touches mastery (CONTRACTS.md §12 / PLAN.md §8).
-  if (sub.mode !== "submit") return;
+  // Run mode never touches mastery (CONTRACTS.md §12 / PLAN.md §8). Neither does a submission
+  // that follows a give-up on this version — judged and streamed, but no mastery consequence.
+  if (sub.mode !== "submit" || gaveUpAlready) return;
 
   const userState = getProblemUserState(sub.problemVersionId);
   const substantive = bumpSubmissionCount(sub.problemVersionId);

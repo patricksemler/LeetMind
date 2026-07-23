@@ -8,8 +8,10 @@
 // the SAME transaction (CONTRACTS §4.5).
 import {
   completeSubmission,
+  completeWorkoutItem,
   getProblemVersion,
   getSubmission,
+  hasGivenUp,
   insertExecutionAttempt,
   notify,
   queryWith,
@@ -142,6 +144,27 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
     const { verdict, passedTests, totalTests, runtimeMs, memoryKb, failure, perTest, raw, compile } = executionResult;
 
     await withTransaction(async (client) => {
+      // `ctx.signal.aborted` (checked above) is an in-memory flag on THIS process — by the time
+      // it's read, it's already potentially stale, and the real gap that matters is the one
+      // between reading it and this transaction actually committing: opening the connection,
+      // `begin`, every query below all take real wall-clock time the reaper's 5s tick can land in.
+      // `for update` here makes this transaction and the reaper's own `for update skip locked`
+      // reap query mutually exclusive on this exact row for as long as this transaction is open —
+      // not just an earlier snapshot of "did I still hold the lease", but the DB itself refusing
+      // the write once ownership has actually moved.
+      const lease = await queryWith<{ ok: boolean }>(
+        client,
+        "select (status = 'leased' and leased_by = $2) as ok from jobs where id = $1 for update",
+        [job.id, deps.config.judgeWorkerId],
+      );
+      if (!lease[0]?.ok) {
+        logger.warn(
+          { submission_id: submissionId, job_id: job.id },
+          "lease no longer held at write time (reaper reassigned it); discarding result, not writing a verdict",
+        );
+        return;
+      }
+
       const priorAttempts = await queryWith<{ n: number }>(
         client,
         "select count(*)::int as n from execution_attempts where submission_id = $1",
@@ -180,6 +203,13 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
         failure: failure ?? null,
       });
 
+      // A recorded give-up on this problem version means every later submission is practice —
+      // judged and streamed like any other, but never a mastery consequence (confirmed live: a
+      // give-up used to poison ALL later scoring, applying a fresh negative delta on every
+      // subsequent resubmission, even a fully correct one). Checked once here and reused for both
+      // the mastery gate below and the `practice` flag the client uses to label the result.
+      const gaveUpAlready = mode === "submit" && (await hasGivenUp(userId, submission.problem_version_id, client));
+
       const completedAt = new Date().toISOString();
       await notify(client, { type: "status", submission_id: submissionId, user_id: userId, status: "completed", at: completedAt });
       await notify(client, { type: "progress", submission_id: submissionId, user_id: userId, passed: passedTests, total: totalTests });
@@ -193,13 +223,26 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
         runtime_ms: runtimeMs != null ? Math.round(runtimeMs) : null,
         memory_kb: memoryKb,
         ...(failure ? { failure } : {}),
+        ...(gaveUpAlready ? { practice: true } : {}),
       });
 
       // `run` mode never affects mastery (CONTRACTS §8 / this package's brief); only `submit`
       // does, and it happens in this SAME transaction so a verdict is never observably applied
-      // without its mastery consequence (or vice versa).
-      if (mode === "submit") {
+      // without its mastery consequence (or vice versa) — except when `gaveUpAlready`, which is
+      // gated out entirely rather than merely floored/penalized.
+      if (mode === "submit" && !gaveUpAlready) {
         await applyMastery({ client, submission, content, verdict, now: new Date() });
+      }
+
+      // No submission/acceptance ever transitioned a workout item (confirmed live,
+      // docs/QA-PLAN.md §1.2): items stayed "NOT STARTED"/pending forever, so the Today ladder
+      // never completed. `completeWorkoutItem` no-ops once the item is already terminal (its own
+      // guard), so this is safe against a stale/duplicate delivery too.
+      if (mode === "submit" && verdict === "accepted" && submission.workout_item_id) {
+        await completeWorkoutItem(client, submission.workout_item_id, {
+          state: "solved",
+          active_ms: submission.active_ms ?? null,
+        });
       }
     });
 

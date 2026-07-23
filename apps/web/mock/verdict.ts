@@ -24,18 +24,6 @@ export interface GradeResult {
   failure?: SubmissionFailure;
 }
 
-/**
- * docs/CONTRACTS.md §9 defines no dedicated endpoint for the post-solve editorial/complexity
- * reveal that PLAN.md §8 calls for on an `accepted` verdict (only give-up returns `editorial_md`).
- * `SubmissionFailureSchema` is `.passthrough()`, so it's a legal, schema-compatible place to carry
- * these two extra fields alongside the safe diagnostics it already ships — flagged in the final
- * report as something the real API contract should give a clearer home.
- */
-export interface SolvedExtras {
-  editorial_md: string;
-  complexity: { time: string; space: string };
-}
-
 function isUnmodifiedStarter(source: string, language: Language): boolean {
   if (language === "python") {
     return /def\s+\w+\([^)]*\)\s*->[^:]*:\s*\n\s*pass\s*$/.test(source.trim());
@@ -68,9 +56,7 @@ export function gradeSubmit(problem: ProblemFixture, language: Language, source:
         failure: {
           kind: "solved",
           message: "Accepted — all hidden tests passed.",
-          editorial_md: problem.content.hints.editorial_md,
-          complexity: problem.content.target_complexity,
-        } satisfies SubmissionFailure & SolvedExtras,
+        },
       };
     case "wrong_answer": {
       const failIndex = Math.min(1, Math.max(0, total - 1));

@@ -63,8 +63,14 @@ function previewFields(
   index: number,
   revealInputs: boolean,
 ): Pick<ExecutionFailure, "input_preview" | "expected_preview" | "actual_preview"> {
-  if (!revealInputs) return {};
   const test = tests[index];
+  // CONTRACTS §4.5: preview fields are populated "only for run mode and for example-derived
+  // tests" — the second half was never implemented; `revealInputs` was a single flag for the
+  // whole submission (true only in `run` mode), so a `submit`-mode failure on a hidden test whose
+  // `origin` is `"example"` (the SAME input/expected already shown in the problem statement, not
+  // actually hidden) still carried only `first_failing_test_index`, nothing the user couldn't
+  // already see on the page anyway.
+  if (!revealInputs && test?.origin !== "example") return {};
   const harnessTest = harness.tests.find((t) => t.index === index);
   const preview: Pick<ExecutionFailure, "input_preview" | "expected_preview" | "actual_preview"> =
     {};
@@ -229,41 +235,51 @@ export function buildExecutionResult(input: BuildExecutionResultInput): Executio
     raw: { sandbox: sandboxResult, harness },
   });
 
-  // 6. Any per-test timeout.
-  const timedOutTest = harness.tests.find((t) => t.status === "timeout");
-  if (timedOutTest) {
-    return finalize("time_limit", {
-      kind: "time_limit",
-      message: "A test exceeded its per-test time limit.",
-      first_failing_test_index: timedOutTest.index,
-      ...previewFields(tests, harness, timedOutTest.index, revealInputs),
-    });
-  }
-
-  // 7. Any per-test runtime error.
-  const erroredTest = harness.tests.find((t) => t.status === "error");
-  if (erroredTest) {
-    return finalize("runtime_error", {
-      kind: "runtime_error",
-      message: scrubPaths(erroredTest.error ?? "The solution raised an error."),
-      first_failing_test_index: erroredTest.index,
-      ...previewFields(tests, harness, erroredTest.index, revealInputs),
-    });
-  }
-
-  // 8. Any wrong output.
-  const failedTest = harness.tests.find((t) => t.status === "failed");
-  if (failedTest) {
+  // 6-8. The first FAILING test IN INDEX ORDER decides the verdict — not category priority. Scanning
+  // "any timeout, then any error, then any wrong answer" (the previous shape) let a later, more
+  // severe-sounding failure mask an earlier one: a wrong answer on test 0 reported as `time_limit`
+  // because test 4 happened to time out, with `first_failing_test_index` pointing at test 4 —
+  // actively misleading about where the solution first went wrong.
+  const firstBadTest = [...harness.tests]
+    .sort((a, b) => a.index - b.index)
+    .find((t) => t.status === "timeout" || t.status === "error" || t.status === "failed");
+  if (firstBadTest) {
+    if (firstBadTest.status === "timeout") {
+      return finalize("time_limit", {
+        kind: "time_limit",
+        message: "A test exceeded its per-test time limit.",
+        first_failing_test_index: firstBadTest.index,
+        ...previewFields(tests, harness, firstBadTest.index, revealInputs),
+      });
+    }
+    if (firstBadTest.status === "error") {
+      return finalize("runtime_error", {
+        kind: "runtime_error",
+        message: scrubPaths(firstBadTest.error ?? "The solution raised an error."),
+        first_failing_test_index: firstBadTest.index,
+        ...previewFields(tests, harness, firstBadTest.index, revealInputs),
+      });
+    }
     return finalize("wrong_answer", {
       kind: "wrong_answer",
       message: "Output did not match the expected result.",
-      first_failing_test_index: failedTest.index,
-      ...previewFields(tests, harness, failedTest.index, revealInputs),
+      first_failing_test_index: firstBadTest.index,
+      ...previewFields(tests, harness, firstBadTest.index, revealInputs),
     });
   }
 
-  // 9. Everything passed.
-  return finalize("accepted");
+  // 9. Everything passed. For `run` mode / example-derived tests, still attach the actual output
+  // — CONTRACTS §4.5's "no expected value to grade against" only means the verdict can't be
+  // wrong_answer, it does NOT mean the client should see nothing. Run mode exists specifically so
+  // a user can eyeball their program's output against custom input; without this, an accepted run
+  // rendered a pseudo-verdict ("ACCEPTED 0/0 passed") with the one thing it's for — the actual
+  // output — never captured anywhere (confirmed live).
+  return finalize(
+    "accepted",
+    revealInputs
+      ? { kind: "ok", message: "Ran successfully.", ...previewFields(tests, harness, 0, revealInputs) }
+      : undefined,
+  );
 }
 
 export interface ExecutePythonOptions {

@@ -13,7 +13,7 @@ import {
   isDatabaseReachable,
   isDockerReachable,
   makeCtx,
-  makeJudgeJob,
+  makeLeasedJudgeJob,
   restoreConceptState,
   seedApprovedProblem,
   snapshotConceptState,
@@ -80,7 +80,7 @@ describe.skipIf(!canRun)("pg_notify sequence (integration: live Postgres LISTEN 
 
     try {
       await handler(
-        makeJudgeJob({
+        await makeLeasedJudgeJob(deps, {
           submission_id: submission.id,
           mode: "submit",
           language: "python",

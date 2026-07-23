@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ConceptChangeSchema, SubmissionFailureSchema, SubmissionStatus, Verdict } from "./submission.js";
+import { ConceptChangeSchema, RevealSchema, SubmissionFailureSchema, SubmissionStatus, Verdict } from "./submission.js";
 
 /**
  * SSE events for `GET /api/submissions/:id/events` (docs/CONTRACTS.md §4.5). Transport is
@@ -29,6 +29,8 @@ export const VerdictEventSchema = z.object({
   runtime_ms: z.number().int().nullable().optional(),
   memory_kb: z.number().int().nullable().optional(),
   failure: SubmissionFailureSchema.optional(),
+  reveal: RevealSchema.optional(),
+  practice: z.boolean().optional(),
 });
 export type VerdictEvent = z.infer<typeof VerdictEventSchema>;
 

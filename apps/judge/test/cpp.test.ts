@@ -13,7 +13,7 @@ import {
   isDatabaseReachable,
   isDockerReachable,
   makeCtx,
-  makeJudgeJob,
+  makeLeasedJudgeJob,
   reloadSubmission,
   restoreConceptState,
   seedApprovedProblem,
@@ -70,7 +70,7 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
     const before = await snapshotConceptState();
 
     await handler(
-      makeJudgeJob({
+      await makeLeasedJudgeJob(deps, {
         submission_id: submission.id,
         mode: "submit",
         language: "cpp",
@@ -106,7 +106,16 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
   }, 60_000);
 
   it("2. wrong answer: C++ solution -> wrong_answer, rating moves down, no hidden expected leaked", async () => {
-    const problem = await seed();
+    // Not the default hidden_tests fixture: its first test is origin:"example", which (correctly,
+    // per CONTRACTS §4.5 — see handler.test.ts's tests 2/2b) reveals its own preview even in
+    // submit mode. This test is specifically about a GENUINELY hidden test never leaking.
+    const problem = await seed({
+      hiddenTests: [
+        { args: [1, 2], expected: 3, origin: "boundary" },
+        { args: [10, -3], expected: 7, origin: "random" },
+        { args: [0, 0], expected: 0, origin: "adversarial" },
+      ],
+    });
     const submission = await insertCppSubmission({
       versionId: problem.versionId,
       source: WRONG_CPP,
@@ -116,7 +125,7 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
     const before = await snapshotConceptState();
 
     await handler(
-      makeJudgeJob({
+      await makeLeasedJudgeJob(deps, {
         submission_id: submission.id,
         mode: "submit",
         language: "cpp",
@@ -147,7 +156,7 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
     const before = await snapshotConceptState();
 
     await handler(
-      makeJudgeJob({
+      await makeLeasedJudgeJob(deps, {
         submission_id: submission.id,
         mode: "submit",
         language: "cpp",
@@ -181,7 +190,7 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
     });
 
     await handler(
-      makeJudgeJob({
+      await makeLeasedJudgeJob(deps, {
         submission_id: submission.id,
         mode: "run",
         language: "cpp",
@@ -208,7 +217,7 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
     });
 
     await handler(
-      makeJudgeJob({
+      await makeLeasedJudgeJob(deps, {
         submission_id: submission.id,
         mode: "submit",
         language: "cpp",

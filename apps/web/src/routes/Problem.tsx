@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { GiveUpResponse, Language, SubmissionMode } from "@algolift/shared";
@@ -56,6 +56,40 @@ export function Problem() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [versionId]);
 
+  // Hydrate from the latest submission on this version (mount, or a reload mid-submission) — the
+  // backend already has the verdict; without this the client only ever tracked the active
+  // submission id in local, non-persisted React state, so a refresh lost it with no recovery
+  // (confirmed live). A stale response from a since-changed `versionId` is dropped rather than
+  // clobbering newer local state (the effect's own cleanup flips `cancelled`).
+  useEffect(() => {
+    if (!versionId) return;
+    let cancelled = false;
+    api
+      .latestSubmission(versionId)
+      .then((res) => {
+        if (cancelled || !res.submission) return;
+        setActiveSubmissionId(res.submission.id);
+        setActiveMode(res.submission.mode);
+      })
+      .catch(() => {
+        // Best-effort — no latest submission to hydrate from is a normal state (never submitted
+        // this problem yet), and a transient fetch failure just leaves the workspace empty.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [versionId]);
+
+  // Reaching this problem via a workout/diagnostic item (`?item=`) never itself transitioned the
+  // item to 'active' — nothing downstream (the Today ladder, "workout exhausted" screen,
+  // diagnostic completion) ever advanced past "NOT STARTED" (confirmed live, docs/QA-PLAN.md
+  // §1.2). `startWorkoutItem` is idempotent (only flips `pending -> active`, stamps `started_at`
+  // once), so firing it unconditionally on mount is safe even on a revisit.
+  useEffect(() => {
+    if (!workoutItemId) return;
+    void api.startWorkoutItem(workoutItemId);
+  }, [workoutItemId]);
+
   // Load starter code / draft once the problem and language are known.
   useEffect(() => {
     if (!problem || !versionId) return;
@@ -70,6 +104,13 @@ export function Problem() {
   }
 
   const events = useSubmissionEvents(activeSubmissionId, { enabled: !!activeSubmissionId });
+
+  // A plain ref, not `submitMutation.isPending` — React batches the re-render that would flip
+  // `isPending`, so two synchronous triggers in the same tick (a rapid double-click, or a click
+  // racing the Cmd+Enter hotkey) both read `isPending: false` and both fire. Two 201s, confirmed
+  // live. A ref updates immediately, before either handler returns, so the second trigger in the
+  // same tick sees the gate already closed.
+  const submitInFlightRef = useRef(false);
 
   const submitMutation = useMutation({
     mutationFn: (input: { mode: SubmissionMode; customInput?: unknown }) =>
@@ -86,14 +127,23 @@ export function Problem() {
       setActiveSubmissionId(res.submission_id);
       setActiveMode(variables.mode);
     },
+    onSettled: () => {
+      submitInFlightRef.current = false;
+    },
   });
+
+  function triggerSubmit(input: { mode: SubmissionMode; customInput?: unknown }) {
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
+    submitMutation.mutate(input);
+  }
 
   // Global fallback for the two workspace shortcuts (docs/CONTRACTS.md §12). Neither combo has a
   // default Monaco binding, so this is the single place that handles them, whether focus is in
   // the editor, the statement pane, or anywhere else on the page — see EditorPane's doc comment.
   useHotkeys(
     [
-      { key: "Enter", meta: true, allowInInputs: true, handler: () => submitMutation.mutate({ mode: "submit" }) },
+      { key: "Enter", meta: true, allowInInputs: true, handler: () => triggerSubmit({ mode: "submit" }) },
       { key: "'", meta: true, allowInInputs: true, handler: () => setCustomInputOpen(true) },
     ],
     [versionId, language, source],
@@ -150,12 +200,12 @@ export function Problem() {
               </div>
             ) : (
               <div className="space-y-5 p-5">
-                <HintLadder versionId={versionId} />
+                <HintLadder versionId={versionId} disabled={revealed} />
                 <GiveUpControl
                   versionId={versionId}
                   activeMs={activeTime.activeMs}
                   workoutItemId={workoutItemId}
-                  disabled={!!gaveUpResult}
+                  disabled={revealed}
                   onGaveUp={(result) => {
                     setGaveUpResult(result);
                     void queryClient.invalidateQueries({ queryKey: ["problem", versionId] });
@@ -189,12 +239,22 @@ export function Problem() {
               language={language}
               onLanguageChange={setLanguage}
               onRun={() => setCustomInputOpen(true)}
-              onSubmit={() => submitMutation.mutate({ mode: "submit" })}
+              onSubmit={() => triggerSubmit({ mode: "submit" })}
               submitting={submitMutation.isPending}
               activeMs={activeTime.activeMs}
               timerHidden={timerHidden}
               onToggleTimer={() => setTimerHidden((h) => !h)}
             />
+            {submitMutation.isError && (
+              <div className="flex items-center justify-between gap-3 border-b border-verdict-error bg-verdict-error-dim px-4 py-1.5 text-xs text-text">
+                <span>
+                  {submitMutation.error instanceof Error ? submitMutation.error.message : "Submission failed. Please try again."}
+                </span>
+                <button className="shrink-0 underline" onClick={() => submitMutation.reset()}>
+                  Dismiss
+                </button>
+              </div>
+            )}
             <div className="min-h-0 flex-1">
               <EditorPane language={language} value={source} onChange={handleSourceChange} />
             </div>
@@ -227,7 +287,7 @@ export function Problem() {
         initialArgs={problem.examples[0]?.args ?? []}
         onRun={(args) => {
           setCustomInputOpen(false);
-          submitMutation.mutate({ mode: "run", customInput: args });
+          triggerSubmit({ mode: "run", customInput: args });
         }}
       />
     </div>

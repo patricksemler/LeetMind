@@ -210,6 +210,13 @@ bool exact_equal(const json& a, const json& b) {
     }
     if (a.is_boolean() != b.is_boolean()) return false;
     if (is_number_not_bool(a) && is_number_not_bool(b)) {
+        // Two JSON integers are compared as integers, never coerced through double first:
+        // double only has 53 bits of exact mantissa, so two DIFFERENT int64 values above/below
+        // +/-2^53 can round to the identical double and compare equal here even though Python's
+        // arbitrary-precision == (runner.py) correctly says they differ - a real false-accept.
+        if (a.is_number_integer() && b.is_number_integer()) {
+            return a.get<long long>() == b.get<long long>();
+        }
         return a.get<double>() == b.get<double>();
     }
     return a == b;

@@ -227,9 +227,12 @@ describe("updateConcepts — explanation", () => {
     expect(result.explanation).toMatch(/L2/);
 
     for (const change of result.changes) {
-      const sign = change.delta >= 0 ? "+" : "-";
-      // the explanation must show the correctly-signed rounded delta for each concept
-      expect(result.explanation).toContain(`${change.concept_id} ${sign}${Math.abs(Math.round(change.delta))}`);
+      // The displayed delta is derived from the ROUNDED before/after ratings, not
+      // `change.delta` rounded independently — rounding all three separately can disagree (e.g.
+      // "+0 (1500→1501)"). This is the value the explanation string must show.
+      const roundedDelta = Math.round(change.after_rating) - Math.round(change.before_rating);
+      const sign = roundedDelta >= 0 ? "+" : "-";
+      expect(result.explanation).toContain(`${change.concept_id} ${sign}${Math.abs(roundedDelta)}`);
     }
   });
 
@@ -243,6 +246,30 @@ describe("updateConcepts — explanation", () => {
       evidenceWeight: 1,
     });
     expect(result.changes[0]!.delta).toBeLessThan(0);
-    expect(result.explanation).toContain(`c1 -${Math.abs(Math.round(result.changes[0]!.delta))}`);
+    const roundedDelta =
+      Math.round(result.changes[0]!.after_rating) - Math.round(result.changes[0]!.before_rating);
+    expect(result.explanation).toContain(`c1 -${Math.abs(roundedDelta)}`);
+  });
+
+  it("QA-PLAN.md §3: the displayed delta always agrees with the displayed before/after ratings, even when rounding the raw delta independently would not", () => {
+    // Raw delta rounds to 0, but the endpoints (rounded independently) differ by 1 — exactly the
+    // "+0 (1500→1501)" bug: before=1500.0, after=1500.6 -> raw delta 0.6 rounds to 1 normally,
+    // but pick a before/after pair that straddles a rounding boundary asymmetrically.
+    const states = { c1: makeState(1500.4, 200) };
+    const result = updateConcepts({
+      states,
+      weights: [{ id: "c1", weight: 0.01 }],
+      problemRating: 1500,
+      outcome: 1,
+      evidenceWeight: 0.001,
+    });
+    const change = result.changes[0]!;
+    const roundedBefore = Math.round(change.before_rating);
+    const roundedAfter = Math.round(change.after_rating);
+    const roundedDelta = roundedAfter - roundedBefore;
+    const sign = roundedDelta >= 0 ? "+" : "";
+    expect(result.explanation).toContain(
+      `c1 ${sign}${roundedDelta} (${roundedBefore}→${roundedAfter}`,
+    );
   });
 });

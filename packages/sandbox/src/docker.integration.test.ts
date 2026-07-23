@@ -107,7 +107,7 @@ describe.skipIf(!dockerUp)("sandbox docker integration", () => {
     expect(result.durationMs).toBeLessThan(9000);
   }, 15_000);
 
-  it("constrains a memory hog to the configured --memory limit", async () => {
+  it("constrains a memory hog to the configured --memory limit, and reports oomKilled: true", async () => {
     const result = await runSandboxed({
       image: IMAGE,
       files: {},
@@ -118,6 +118,11 @@ describe.skipIf(!dockerUp)("sandbox docker integration", () => {
     expect(result.timedOut).toBe(false);
     expect(result.exitCode).not.toBe(0);
     expect(result.stdout).not.toContain("should not get here");
+    // A real cgroup OOM-kill is a raw SIGKILL with no chance for the process to print anything —
+    // the old stderr-text heuristic essentially never matched a genuine one, making the
+    // `memory_limit` verdict effectively unreachable (QA-PLAN.md §3). This now comes from
+    // subscribing to `docker events --filter event=oom`, the real signal, not a text guess.
+    expect(result.oomKilled).toBe(true);
   }, 15_000);
 
   it("enforces --pids-limit against a fork bomb", async () => {

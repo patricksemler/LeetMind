@@ -136,6 +136,25 @@ describe("buildExecutionResult — verdict mapping table", () => {
     expect(result.totalTests).toBe(2);
   });
 
+  it("QA-PLAN.md §2.9: an earlier wrong_answer is never masked by a later timeout — first failing test IN INDEX ORDER wins, not category priority", () => {
+    const stdout = `${sentinel}\n${JSON.stringify({
+      ok: true,
+      tests: [
+        { index: 0, status: "failed", time_ms: 1, memory_kb: 10, output: 4 },
+        { index: 1, status: "timeout", time_ms: 5000, memory_kb: 10, error: "time limit exceeded" },
+      ],
+    })}\n`;
+    const result = buildExecutionResult({
+      sandboxResult: makeSandboxResult({ stdout }),
+      tests: [oneTest[0]!, { args: [1, 1], expected: 2 }],
+    });
+    // Previously this reported time_limit (checked "any timeout" before "any wrong answer"),
+    // with first_failing_test_index pointing at test 1 — actively misleading about where the
+    // solution first went wrong.
+    expect(result.verdict).toBe("wrong_answer");
+    expect(result.failure?.first_failing_test_index).toBe(0);
+  });
+
   it("any test status:error -> runtime_error", () => {
     const stdout = `${sentinel}\n${JSON.stringify({
       ok: true,
@@ -205,6 +224,52 @@ describe("buildExecutionResult — verdict mapping table", () => {
     expect(revealed.failure?.actual_preview).toBe(4);
   });
 
+  it("QA-PLAN.md §3: also reveals previews with revealInputs:false when the failing test's origin is 'example' — CONTRACTS §4.5's second reveal condition", () => {
+    const stdout = `${sentinel}\n${JSON.stringify({
+      ok: true,
+      tests: [
+        { index: 0, status: "failed", time_ms: 1, memory_kb: 10, output: 4 },
+        { index: 1, status: "failed", time_ms: 1, memory_kb: 10, output: 99 },
+      ],
+    })}\n`;
+    const tests: BundleTestCase[] = [
+      { args: [1, 2], expected: 3, origin: "example" },
+      { args: [5, 5], expected: 10, origin: "adversarial" },
+    ];
+
+    // The first failing test is index 0 (index-order scan, QA-PLAN.md §2.9) — origin "example",
+    // so its preview is safe to reveal even though this is a submit-mode failure
+    // (revealInputs: false): it's the same input/expected already shown on the problem page.
+    const exampleFailure = buildExecutionResult({
+      sandboxResult: makeSandboxResult({ stdout }),
+      tests,
+      revealInputs: false,
+    });
+    expect(exampleFailure.failure?.first_failing_test_index).toBe(0);
+    expect(exampleFailure.failure?.input_preview).toEqual([1, 2]);
+    expect(exampleFailure.failure?.expected_preview).toBe(3);
+    expect(exampleFailure.failure?.actual_preview).toBe(4);
+
+    // Same shape, but test 0 now passes and test 1 (origin "adversarial", a genuinely hidden
+    // case) is the first failure — no preview leaks for it.
+    const adversarialStdout = `${sentinel}\n${JSON.stringify({
+      ok: true,
+      tests: [
+        { index: 0, status: "passed", time_ms: 1, memory_kb: 10, output: 3 },
+        { index: 1, status: "failed", time_ms: 1, memory_kb: 10, output: 99 },
+      ],
+    })}\n`;
+    const adversarialFailure = buildExecutionResult({
+      sandboxResult: makeSandboxResult({ stdout: adversarialStdout }),
+      tests,
+      revealInputs: false,
+    });
+    expect(adversarialFailure.failure?.first_failing_test_index).toBe(1);
+    expect(adversarialFailure.failure?.input_preview).toBeUndefined();
+    expect(adversarialFailure.failure?.expected_preview).toBeUndefined();
+    expect(adversarialFailure.failure?.actual_preview).toBeUndefined();
+  });
+
   it("CONTRACTS §4.5: a test with no 'expected' key ('run' against custom_input) reports status 'completed' and does not count toward passed/total", () => {
     const stdout = `${sentinel}\n${JSON.stringify({
       ok: true,
@@ -222,7 +287,13 @@ describe("buildExecutionResult — verdict mapping table", () => {
     expect(result.verdict).toBe("accepted");
     expect(result.passedTests).toBe(0);
     expect(result.totalTests).toBe(0);
-    expect(result.failure).toBeUndefined();
+    // No expected value to grade against does NOT mean nothing is shown — `run` mode exists so a
+    // user can eyeball their program's actual output, and that output must still reach the
+    // client (QA-PLAN.md §2.7: an accepted run used to carry no `failure` at all, so the one
+    // thing "Run" is for — seeing what the program printed — was never captured anywhere).
+    expect(result.failure?.actual_preview).toBe(42);
+    expect(result.failure?.input_preview).toEqual([1, 2]);
+    expect(result.failure?.expected_preview).toBeUndefined();
   });
 
   it("a mix of graded and ungraded tests only counts the graded ones toward totalTests", () => {

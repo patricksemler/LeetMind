@@ -26,6 +26,16 @@ export function formatDate(value: string | Date | null | undefined): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+/** Like `formatDate`, but includes time-of-day — for contexts spanning less than a day (worker
+ * liveness, recent activity) where date-only rendering collapses distinct moments together (nine
+ * workers seen minutes apart all read "Jul 23", confirmed live). */
+export function formatDateTime(value: string | Date | null | undefined): string {
+  if (!value) return "—";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 export function formatRelativeDays(value: string | Date | null | undefined): string {
   if (!value) return "—";
   const d = typeof value === "string" ? new Date(value) : value;

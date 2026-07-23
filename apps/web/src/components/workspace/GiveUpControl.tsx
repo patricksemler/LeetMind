@@ -48,6 +48,11 @@ export function GiveUpControl({
             <strong className="text-verdict-error">0%</strong>. There's no undo.
           </p>
         </div>
+        {mutation.isError && (
+          <p className="mt-3 text-sm text-verdict-error">
+            {mutation.error instanceof Error ? mutation.error.message : "Couldn't give up on this problem. Please try again."}
+          </p>
+        )}
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setOpen(false)}>
             Keep trying

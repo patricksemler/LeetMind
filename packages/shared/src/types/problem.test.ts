@@ -54,6 +54,46 @@ describe("ProblemVersionSchema", () => {
   it("parses a well-formed ProblemVersion", () => {
     expect(() => ProblemVersionSchema.parse(makeProblemVersion())).not.toThrow();
   });
+
+  // Mirrors content/algolift_content/models.py's ProblemVersion model_validators — previously
+  // enforced ONLY on the Python side, so a row violating either invariant would be silently
+  // accepted (and trusted) by every TS consumer once it reached the database (QA-PLAN.md §4).
+  it("rejects concept weights that don't sum to ~1.0", () => {
+    const bad = makeProblemVersion({
+      concepts: [
+        { id: "sliding_window", role: "primary", weight: 0.5 },
+        { id: "arrays_hashing", role: "secondary", weight: 0.2 },
+      ],
+    });
+    expect(() => ProblemVersionSchema.parse(bad)).toThrow(/sum to ~1\.0/);
+  });
+
+  it("accepts a weight sum within the ±0.01 tolerance", () => {
+    const withinTolerance = makeProblemVersion({
+      concepts: [
+        { id: "sliding_window", role: "primary", weight: 0.705 },
+        { id: "arrays_hashing", role: "secondary", weight: 0.3 },
+      ],
+    });
+    expect(() => ProblemVersionSchema.parse(withinTolerance)).not.toThrow();
+  });
+
+  it("rejects zero primary concepts", () => {
+    const bad = makeProblemVersion({
+      concepts: [{ id: "sliding_window", role: "secondary", weight: 1 }],
+    });
+    expect(() => ProblemVersionSchema.parse(bad)).toThrow(/exactly one concept must have role='primary'/);
+  });
+
+  it("rejects more than one primary concept", () => {
+    const bad = makeProblemVersion({
+      concepts: [
+        { id: "sliding_window", role: "primary", weight: 0.5 },
+        { id: "arrays_hashing", role: "primary", weight: 0.5 },
+      ],
+    });
+    expect(() => ProblemVersionSchema.parse(bad)).toThrow(/exactly one concept must have role='primary'/);
+  });
 });
 
 describe("toPublicProblem", () => {

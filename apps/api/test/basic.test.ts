@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { loadApiConfig } from "@algolift/shared";
+import { loadApiConfig, ProgressResponse, SystemStatsResponse } from "@algolift/shared";
 import { buildDeps, type Deps } from "../src/deps.js";
 import { buildServer } from "../src/server.js";
 import { isDatabaseReachable } from "./helpers.js";
@@ -63,7 +63,7 @@ describe.skipIf(!dbReachable)("basic routes", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("GET /api/system/stats returns queue/worker/verdict/buffer/pass-rate/model-run panels plus learner constants", async () => {
+  it("GET /api/system/stats returns queue/worker/verdict/buffer/pass-rate/model-run panels plus learner constants, and parses against SystemStatsResponse", async () => {
     const res = await server.inject({ method: "GET", url: "/api/system/stats" });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
@@ -71,9 +71,13 @@ describe.skipIf(!dbReachable)("basic routes", () => {
     expect(Array.isArray(body.workers)).toBe(true);
     expect(body.learner_constants.K_MIN).toBe(16);
     expect(body.learner_constants.K_MAX).toBe(48);
+    // "Prevent recurrence" (QA-PLAN.md): the REAL API's response parsed through the exact same
+    // shared schema the web app parses it through and the mock server's own test asserts against
+    // (apps/web/mock/server.test.ts) — this is what would have caught §1.5's mock/real drift.
+    expect(() => SystemStatsResponse.parse(body)).not.toThrow();
   });
 
-  it("GET /api/progress returns concepts/reviews_due/stats/records/history", async () => {
+  it("GET /api/progress returns concepts/reviews_due/stats/records/history, and parses against ProgressResponse", async () => {
     const res = await server.inject({ method: "GET", url: "/api/progress" });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
@@ -83,6 +87,8 @@ describe.skipIf(!dbReachable)("basic routes", () => {
     expect(body.stats).toBeDefined();
     expect(body.records).toBeDefined();
     expect(Array.isArray(body.history)).toBe(true);
+    // "Prevent recurrence" (QA-PLAN.md): see the §1.5 test above — same discipline for §1.4.
+    expect(() => ProgressResponse.parse(body)).not.toThrow();
   });
 
   it("POST /api/generate-now enqueues an elevated-priority generate job", async () => {

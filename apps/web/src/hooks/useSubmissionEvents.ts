@@ -134,6 +134,8 @@ export function useSubmissionEvents(
               runtime_ms: submission.runtime_ms ?? null,
               memory_kb: submission.memory_kb ?? null,
               failure: submission.failure ?? undefined,
+              reveal: submission.reveal ?? undefined,
+              practice: submission.practice ?? undefined,
             };
           }
           return next;

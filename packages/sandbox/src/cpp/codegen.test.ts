@@ -154,3 +154,29 @@ describe("generateMainCpp — structural properties (no Docker)", () => {
     expect(generateMainCpp(sig)).toMatchSnapshot();
   });
 });
+
+describe("generateMainCpp — rejects a signature.name that isn't a valid identifier", () => {
+  // `signature` comes from LLM-generated content (untrusted per this system's own threat model)
+  // and `signature.name` is spliced directly into COMPILED, EXECUTED C++ as
+  // `solution_instance.${signature.name}(...)` — QA-PLAN.md §3's C++ parity item: this must fail
+  // loudly rather than let whatever string was supplied land in a compiled translation unit.
+  it.each([
+    "twoSum(); system(\"rm -rf /\"); //",
+    "twoSum() { return {}; } int backdoor",
+    "twoSum\n#include <cstdlib>",
+    "",
+    "1twoSum",
+    "two-sum",
+    "two sum",
+  ])("rejects %j", (badName) => {
+    expect(() => generateMainCpp({ name: badName, params: [{ name: "a", type: "int" }], returns: "int" })).toThrow(
+      /valid identifier/,
+    );
+  });
+
+  it("still accepts an ordinary identifier", () => {
+    expect(() =>
+      generateMainCpp({ name: "twoSum", params: [{ name: "a", type: "int" }], returns: "int" }),
+    ).not.toThrow();
+  });
+});

@@ -35,6 +35,26 @@ export function Today() {
     return <div className="flex h-full items-center justify-center text-text-faint">Loading…</div>;
   }
 
+  // A fetch failure used to fall straight through to "no progress yet" below (an empty
+  // `concepts` array reads identically to a genuinely new user) — a returning user hitting a
+  // transient network error saw the onboarding diagnostic prompt instead of their actual workout.
+  if (workoutQuery.isError || progressQuery.isError) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-text-dim">
+        <p>Couldn't load today's workout.</p>
+        <button
+          className="text-accent underline"
+          onClick={() => {
+            void workoutQuery.refetch();
+            void progressQuery.refetch();
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   const workout = workoutQuery.data?.workout;
   if (workout && workout.status === "active") {
     return (

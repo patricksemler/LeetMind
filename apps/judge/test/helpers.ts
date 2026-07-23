@@ -9,15 +9,20 @@ import { Client } from "pg";
 import {
   getConceptState,
   getSubmission,
+  getWorkoutItem,
+  insertHintEvent,
   insertProblemConcepts,
   insertProblemVersion,
   insertSubmission,
+  insertWorkout,
+  insertWorkoutItem,
   query,
   upsertConceptState,
   withTransaction,
   type SubmissionRow,
   type SubmissionStatus,
   type UserConceptStateRow,
+  type WorkoutItemRow,
 } from "@algolift/db";
 import {
   DEFAULT_SINGLE_USER_ID,
@@ -161,7 +166,9 @@ export async function seedApprovedProblem(opts: SeedProblemOpts = {}): Promise<S
  * matters: `learning_events.submission_id` and `submissions.problem_version_id` have no
  * `on delete cascade`, so children must go before parents. */
 export async function teardownProblem(problem: SeededProblem): Promise<void> {
+  await query("delete from hint_events where problem_version_id = $1", [problem.versionId]);
   await query("delete from learning_events where problem_version_id = $1", [problem.versionId]);
+  await query("delete from jobs where kind = 'judge' and payload->>'problem_version_id' = $1", [problem.versionId]);
   await query("delete from submissions where problem_version_id = $1", [problem.versionId]);
   await query("delete from problem_concepts where problem_version_id = $1", [problem.versionId]);
   await query("delete from problem_versions where id = $1", [problem.versionId]);
@@ -176,6 +183,7 @@ export interface InsertSubmissionOpts {
   customInput?: unknown;
   activeMs?: number;
   correlationId?: string;
+  workoutItemId?: string;
 }
 
 /** Inserts a submission the way apps/api's POST /api/submissions does: status defaults to
@@ -196,6 +204,7 @@ export async function insertTestSubmission(opts: InsertSubmissionOpts): Promise<
       custom_input: opts.customInput ?? null,
       active_ms: opts.activeMs ?? 0,
       correlation_id: opts.correlationId ?? null,
+      workout_item_id: opts.workoutItemId ?? null,
     }),
   );
 }
@@ -231,6 +240,42 @@ export async function countExecutionAttempts(submissionId: string): Promise<numb
   return Number(rows[0]?.count ?? 0);
 }
 
+/** Inserts a standalone `workouts` + `workout_items` row for `versionId`, torn down by the
+ * caller via its returned `workoutId` (no cascade from `teardownProblem`, which only knows about
+ * the problem/submission tables). */
+export async function insertTestWorkoutItem(versionId: string, role: "working" | "warmup" | "overload" | "diagnostic" = "working"): Promise<WorkoutItemRow> {
+  return withTransaction(async (client) => {
+    const workout = await insertWorkout(client, { id: newId(), user_id: TEST_USER_ID, kind: "standard" });
+    return insertWorkoutItem(client, {
+      id: newId(),
+      workout_id: workout.id,
+      position: 0,
+      role,
+      problem_version_id: versionId,
+    });
+  });
+}
+
+export async function deleteTestWorkout(workoutId: string): Promise<void> {
+  await query("update submissions set workout_item_id = null where workout_item_id in (select id from workout_items where workout_id = $1)", [workoutId]);
+  await query("delete from workouts where id = $1", [workoutId]);
+}
+
+export async function reloadWorkoutItem(id: string): Promise<WorkoutItemRow> {
+  const row = await getWorkoutItem(id);
+  if (!row) throw new Error(`test fixture: workout item ${id} vanished`);
+  return row;
+}
+
+/** Records a give-up the way `POST /api/problems/:versionId/give-up` does at its core — inserts
+ * the `editorial` hint_event that both `hasGivenUp` (@algolift/db) and this test suite's
+ * "practice" assertions key off of. */
+export async function recordGiveUp(versionId: string): Promise<void> {
+  await withTransaction((client) =>
+    insertHintEvent(client, { id: newId(), user_id: TEST_USER_ID, problem_version_id: versionId, level: "editorial" }),
+  );
+}
+
 // --- handler-invocation fakes ------------------------------------------------------------------
 
 /** A no-op structural logger satisfying `@algolift/queue`'s `Logger` interface, quiet by default
@@ -262,6 +307,47 @@ export function makeJudgeJob(payload: JudgeJobPayload, overrides: Partial<Job<Ju
     updated_at: now,
     ...overrides,
   };
+}
+
+/** Inserts a real `jobs` row backing a synthetic `Job` object built by `makeJudgeJob` — needed
+ * since `handleJudgeJob` now verifies lease ownership against the `jobs` table itself (`for
+ * update`, mutually exclusive with the reaper — QA-PLAN.md §3 "reaper vs. active worker") before
+ * writing a terminal verdict; a `Job` object with no backing row is indistinguishable from one
+ * whose lease was already reassigned. `on conflict (id) do nothing` makes this safe to call more
+ * than once for the same job id. */
+export async function insertTestJudgeJob(job: Job<JudgeJobPayload>, leasedBy: string): Promise<void> {
+  await query(
+    `insert into jobs (id, kind, priority, payload, status, attempts, max_attempts, run_at, lease_expires_at, leased_by, idempotency_key, correlation_id)
+     values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12)
+     on conflict (id) do nothing`,
+    [
+      job.id,
+      job.kind,
+      job.priority,
+      JSON.stringify(job.payload),
+      job.status,
+      job.attempts,
+      job.max_attempts,
+      job.run_at,
+      job.lease_expires_at,
+      leasedBy,
+      job.idempotency_key,
+      job.correlation_id,
+    ],
+  );
+}
+
+/** `makeJudgeJob` + `insertTestJudgeJob` in one call, leased by `deps.config.judgeWorkerId` (the
+ * same worker id `handleJudgeJob`'s lease-ownership check reads) — what every integration test
+ * that drives the handler directly should use instead of the bare `makeJudgeJob`. */
+export async function makeLeasedJudgeJob(
+  deps: JudgeDeps,
+  payload: JudgeJobPayload,
+  overrides: Partial<Job<JudgeJobPayload>> = {},
+): Promise<Job<JudgeJobPayload>> {
+  const job = makeJudgeJob(payload, { leased_by: deps.config.judgeWorkerId, ...overrides });
+  await insertTestJudgeJob(job, deps.config.judgeWorkerId);
+  return job;
 }
 
 /** Builds a `WorkerContext` whose `signal` never aborts and whose `heartbeat()` always succeeds,

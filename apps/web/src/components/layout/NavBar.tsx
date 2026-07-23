@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 
 const LINKS = [
   { to: "/", label: "Today", end: true },
@@ -11,9 +11,9 @@ export function NavBar({ onShowShortcuts }: { onShowShortcuts: () => void }) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-bg px-4">
       <div className="flex items-center gap-6">
-        <span className="font-display text-[15px] tracking-tight text-text">
+        <Link to="/" className="font-display text-[15px] tracking-tight text-text">
           Algo<span className="text-accent">Lift</span>
-        </span>
+        </Link>
         <nav className="flex items-center gap-1">
           {LINKS.map((link) => (
             <NavLink

@@ -5,7 +5,12 @@
     ``` fence.
 
 Matching is case-insensitive and on WORD BOUNDARIES so short tokens like `dp` don't false-fire
-inside an unrelated longer word (e.g. "adapt", "dprint") — a substring search would.
+inside an unrelated longer word (e.g. "adapt", "dprint") — a substring search would. The leading
+boundary is what guards against that; it's never relaxed. Two things ARE relaxed, both confirmed
+live as gaps: a hyphenated compound ("two-pointer", "sliding-window", "union-find") between the
+words of a multi-word term, and a common English inflection tacked onto the end of the LAST word
+("backtracking", "memoization"/"memoized", "heaps") — dropping either let generated content slip
+a banned concept past the gate in a form only trivially different from the banned phrase itself.
 """
 
 from __future__ import annotations
@@ -34,13 +39,32 @@ BANNED_TERMS: tuple[str, ...] = (
 
 CODE_FENCE = "```"
 
+# Common English inflections tolerated on the end of a banned term's last word — "backtrack" also
+# catches "backtracking"/"backtracks", "memo" also catches "memoization"/"memoized"/"memoize",
+# "heap" also catches "heaps"/"heapify". Ordered longest-first so the regex alternation can't stop
+# at a short prefix match ("ing" before "ization") and leave the rest dangling outside \b.
+_INFLECTION_SUFFIXES = (
+    "izations",
+    "ization",
+    "izing",
+    "ized",
+    "izes",
+    "ize",
+    "ing",
+    "es",
+    "ed",
+    "s",
+)
+
 
 def _term_pattern(term: str) -> re.Pattern[str]:
-    # Multi-word terms tolerate any run of whitespace between words (e.g. a model emitting
-    # "two   pointer" or a line-wrapped "sliding\nwindow" still counts as the banned phrase).
+    # Multi-word terms tolerate any run of whitespace OR a hyphen between words (e.g. a model
+    # emitting "two   pointer", a line-wrapped "sliding\nwindow", or "union-find" all count as the
+    # banned phrase).
     escaped_words = [re.escape(w) for w in term.split(" ")]
-    body = r"\s+".join(escaped_words)
-    return re.compile(rf"\b{body}\b", re.IGNORECASE)
+    body = r"[\s-]+".join(escaped_words)
+    suffix = "(?:" + "|".join(_INFLECTION_SUFFIXES) + ")?"
+    return re.compile(rf"\b{body}{suffix}\b", re.IGNORECASE)
 
 
 _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(

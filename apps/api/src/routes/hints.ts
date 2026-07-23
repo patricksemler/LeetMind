@@ -1,6 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import {
+  completeWorkoutItem,
   getApprovedProblemVersion,
+  getConceptStateForUpdate,
+  getWorkoutItem,
+  hasInFlightSubmission,
   insertHintEvent,
   insertLearningEvent,
   listHintEvents,
@@ -14,9 +18,11 @@ import {
 } from "@algolift/db";
 import {
   badRequest,
+  conflict,
   GiveUpRequest,
   HINT_PENALTY_CAPS,
   HintLevel,
+  learningEventKey,
   newId,
   notFound,
   ProblemVersionSchema,
@@ -155,13 +161,21 @@ export function registerHintRoutes(fastify: FastifyInstance, deps: Deps): void {
       if (!versionRow) throw notFound("Problem version not found or not approved");
       const content = ProblemVersionSchema.parse(versionRow.content);
 
+      // Reject a give-up while a judge job is in flight for this problem version (409): without
+      // this, a give-up racing an in-flight accept applies mastery consequences in both
+      // directions for the same evidence — confirmed live (solve +7.4, give-up -12.6, correct
+      // resubmit -11.8, every time).
+      if (await hasInFlightSubmission(userId, versionId)) {
+        throw conflict("A submission for this problem is still being judged — wait for it to finish before giving up.");
+      }
+
       const conceptIds = content.concepts.map((c) => c.id);
-      // Not built via `learningEventKey()` from @algolift/shared: that builder's union type only
-      // covers 'submission'/'skip'/'diagnostic' idempotency keys (docs/CONTRACTS.md §4.4 lists
-      // the same three) and has no 'give_up' case, even though `learning_events.kind` itself does
-      // include 'give_up'. Scoped by user+version, `le:`-prefixed to match the existing
-      // convention.
-      const idempotencyKey = `le:give_up:${userId}:${versionId}`;
+      const idempotencyKey = learningEventKey({ kind: "give_up", userId, problemVersionId: versionId });
+
+      if (body.workout_item_id) {
+        const item = await getWorkoutItem(body.workout_item_id);
+        if (!item) throw notFound("Workout item not found");
+      }
 
       const result = await withTransaction(async (client) => {
         await insertHintEvent(client, {
@@ -170,6 +184,18 @@ export function registerHintRoutes(fastify: FastifyInstance, deps: Deps): void {
           problem_version_id: versionId,
           level: "editorial",
         });
+
+        // Completes the item even on an idempotent replay — `completeWorkoutItem` no-ops once
+        // already terminal, so this is safe to call unconditionally. Previously `workout_item_id`
+        // was parsed and never used at all: the item never reached `gave_up`, which meant the
+        // diagnostic's pending-items guard could never pass and the flow stalled permanently
+        // (confirmed live).
+        if (body.workout_item_id) {
+          await completeWorkoutItem(client, body.workout_item_id, {
+            state: "gave_up",
+            active_ms: body.active_ms ?? null,
+          });
+        }
 
         const existing = await queryOneWith<LearningEventRow>(
           client,
@@ -185,19 +211,13 @@ export function registerHintRoutes(fastify: FastifyInstance, deps: Deps): void {
           };
         }
 
-        const stateRows = await Promise.all(
-          conceptIds.map((id) =>
-            queryOneWith<UserConceptStateRow>(
-              client,
-              "select * from user_concept_state where user_id = $1 and concept_id = $2",
-              [userId, id],
-            ),
-          ),
-        );
+        // Row-locked (see getConceptStateForUpdate's doc comment, @algolift/db) and in a globally
+        // consistent sorted order — the same read-modify-write-without-a-lock shape that caused
+        // the confirmed-live mastery lost-update race elsewhere (QA-PLAN.md §2.2).
         const stateMap: Record<string, UserConceptStateRow> = {};
-        conceptIds.forEach((id, i) => {
-          stateMap[id] = stateRows[i] ?? defaultConceptStateRow(userId, id);
-        });
+        for (const id of [...conceptIds].sort()) {
+          stateMap[id] = (await getConceptStateForUpdate(client, userId, id)) ?? defaultConceptStateRow(userId, id);
+        }
 
         const beforeSnapshot = snapshotStates(stateMap);
         const weights = content.concepts.map((c) => ({ id: c.id, weight: c.weight }));
