@@ -1,6 +1,6 @@
-# AlgoLift
+# LeetMind
 
-**Progressive overload for problem solving.** AlgoLift generates original, deterministically
+**Progressive overload for problem solving.** LeetMind generates original, deterministically
 verified algorithm problems on your own machine, judges your code in sandboxed containers, and
 models your mastery per concept so every session targets the edge of your ability — covering the
 pattern families of the NeetCode 150.
