@@ -1,0 +1,30 @@
+{
+  "name": "@algolift/sandbox",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "comment:cli": "No `bin` entry: src/cli.ts intentionally carries no shebang (tsx cannot parse shebang + dynamic import), so it is not directly executable. Invoke it as `node --import tsx packages/sandbox/src/cli.ts <subcommand>`, which is what content/algolift_content/sandbox.py does.",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "build": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@algolift/shared": "workspace:*",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0",
+    "typescript": "^5.7.0",
+    "tsx": "^4.0.0",
+    "@types/node": "^22.0.0"
+  }
+}

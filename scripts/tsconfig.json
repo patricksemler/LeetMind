@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "customConditions": ["development"]
+  },
+  "include": ["."],
+  "exclude": ["node_modules"]
+}

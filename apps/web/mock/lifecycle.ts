@@ -1,0 +1,173 @@
+/**
+ * Drives a created submission through the same state machine the real judge/API pair would
+ * (docs/CONTRACTS.md §4.5): queued → assigned → [compiling] → running → progress* → verdict →
+ * (submit-mode only) mastery. Mutates the submission row in `state.ts` as it goes so
+ * `GET /api/submissions/:id` is always consistent with the last event published, and updates
+ * concept mastery using the local `mastery.ts` reimplementation of CONTRACTS §8.
+ */
+import type { SubmissionStatus } from "@algolift/shared";
+import {
+  bumpSubmissionCount,
+  conceptState,
+  getProblemUserState,
+  learningEvents,
+  problemsById,
+  submissions,
+  workoutItems,
+} from "./state.js";
+import { outcomeScore, scheduleReview, updateConcepts } from "./mastery.js";
+import { publish } from "./sse.js";
+import { gradeRun, gradeSubmit } from "./verdict.js";
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function setStatus(submissionId: string, status: SubmissionStatus): void {
+  const sub = submissions.get(submissionId);
+  if (!sub) return;
+  sub.row.status = status;
+  publish(submissionId, "status", { submission_id: submissionId, status, at: new Date().toISOString() });
+}
+
+export async function runLifecycle(submissionId: string): Promise<void> {
+  const sub = submissions.get(submissionId);
+  if (!sub) return;
+  const problem = problemsById.get(sub.problemVersionId);
+  if (!problem) return;
+
+  await sleep(250);
+  setStatus(submissionId, "queued");
+
+  await sleep(350);
+  setStatus(submissionId, "assigned");
+
+  if (sub.language === "cpp") {
+    await sleep(300);
+    setStatus(submissionId, "compiling");
+  }
+
+  await sleep(300);
+  setStatus(submissionId, "running");
+
+  const grade =
+    sub.mode === "submit"
+      ? gradeSubmit(problem, sub.language, sub.source)
+      : gradeRun(problem, sub.language, sub.source, sub.customInput);
+
+  const total = grade.totalTests;
+  const steps = Math.max(1, Math.min(total, 5));
+  for (let i = 1; i <= steps; i++) {
+    await sleep(180);
+    const passedSoFar = Math.min(grade.passedTests, Math.round((i / steps) * total));
+    publish(submissionId, "progress", { submission_id: submissionId, passed: passedSoFar, total });
+  }
+  publish(submissionId, "progress", { submission_id: submissionId, passed: grade.passedTests, total });
+
+  await sleep(200);
+
+  sub.row.status = "completed";
+  sub.row.verdict = grade.verdict;
+  sub.row.passed_tests = grade.passedTests;
+  sub.row.total_tests = grade.totalTests;
+  sub.row.runtime_ms = grade.runtimeMs;
+  sub.row.memory_kb = grade.memoryKb;
+  sub.row.failure = grade.failure ?? null;
+  sub.row.completed_at = new Date().toISOString();
+
+  publish(submissionId, "verdict", {
+    submission_id: submissionId,
+    verdict: grade.verdict,
+    passed_tests: grade.passedTests,
+    total_tests: grade.totalTests,
+    runtime_ms: grade.runtimeMs,
+    memory_kb: grade.memoryKb,
+    failure: grade.failure,
+  });
+
+  // Run mode never touches mastery (CONTRACTS.md §12 / PLAN.md §8).
+  if (sub.mode !== "submit") return;
+
+  const userState = getProblemUserState(sub.problemVersionId);
+  const substantive = bumpSubmissionCount(sub.problemVersionId);
+  const highestHint = userState.hintsTaken.length > 0 ? userState.hintsTaken[userState.hintsTaken.length - 1]! : null;
+
+  const { outcome, evidenceWeight } = outcomeScore({
+    verdict: grade.verdict,
+    gaveUp: false,
+    skipped: null,
+    highestHint,
+    activeMs: sub.activeMs,
+    expectedMinutes: problem.content.expected_active_minutes,
+    substantiveSubmissions: substantive,
+  });
+
+  const states: Record<string, { rating: number; uncertainty: number }> = {};
+  for (const c of problem.content.concepts) {
+    const cs = conceptState.get(c.id);
+    if (cs) states[c.id] = { rating: cs.rating, uncertainty: cs.uncertainty };
+  }
+
+  const { changes, explanation, newStates } = updateConcepts({
+    states,
+    weights: problem.content.concepts.map((c) => ({ id: c.id, weight: c.weight })),
+    problemRating: problem.content.difficulty.rating,
+    outcome,
+    evidenceWeight,
+  });
+
+  for (const c of problem.content.concepts) {
+    const cs = conceptState.get(c.id);
+    const next = newStates[c.id];
+    if (!cs || !next) continue;
+
+    cs.rating = next.rating;
+    cs.uncertainty = next.uncertainty;
+    cs.attempts += 1;
+    cs.last_practiced_at = new Date().toISOString();
+    cs.total_active_ms += sub.activeMs;
+
+    if (grade.verdict === "accepted") {
+      cs.solves += 1;
+      cs.current_streak += 1;
+      cs.best_streak = Math.max(cs.best_streak, cs.current_streak);
+      if (highestHint === null) cs.unassisted_solves += 1;
+      const review = scheduleReview(cs, outcome, new Date());
+      cs.next_review_at = review.next_review_at;
+      cs.review_interval_days = review.review_interval_days;
+      cs.review_ease = review.review_ease;
+      cs.review_reps = review.review_reps;
+    } else {
+      cs.current_streak = 0;
+      cs.error_counts[grade.verdict] = (cs.error_counts[grade.verdict] ?? 0) + 1;
+    }
+    if (highestHint) {
+      cs.hint_counts[highestHint] = (cs.hint_counts[highestHint] ?? 0) + 1;
+    }
+  }
+
+  if (grade.verdict === "accepted") userState.solved = true;
+
+  learningEvents.push({
+    id: `le_${submissionId}`,
+    kind: "submission",
+    problem_version_id: sub.problemVersionId,
+    verdict: grade.verdict,
+    outcome,
+    hints_used: [...userState.hintsTaken],
+    active_ms: sub.activeMs,
+    difficulty_rating: problem.content.difficulty.rating,
+    created_at: new Date().toISOString(),
+  });
+
+  if (sub.workoutItemId) {
+    const item = workoutItems.get(sub.workoutItemId);
+    if (item && grade.verdict === "accepted") {
+      item.state = "solved";
+      item.completed_at = new Date().toISOString();
+      item.active_ms = sub.activeMs;
+    }
+  }
+
+  publish(submissionId, "mastery", { submission_id: submissionId, changes, outcome, explanation });
+}

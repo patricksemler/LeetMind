@@ -1,0 +1,97 @@
+networks:
+  algolift:
+    name: algolift
+
+volumes:
+  algolift-pgdata:
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: algolift
+      POSTGRES_PASSWORD: algolift
+      POSTGRES_DB: algolift
+    ports:
+      - "5432:5432"
+    volumes:
+      - algolift-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U algolift -d algolift"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - algolift
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    networks:
+      - algolift
+
+  judge:
+    build:
+      context: .
+      dockerfile: docker/judge.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      # The judge coordinator shells out to `docker run` to launch sibling sandbox containers on
+      # the *host* Docker daemon (it does not run containers inside itself). Mounting the host
+      # socket is what makes that possible.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Bind the same path the host daemon will mount bundles from, so paths written by the judge
+      # into SANDBOX_WORK_DIR resolve correctly when the sibling container is started against the
+      # host daemon (bind-mount source paths are resolved by the host, not by this container).
+      - ${SANDBOX_WORK_DIR:-/tmp/algolift-sandbox}:${SANDBOX_WORK_DIR:-/tmp/algolift-sandbox}
+    networks:
+      - algolift
+
+  content:
+    build:
+      context: .
+      dockerfile: docker/content.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${SANDBOX_WORK_DIR:-/tmp/algolift-sandbox}:${SANDBOX_WORK_DIR:-/tmp/algolift-sandbox}
+      # Needed only when GENERATOR_INVOKER=claude and you want the containerized worker to shell
+      # out to the `claude` CLI using your existing login. NOTE: the recommended default is to run
+      # the content worker on the *host* instead (`uv run -m algolift_content.workers.generate`),
+      # so it uses your host `claude` install and credentials directly — this container path is a
+      # secondary option kept for parity with the other services.
+      - ~/.claude:/root/.claude:ro
+    networks:
+      - algolift
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "5173:5173"
+    networks:
+      - algolift

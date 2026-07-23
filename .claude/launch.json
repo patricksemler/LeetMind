@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@algolift/web", "dev:mock"],
+      "port": 5173
+    },
+    {
+      "name": "web-live",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@algolift/web", "dev"],
+      "port": 5173
+    }
+  ]
+}

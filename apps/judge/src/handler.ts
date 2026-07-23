@@ -1,0 +1,208 @@
+// The submission state machine — CONTRACTS.md §4.5 / §6, PLAN.md §6.
+//
+// Drives `queued -> assigned -> compiling -> running -> completed`. (`created -> queued` already
+// happened transactionally in apps/api's POST /api/submissions — see CONTRACTS.md §9 "writes the
+// submission row AND enqueues the judge job in one transaction" — so by the time a judge job is
+// claimed the submission is already `queued`; this handler owns everything from `assigned` on.)
+// Every status transition updates `submissions.status` and `pg_notify`s the SSE `status` event in
+// the SAME transaction (CONTRACTS §4.5).
+import {
+  completeSubmission,
+  getProblemVersion,
+  getSubmission,
+  insertExecutionAttempt,
+  notify,
+  queryWith,
+  updateSubmissionStatus,
+  withTransaction,
+  type SubmissionRow,
+} from "@algolift/db";
+import type { JobHandler, WorkerContext } from "@algolift/queue";
+import { newId, ProblemVersionSchema, type JudgeJobPayload, type SubmissionStatus } from "@algolift/shared";
+import type { JudgeDeps } from "./deps.js";
+import { buildComparatorSpec, buildLimits, executeSubmission, selectTests } from "./execution.js";
+import { applyMastery } from "./mastery.js";
+
+/**
+ * Writes `submissions.status = status` and the matching SSE `status` notify in one transaction.
+ * Returns the updated row.
+ */
+async function transitionStatus(userId: string, submissionId: string, status: SubmissionStatus): Promise<SubmissionRow> {
+  return withTransaction(async (client) => {
+    const row = await updateSubmissionStatus(client, submissionId, status);
+    await notify(client, {
+      type: "status",
+      submission_id: submissionId,
+      user_id: userId,
+      status,
+      at: new Date().toISOString(),
+    });
+    return row;
+  });
+}
+
+/**
+ * Builds the `JobHandler<JudgeJobPayload>` for `runWorker`. A factory (rather than a bare
+ * top-level function reaching for a module-level singleton) so tests can inject a `JudgeDeps`
+ * pointing at whatever config/sandbox limits the test needs (e.g. a short wall timeout for the
+ * timeout test) without touching process env.
+ */
+export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload> {
+  return async function handleJudgeJob(job, ctx: WorkerContext): Promise<void> {
+    const payload = job.payload;
+    const { submission_id: submissionId, mode, user_id: userId } = payload;
+    const logger = ctx.logger;
+
+    const submission = await getSubmission(submissionId);
+    if (!submission) {
+      throw new Error(`handleJudgeJob: submission ${submissionId} not found`);
+    }
+
+    // Duplicate-delivery guard (CONTRACTS §7 "no duplicate LearningEvent" / M4 idempotency
+    // suite): if a previous delivery already drove this submission to completion, ack and return
+    // immediately without touching anything else.
+    if (submission.status === "completed") {
+      logger.info({ submission_id: submissionId }, "submission already completed; duplicate delivery, ack only");
+      return;
+    }
+
+    if (ctx.signal.aborted) {
+      logger.warn({ submission_id: submissionId }, "lease already lost before starting; aborting without a verdict");
+      return;
+    }
+
+    const versionRow = await getProblemVersion(submission.problem_version_id);
+    if (!versionRow) {
+      throw new Error(`handleJudgeJob: problem_version ${submission.problem_version_id} not found`);
+    }
+    const content = ProblemVersionSchema.parse(versionRow.content);
+
+    await transitionStatus(userId, submissionId, "assigned");
+    if (ctx.signal.aborted) {
+      logger.warn({ submission_id: submissionId }, "lease lost after 'assigned'; aborting without a verdict");
+      return;
+    }
+
+    const { tests, revealInputs } = selectTests(content, mode, submission.custom_input);
+
+    // CONTRACTS §6 Judge flow, step 3: the harness returns per-test results in one shot, so we
+    // can only ever emit a true `{passed, total}` at the very start (0/n) and at completion — no
+    // faked intermediate progress.
+    await withTransaction((client) =>
+      notify(client, { type: "progress", submission_id: submissionId, user_id: userId, passed: 0, total: tests.length }),
+    );
+
+    await transitionStatus(userId, submissionId, "compiling");
+    if (ctx.signal.aborted) {
+      logger.warn({ submission_id: submissionId }, "lease lost after 'compiling'; aborting without a verdict");
+      return;
+    }
+
+    await transitionStatus(userId, submissionId, "running");
+    if (ctx.signal.aborted) {
+      logger.warn({ submission_id: submissionId }, "lease lost after 'running'; aborting without a verdict");
+      return;
+    }
+
+    // Extend the lease explicitly before the long-running sandbox execution (rather than relying
+    // solely on the background heartbeat timer) and bail out immediately if it's already gone.
+    const heartbeatOk = await ctx.heartbeat();
+    if (!heartbeatOk) {
+      logger.warn({ submission_id: submissionId }, "lease lost before sandbox execution; aborting without a verdict");
+      return;
+    }
+
+    const limits = buildLimits(deps.sandbox);
+    const { result: executionResult, languageVersion, flags } = await executeSubmission({
+      language: submission.language,
+      signature: content.signature,
+      tests,
+      comparator: buildComparatorSpec(content),
+      source: submission.source,
+      limits,
+      pythonImage: deps.config.sandboxPythonImage,
+      cppImage: deps.config.sandboxCppImage,
+      checkerSource: content.checker_py,
+      revealInputs,
+      correlationId: submission.correlation_id ?? undefined,
+    });
+
+    // The lease may have been stolen by the reaper while the sandbox executor was running (the
+    // sandbox call itself isn't cancellable mid-flight — CONTRACTS §6 wall-timeout enforcement is
+    // host-side, not tied to our AbortSignal). Check ONE more time, right before the terminal
+    // write, so a lease-lost worker never writes a verdict another worker may already own.
+    if (ctx.signal.aborted) {
+      logger.warn(
+        { submission_id: submissionId },
+        "lease lost during sandbox execution; discarding result, not writing a verdict",
+      );
+      return;
+    }
+
+    const { verdict, passedTests, totalTests, runtimeMs, memoryKb, failure, perTest, raw, compile } = executionResult;
+
+    await withTransaction(async (client) => {
+      const priorAttempts = await queryWith<{ n: number }>(
+        client,
+        "select count(*)::int as n from execution_attempts where submission_id = $1",
+        [submissionId],
+      );
+      const attempt = (priorAttempts[0]?.n ?? 0) + 1;
+
+      await insertExecutionAttempt(client, {
+        id: newId(),
+        submission_id: submissionId,
+        attempt,
+        worker_id: deps.config.judgeWorkerId,
+        image_digest: raw.sandbox.imageDigest,
+        language_version: languageVersion,
+        flags,
+        limits: { ...limits },
+        usage: {
+          ...raw.sandbox.usage,
+          max_test_memory_kb: memoryKb ?? undefined,
+          // C++ only (CONTRACTS §7: "record both durations") — the compile sandbox invocation's
+          // own wall time and image digest, distinct from the run step's (already `image_digest`
+          // above and folded into `runtimeMs`).
+          ...(compile ? { compile_ok: compile.ok, compile_duration_ms: compile.durationMs, compile_image_digest: compile.imageDigest } : {}),
+        },
+        per_test: perTest,
+        exit_code: raw.sandbox.exitCode,
+        finished_at: new Date(),
+      });
+
+      await completeSubmission(client, submissionId, {
+        verdict,
+        passed_tests: passedTests,
+        total_tests: totalTests,
+        runtime_ms: runtimeMs != null ? Math.round(runtimeMs) : null,
+        memory_kb: memoryKb,
+        failure: failure ?? null,
+      });
+
+      const completedAt = new Date().toISOString();
+      await notify(client, { type: "status", submission_id: submissionId, user_id: userId, status: "completed", at: completedAt });
+      await notify(client, { type: "progress", submission_id: submissionId, user_id: userId, passed: passedTests, total: totalTests });
+      await notify(client, {
+        type: "verdict",
+        submission_id: submissionId,
+        user_id: userId,
+        verdict,
+        passed_tests: passedTests,
+        total_tests: totalTests,
+        runtime_ms: runtimeMs != null ? Math.round(runtimeMs) : null,
+        memory_kb: memoryKb,
+        ...(failure ? { failure } : {}),
+      });
+
+      // `run` mode never affects mastery (CONTRACTS §8 / this package's brief); only `submit`
+      // does, and it happens in this SAME transaction so a verdict is never observably applied
+      // without its mastery consequence (or vice versa).
+      if (mode === "submit") {
+        await applyMastery({ client, submission, content, verdict, now: new Date() });
+      }
+    });
+
+    logger.info({ submission_id: submissionId, verdict, passed_tests: passedTests, total_tests: totalTests }, "judge job complete");
+  };
+}

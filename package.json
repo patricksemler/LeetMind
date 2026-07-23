@@ -1,0 +1,23 @@
+{
+  "name": "algolift",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.12.1",
+  "scripts": {
+    "typecheck": "pnpm -r --if-present typecheck",
+    "build": "pnpm -r --if-present build",
+    "test": "pnpm -r --if-present test",
+    "lint": "pnpm -r --if-present lint",
+    "dev:api": "pnpm --filter @algolift/api dev",
+    "dev:judge": "pnpm --filter @algolift/judge dev",
+    "dev:web": "pnpm --filter @algolift/web dev",
+    "db:migrate": "pnpm --filter @algolift/db migrate",
+    "db:seed": "pnpm --filter @algolift/db seed"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.0.0",
+    "vitest": "^3.0.0",
+    "@types/node": "^22.0.0"
+  }
+}

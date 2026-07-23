@@ -1,0 +1,13 @@
+# Grafana datasource provisioning — auto-registers Prometheus with no clicking, per PLAN.md M5
+# ("Grafana provisioning (datasource + one dashboard JSON) so `docker compose --profile metrics up`
+# yields a working dashboard with no clicking").
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: algolift-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

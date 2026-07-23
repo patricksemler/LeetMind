@@ -1,0 +1,24 @@
+{
+  "name": "@algolift/queue",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "build": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "pg": "^8.13.0",
+    "@algolift/shared": "workspace:*",
+    "@algolift/db": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0",
+    "vitest": "^3.0.0",
+    "typescript": "^5.7.0",
+    "tsx": "^4.0.0"
+  }
+}

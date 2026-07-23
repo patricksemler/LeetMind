@@ -1,0 +1,23 @@
+{
+  "name": "@algolift/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "requeue-dead-job": "tsx requeue-dead-job.ts",
+    "loadtest": "tsx loadtest/run.ts"
+  },
+  "dependencies": {
+    "pg": "^8.13.0",
+    "@algolift/shared": "workspace:*",
+    "@algolift/db": "workspace:*",
+    "@algolift/queue": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "tsx": "^4.0.0"
+  }
+}
