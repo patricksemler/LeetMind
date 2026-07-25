@@ -9,7 +9,9 @@ export function Concepts() {
   const conceptsQuery = useQuery({ queryKey: ["concepts"], queryFn: api.concepts });
   const progressQuery = useQuery({ queryKey: ["progress"], queryFn: api.progress });
 
-  if (conceptsQuery.isLoading || progressQuery.isLoading || !conceptsQuery.data) {
+  // Gated on the concepts query alone — the taxonomy is the page's actual content, and mastery
+  // badges are a fill-in-when-ready enhancement on top of it, not a blocker (docs/QA-PLAN.md).
+  if (conceptsQuery.isLoading || !conceptsQuery.data) {
     return <div className="flex h-full items-center justify-center text-text-faint">Loading…</div>;
   }
 
@@ -51,12 +53,22 @@ export function Concepts() {
   // A concept with more than one parent (the taxonomy is a DAG, not a tree — CONTRACTS.md §3)
   // was rendered in full, subtree and all, under EVERY parent (a 9-concept subtree shared by two
   // parents rendered twice: 29 rows for 20 concepts, confirmed live) with no indication it was
-  // the same node reappearing rather than a genuinely distinct branch. Tracked across the whole
-  // traversal — Node closes over this — so only the first occurrence expands; every later one is
-  // a compact cross-reference instead of a second full copy of its subtree.
-  const renderedFully = new Set<string>();
+  // the same node reappearing rather than a genuinely distinct branch. Only the first parent
+  // (deterministic root-order DFS) expands the subtree; every later parent gets a compact
+  // cross-reference instead. Computed as a pure pre-pass, NOT by mutating a Set inside `Node`
+  // during render — that broke under StrictMode's double-invoke (each occurrence saw the other's
+  // write and collapsed both, dropping the subtree from the page entirely in dev).
+  const canonicalParentOf = new Map<string, string>();
+  const visited = new Set<string>();
+  function visit(id: string, parentId: string | null) {
+    if (parentId !== null && !canonicalParentOf.has(id)) canonicalParentOf.set(id, parentId);
+    if (visited.has(id)) return;
+    visited.add(id);
+    for (const k of childrenOf.get(id) ?? []) visit(k, id);
+  }
+  for (const r of roots) visit(r.id, null);
 
-  function Node({ id, depth }: { id: string; depth: number }) {
+  function Node({ id, parentId, depth }: { id: string; parentId: string | null; depth: number }) {
     const concept = byId.get(id);
     if (!concept) return null;
     const mastery = masteryById.get(id);
@@ -64,8 +76,7 @@ export function Concepts() {
     const attempted = mastery ? Number(mastery.attempts ?? 0) > 0 : false;
     const kids = childrenOf.get(id) ?? [];
     const parents = parentsOf.get(id) ?? [];
-    const isRepeatOfMultiParent = parents.length > 1 && renderedFully.has(id);
-    if (!isRepeatOfMultiParent) renderedFully.add(id);
+    const isRepeatOfMultiParent = parents.length > 1 && canonicalParentOf.get(id) !== parentId;
 
     return (
       <div>
@@ -82,7 +93,7 @@ export function Concepts() {
           )}
         </div>
         {!isRepeatOfMultiParent &&
-          kids.map((k) => <Node key={`${id}>${k}`} id={k} depth={depth + 1} />)}
+          kids.map((k) => <Node key={`${id}>${k}`} id={k} parentId={id} depth={depth + 1} />)}
       </div>
     );
   }
@@ -95,8 +106,19 @@ export function Concepts() {
     <div className="h-full min-w-0 overflow-x-auto overflow-y-auto">
       <div className="mx-auto max-w-3xl p-6">
         <h1 className="mb-4 font-display text-xl text-text">Concept taxonomy</h1>
+        {progressQuery.isError && (
+          // Mastery data failed to load, not the taxonomy itself — the tree below still renders,
+          // just with every concept reading as unattempted, which is otherwise indistinguishable
+          // from a genuinely new user.
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-verdict-warn bg-verdict-warn-dim px-3 py-2 text-xs text-text">
+            <span>Mastery data failed to load — ratings below may be stale or missing.</span>
+            <button className="shrink-0 underline" onClick={() => progressQuery.refetch()}>
+              Retry
+            </button>
+          </div>
+        )}
         {roots.map((r) => (
-          <Node key={r.id} id={r.id} depth={0} />
+          <Node key={r.id} id={r.id} parentId={null} depth={0} />
         ))}
       </div>
     </div>

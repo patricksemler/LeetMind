@@ -24,11 +24,19 @@ const sizes: Record<Size, string> = {
   md: "text-sm px-3.5 py-2",
 };
 
+/** Button's own look, for the rare non-`<button>` element (e.g. a `Link`) that needs to render
+ * AS a button — never nest a real `<button>` inside another interactive element to get this. */
+export function buttonClassName({
+  variant = "secondary",
+  size = "md",
+  className = "",
+}: { variant?: Variant; size?: Size; className?: string } = {}): string {
+  return `${base} ${variants[variant]} ${sizes[size]} ${className}`.trim();
+}
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = "secondary", size = "md", className = "", ...rest },
   ref,
 ) {
-  return (
-    <button ref={ref} className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...rest} />
-  );
+  return <button ref={ref} className={buttonClassName({ variant, size, className })} {...rest} />;
 });

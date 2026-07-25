@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { formatMs, formatDate } from "../lib/format";
-import { Badge, Panel, PanelBody, PanelHeader, PanelTitle, RatingMeter } from "../components/ui";
+import { Badge, Panel, RatingMeter } from "../components/ui";
 
 function asNum(v: unknown, fallback = 0): number {
   return typeof v === "number" ? v : fallback;
@@ -116,11 +116,9 @@ export function Progress() {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2">
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Solves by difficulty band</PanelTitle>
-          </PanelHeader>
-          <PanelBody className="space-y-1.5">
+        <div>
+          <h2 className="mb-3 font-display text-lg text-text">Solves by difficulty band</h2>
+          <Panel className="space-y-1.5 p-4">
             {solveBands.length === 0 ? (
               <p className="text-sm text-text-faint">No submissions yet.</p>
             ) : (
@@ -138,18 +136,16 @@ export function Progress() {
                   </div>
                 ))
             )}
-          </PanelBody>
-        </Panel>
+          </Panel>
+        </div>
 
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Active time</PanelTitle>
-          </PanelHeader>
-          <PanelBody>
+        <div>
+          <h2 className="mb-3 font-display text-lg text-text">Active time</h2>
+          <Panel className="p-4">
             <div className="text-2xl font-display text-text">{formatMs(asNum(stats.median_active_ms))}</div>
             <p className="mt-1 text-xs text-text-faint">median active time per submission ({totalAttempts} total)</p>
-          </PanelBody>
-        </Panel>
+          </Panel>
+        </div>
       </section>
 
       <section>

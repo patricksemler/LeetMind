@@ -97,10 +97,13 @@ export async function listHintEvents(
 
 /**
  * A recorded give-up always takes the `editorial` hint rung (the ONLY way to reach it —
- * `POST /api/hints` rejects `level: 'editorial'` outright) and is irreversible ("no undo"), so its
- * existence alone is authoritative and needs no time-ordering against any particular submission.
- * Used to gate mastery (a give-up poisoning every later resubmission's score was a confirmed-live
- * P0) and to label later submit-mode submissions on this version as practice-only.
+ * `POST /api/hints` rejects `level: 'editorial'` outright) and is irreversible ("no undo").
+ * Used by the judge to gate mastery (a give-up poisoning every later resubmission's score was a
+ * confirmed-live P0) — existence alone is authoritative THERE because at judge time any recorded
+ * give-up necessarily predates the submission being judged (the 409 in-flight guard). Read-time
+ * `practice` labeling must NOT use bare existence: it orders the give-up against each
+ * submission's `created_at` (see `isPracticeSubmission` in the api submission routes), or a
+ * give-up would retroactively relabel earlier, fully-scored submissions.
  */
 export async function hasGivenUp(userId: string, versionId: string, client?: PoolClient): Promise<boolean> {
   const events = await listHintEvents(userId, versionId, client);

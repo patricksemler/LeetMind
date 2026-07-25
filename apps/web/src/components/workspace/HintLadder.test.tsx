@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HintLevel } from "@algolift/shared";
@@ -96,5 +96,31 @@ describe("HintLadder", () => {
     // L1's text is still visible — taken hints stay visible
     expect(screen.getByText(HINT_TEXT.l1_orientation)).toBeInTheDocument();
     expect(api.takeHint).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a pending label on the reveal button while the take is in flight, not just a disabled 'Reveal this hint'", async () => {
+    const user = userEvent.setup();
+    // One-time override (not the stateful mock from makeStatefulApi) so this take never resolves
+    // until the test says so — enough to observe the pending label without needing the mocked
+    // server's own `taken` bookkeeping to advance.
+    let resolveTake!: (v: Awaited<ReturnType<typeof api.takeHint>>) => void;
+    vi.mocked(api.takeHint).mockReturnValueOnce(new Promise((resolve) => (resolveTake = resolve)));
+
+    render(
+      <Providers>
+        <HintLadder versionId="v1" />
+      </Providers>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: /reveal this hint/i }));
+    const dialog = screen.getByRole("dialog", { name: /take this hint/i });
+    await user.click(within(dialog).getByRole("button", { name: /^take hint$/i }));
+
+    const pendingButton = await screen.findByRole("button", { name: /revealing…/i });
+    expect(pendingButton).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^reveal this hint$/i })).not.toBeInTheDocument();
+
+    resolveTake({ level: "l1_orientation", text: HINT_TEXT.l1_orientation, penalty_cap: 0.9, next_level_penalty: 0.75 });
+    await waitFor(() => expect(screen.queryByRole("button", { name: /revealing…/i })).not.toBeInTheDocument());
   });
 });

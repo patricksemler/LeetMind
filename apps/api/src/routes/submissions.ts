@@ -4,8 +4,8 @@ import {
   getLatestSubmission,
   getSubmission,
   getWorkoutItem,
-  hasGivenUp,
   insertSubmission,
+  listHintEvents,
   notify,
   queryOne,
   withTransaction,
@@ -19,13 +19,25 @@ import { buildReveal, sanitizeFailure, toSafeSubmission } from "../mappers/submi
 import { requireId } from "../server.js";
 import { notifyBus } from "../sse.js";
 
+/** `practice` labels submit-mode submissions created AFTER a recorded give-up on the version.
+ * The ordering check matters: a give-up must not retroactively relabel earlier submissions that
+ * were fully scored (the 409 in-flight guard means a give-up event is always either wholly before
+ * a submission's creation or after its terminal verdict, so `created_at` ordering is exact). The
+ * judge's own mastery gate (`hasGivenUp` in the handler) stays existence-based — at judge time,
+ * any recorded give-up necessarily predates the submission it is gating. */
+async function isPracticeSubmission(userId: string, row: SubmissionRow): Promise<boolean> {
+  if (row.mode !== "submit") return false;
+  const events = await listHintEvents(userId, row.problem_version_id);
+  return events.some((h) => h.level === "editorial" && new Date(h.created_at).getTime() < new Date(row.created_at).getTime());
+}
+
 /** Full client-facing submission projection: safe fields + reveal (if earned) + practice flag (if
  * this submit-mode submission followed a recorded give-up on the same version). Shared by
  * `GET /api/submissions/:id` and `GET /api/problems/:versionId/submissions/latest`. */
 async function enrichSubmission(userId: string, row: SubmissionRow) {
   const [reveal, practice] = await Promise.all([
     buildReveal(userId, row.problem_version_id),
-    row.mode === "submit" ? hasGivenUp(userId, row.problem_version_id) : Promise.resolve(false),
+    isPracticeSubmission(userId, row),
   ]);
   return { ...toSafeSubmission(row), ...(reveal ? { reveal } : {}), ...(practice ? { practice: true } : {}) };
 }
@@ -84,7 +96,7 @@ async function verdictEventPayload(
   try {
     const [reveal, practice] = await Promise.all([
       buildReveal(userId, row.problem_version_id),
-      row.mode === "submit" ? hasGivenUp(userId, row.problem_version_id) : Promise.resolve(false),
+      isPracticeSubmission(userId, row),
     ]);
     return { ...base, ...(reveal ? { reveal } : {}), ...(practice ? { practice: true } : {}) };
   } catch (err) {

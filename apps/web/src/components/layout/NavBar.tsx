@@ -4,7 +4,6 @@ const LINKS = [
   { to: "/", label: "Today", end: true },
   { to: "/progress", label: "Progress" },
   { to: "/concepts", label: "Concepts" },
-  { to: "/system", label: "System" },
 ];
 
 export function NavBar({ onShowShortcuts }: { onShowShortcuts: () => void }) {

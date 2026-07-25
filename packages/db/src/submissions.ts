@@ -81,6 +81,19 @@ export async function getLatestSubmission(userId: string, versionId: string): Pr
  * this, a give-up racing an in-flight accept applies mastery consequences in both directions for
  * the same evidence (confirmed live).
  */
+/** Whether the user has any scored (non-practice contexts filter separately) accepted submit-mode
+ * submission on this version — the server-side "already solved" signal. */
+export async function hasAcceptedSubmission(userId: string, versionId: string): Promise<boolean> {
+  const row = await queryOne<{ exists: boolean }>(
+    `select exists(
+       select 1 from submissions
+        where user_id = $1 and problem_version_id = $2 and mode = 'submit' and verdict = 'accepted'
+     ) as exists`,
+    [userId, versionId],
+  );
+  return row?.exists ?? false;
+}
+
 export async function hasInFlightSubmission(userId: string, versionId: string): Promise<boolean> {
   const row = await queryOne<{ exists: boolean }>(
     `select exists(

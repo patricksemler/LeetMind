@@ -71,7 +71,7 @@ export function Today() {
     return (
       <div className="flex h-full items-center justify-center p-6">
         <Panel className="max-w-md p-6 text-center">
-          <h1 className="font-display text-xl text-text">Let's find your baseline</h1>
+          <h1 className="font-display text-xl text-text">No baseline yet</h1>
           <p className="mt-2 text-sm text-text-dim">
             A short adaptive diagnostic (~4–6 problems) seeds honest starting ratings per concept. Skip anything
             unfamiliar — that's useful signal, not a failure.

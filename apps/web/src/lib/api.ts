@@ -28,7 +28,6 @@ import {
   SkipWorkoutItemResponse,
   StartDiagnosticResponse,
   StartWorkoutItemResponse,
-  SystemStatsResponse,
   type TakeHintRequest,
   TakeHintResponse,
 } from "@algolift/shared";
@@ -111,7 +110,6 @@ export const api = {
 
   progress: () => request("/api/progress", ProgressResponse),
 
-  systemStats: () => request("/api/system/stats", SystemStatsResponse),
 
   createWorkout: (body: CreateWorkoutRequest) => postJson("/api/workouts", body, CreateWorkoutResponse),
 

@@ -50,7 +50,7 @@ export function GiveUpControl({
         </div>
         {mutation.isError && (
           <p className="mt-3 text-sm text-verdict-error">
-            {mutation.error instanceof Error ? mutation.error.message : "Couldn't give up on this problem. Please try again."}
+            {mutation.error instanceof Error ? mutation.error.message : "Couldn't give up on this problem."}
           </p>
         )}
         <div className="mt-4 flex justify-end gap-2">

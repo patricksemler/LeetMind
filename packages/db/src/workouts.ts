@@ -1,7 +1,7 @@
 // Query helpers for `workouts` / `workout_items` — M3 (CONTRACTS.md §3, §9). New file; does not
 // touch any other repo's existing exports.
 import type { PoolClient } from "pg";
-import { query, queryOne, queryOneWith } from "./pool.js";
+import { query, queryOne, queryOneWith, queryWith } from "./pool.js";
 import type { WorkoutItemRole, WorkoutItemRow, WorkoutItemState, WorkoutKind, WorkoutRow } from "./types.js";
 
 export interface NewWorkoutInput {
@@ -94,16 +94,6 @@ export async function listRecentWorkouts(userId: string, limit: number): Promise
   );
 }
 
-/** Highest `position` currently used by a workout's items — callers appending an adaptively-chosen
- * next diagnostic item use this + 1. */
-export async function maxWorkoutItemPosition(workoutId: string): Promise<number> {
-  const row = await queryOne<{ max: number | null }>(
-    "select max(position) as max from workout_items where workout_id = $1",
-    [workoutId],
-  );
-  return row?.max ?? -1;
-}
-
 /**
  * `state='active'`, stamping `started_at` the first time only (idempotent re-start no-ops rather
  * than erroring) — CONTRACTS.md §9 intended-query comment for `POST /api/workout-items/:id/start`.
@@ -137,7 +127,7 @@ export async function completeWorkoutItem(
   id: string,
   input: CompleteWorkoutItemInput,
 ): Promise<WorkoutItemRow | null> {
-  return queryOneWith<WorkoutItemRow>(
+  const item = await queryOneWith<WorkoutItemRow>(
     client,
     `update workout_items
         set state = $2,
@@ -148,6 +138,37 @@ export async function completeWorkoutItem(
       returning *`,
     [id, input.state, input.active_ms ?? null],
   );
+
+  // A standard workout is done exactly when its last item resolves, and this is the one chokepoint
+  // every terminal path (skip, give-up, judge accept) already runs through — so the workout flips
+  // `completed` in the same transaction as the item that finishes it. Diagnostics are excluded:
+  // their completion is owned by advanceDiagnosticIfNeeded, which may still append adaptive items
+  // after every current item is terminal. The `for update` lock serializes two items resolving
+  // concurrently — without it, each transaction's not-exists check can read the other's item as
+  // still active under read committed, and the workout never completes.
+  if (item) {
+    await queryOneWith(
+      client,
+      `select id from workouts where id = $1 and status = 'active' and kind = 'standard' for update`,
+      [item.workout_id],
+    );
+    await queryWith(
+      client,
+      `update workouts
+          set status = 'completed', completed_at = now()
+        where id = $1
+          and status = 'active'
+          and kind = 'standard'
+          and not exists (
+            select 1 from workout_items
+             where workout_id = $1
+               and state in ('pending', 'active')
+          )`,
+      [item.workout_id],
+    );
+  }
+
+  return item;
 }
 
 /** Marks a workout `completed` (idempotent: only ever transitions from `active`). Callers decide

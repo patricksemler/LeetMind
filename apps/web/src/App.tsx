@@ -7,7 +7,6 @@ import { Today } from "./routes/Today";
 import { Problem } from "./routes/Problem";
 import { Progress } from "./routes/Progress";
 import { Diagnostic } from "./routes/Diagnostic";
-import { System } from "./routes/System";
 import { Concepts } from "./routes/Concepts";
 
 function NotFound() {
@@ -38,7 +37,6 @@ export function App() {
           <Route path="/problem/:versionId" element={<Problem />} />
           <Route path="/progress" element={<Progress />} />
           <Route path="/diagnostic" element={<Diagnostic />} />
-          <Route path="/system" element={<System />} />
           <Route path="/concepts" element={<Concepts />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

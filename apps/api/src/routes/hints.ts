@@ -4,11 +4,13 @@ import {
   getApprovedProblemVersion,
   getConceptStateForUpdate,
   getWorkoutItem,
+  hasAcceptedSubmission,
   hasInFlightSubmission,
   insertHintEvent,
   insertLearningEvent,
   listHintEvents,
   query,
+  queryOne,
   queryOneWith,
   upsertConceptState,
   withTransaction,
@@ -171,6 +173,19 @@ export function registerHintRoutes(fastify: FastifyInstance, deps: Deps): void {
 
       const conceptIds = content.concepts.map((c) => c.id);
       const idempotencyKey = learningEventKey({ kind: "give_up", userId, problemVersionId: versionId });
+
+      // A give-up after an accepted solve would score a recorded success at 0% and apply a
+      // negative delta on top of it. The UI disables the control once solved, but a stale or
+      // racing client can still post — reject it here too. Guarded on "no give-up recorded yet"
+      // so idempotent replays of a real pre-solve give-up (e.g. a retried request after a later
+      // practice solve) still reach the replay path below instead of 409ing.
+      const alreadyGaveUp = await queryOne<LearningEventRow>(
+        "select id from learning_events where idempotency_key = $1",
+        [idempotencyKey],
+      );
+      if (!alreadyGaveUp && (await hasAcceptedSubmission(userId, versionId))) {
+        throw conflict("Already solved — there's nothing to give up.");
+      }
 
       if (body.workout_item_id) {
         const item = await getWorkoutItem(body.workout_item_id);

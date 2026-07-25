@@ -230,6 +230,36 @@ describe.skipIf(!dbReachable)("workout assembly + skip", () => {
     expect(eventCountAfterSecond.rows[0].count).toBe(1);
   });
 
+  it("resolving the last item flips a standard workout to completed, and GET current returns null", async () => {
+    const seeded = await seedApprovedProblem(pool, {
+      conceptId: "arrays_hashing",
+      difficultyRating: Math.round(targetBand({ rating: 1200 }).ideal),
+    });
+    problemVersionIds.push(seeded.problemVersionId);
+    problemIds.push(seeded.problemId);
+
+    const created = await server.inject({ method: "POST", url: "/api/workouts", payload: {} });
+    const workout = JSON.parse(created.body).workout;
+    workoutIds.push(workout.id);
+    expect(workout.items.length).toBeGreaterThan(0);
+
+    for (const item of workout.items) {
+      const res = await server.inject({
+        method: "POST",
+        url: `/api/workout-items/${item.id}/skip`,
+        payload: { reason: "preference" },
+      });
+      expect(res.statusCode).toBe(200);
+    }
+
+    const row = await pool.query("select status, completed_at from workouts where id = $1", [workout.id]);
+    expect(row.rows[0].status).toBe("completed");
+    expect(row.rows[0].completed_at).not.toBeNull();
+
+    const current = await server.inject({ method: "GET", url: "/api/workouts/current" });
+    expect(JSON.parse(current.body).workout).toBeNull();
+  });
+
   it("POST /api/workout-items/:id/start marks the item active and stamps started_at", async () => {
     const seeded = await seedApprovedProblem(pool, {
       conceptId: "arrays_hashing",

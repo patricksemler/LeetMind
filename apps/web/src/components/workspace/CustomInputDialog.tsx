@@ -7,11 +7,16 @@ export function CustomInputDialog({
   onClose,
   initialArgs,
   onRun,
+  pending = false,
 }: {
   open: boolean;
   onClose: () => void;
   initialArgs: unknown[];
   onRun: (args: unknown) => void;
+  /** True while the run triggered by this dialog is in flight (the caller's own submit
+   * mutation, mode:"run") — the single submit mutation backs both Submit and this Run, so the
+   * caller tells us which mode is pending rather than this dialog owning any request state. */
+  pending?: boolean;
 }) {
   const [text, setText] = useState(() => JSON.stringify(initialArgs, null, 2));
   const [error, setError] = useState<string | null>(null);
@@ -51,8 +56,8 @@ export function CustomInputDialog({
         <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="primary" onClick={handleRun}>
-          Run
+        <Button variant="primary" onClick={handleRun} disabled={pending}>
+          {pending ? "Running…" : "Run"}
         </Button>
       </div>
     </Dialog>

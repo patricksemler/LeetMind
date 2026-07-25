@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { ProgressResponse } from "@algolift/shared";
 import { Providers } from "../test/testUtils";
@@ -104,5 +105,29 @@ describe("Concepts", () => {
     // The second (non-expanding) occurrence carries a marker instead of looking like a silently
     // truncated branch.
     expect(screen.getByText(/also under/i)).toBeInTheDocument();
+  });
+
+  it("still renders the taxonomy when the progress fetch fails, with a retry notice instead of every concept silently reading as unattempted", async () => {
+    vi.mocked(api.concepts).mockResolvedValue({
+      concepts: [{ id: "arrays_hashing", name: "Arrays & Hashing", description: "", misconceptions: [], min_rating: 800, max_rating: 2400, sort_order: 0 }],
+      edges: [],
+    });
+    vi.mocked(api.progress).mockRejectedValue(new Error("network down"));
+
+    render(
+      <Providers>
+        <Concepts />
+      </Providers>,
+    );
+
+    // The taxonomy itself isn't gated on the progress fetch succeeding.
+    expect(await screen.findByText("Arrays & Hashing")).toBeInTheDocument();
+    expect(screen.getByText(/mastery data failed to load/i)).toBeInTheDocument();
+
+    // Earlier tests in this file also call the (shared, un-reset) `api.progress` mock, so assert
+    // the retry causes another call relative to its own baseline rather than an absolute count.
+    const callsBeforeRetry = vi.mocked(api.progress).mock.calls.length;
+    await userEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(vi.mocked(api.progress).mock.calls.length).toBeGreaterThan(callsBeforeRetry);
   });
 });

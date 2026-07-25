@@ -326,7 +326,7 @@ export function assembleWorkout(input: AssembleWorkoutInput): AssembleWorkoutRes
     picked.push(warmup);
     usedIds.add(warmup.candidate.problem_version_id);
   } else {
-    notes.push("no warm-up candidate reached the high-confidence P(success) bar; role omitted.");
+    notes.push("No warm-up today — nothing in the pool was safely easy enough.");
   }
 
   const { picks: workingPicks, targetConcept } = pickWorkingSet(remaining(), states, now, focusConcept, weakestFirst);
@@ -337,8 +337,8 @@ export function assembleWorkout(input: AssembleWorkoutInput): AssembleWorkoutRes
   if (workingPicks.length === 0) {
     notes.push(
       focusConcept
-        ? `no candidate for ${conceptName(focusConcept)} landed in the 65-80% band; working set omitted.`
-        : "no candidate in any weak concept's 65-80% band; working set omitted.",
+        ? `No ${conceptName(focusConcept)} problem landed in range for the working set today.`
+        : "No working-set problem landed in range for your weakest concepts.",
     );
   }
 
@@ -349,10 +349,10 @@ export function assembleWorkout(input: AssembleWorkoutInput): AssembleWorkoutRes
       picked.push(overload);
       usedIds.add(overload.candidate.problem_version_id);
     } else {
-      notes.push(`no candidate rated above the ${conceptName(targetConcept)} band was available; overload omitted.`);
+      notes.push(`No ${conceptName(targetConcept)} problem was hard enough for an overload rep today.`);
     }
   } else {
-    notes.push("no working-set target concept was established; overload omitted.");
+    notes.push("No overload rep — no working-set target to build on.");
   }
 
   const { pick: recovery, anyDue } = pickRecovery(remaining(), states, now);
@@ -360,7 +360,7 @@ export function assembleWorkout(input: AssembleWorkoutInput): AssembleWorkoutRes
     picked.push(recovery);
     usedIds.add(recovery.candidate.problem_version_id);
   } else if (anyDue) {
-    notes.push("a review is due but no candidate touching that concept was available; recovery omitted.");
+    notes.push("A review is due, but there's no problem available for it yet.");
   }
   // No note when nothing is due at all — that's the normal case, not a shortfall.
 
@@ -387,7 +387,7 @@ export function assembleWorkout(input: AssembleWorkoutInput): AssembleWorkoutRes
   }
   if (dropped.length > 0) {
     notes.push(
-      `dropped ${dropped.map((d) => `${d.role} (${conceptName(d.candidate.concepts[0]?.id ?? "?")})`).join(", ")} ` +
+      `Dropped ${dropped.map((d) => `${d.role} (${conceptName(d.candidate.concepts[0]?.id ?? "?")})`).join(", ")} ` +
         `to fit the ${targetMinutes}-minute budget.`,
     );
   }

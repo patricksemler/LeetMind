@@ -285,30 +285,45 @@ function watchForOomEvent(dockerBin: string, containerName: string): { stop: () 
           return;
         }
         let settled = false;
+        const timers: ReturnType<typeof setTimeout>[] = [];
         const finish = () => {
           if (settled) return;
           settled = true;
+          for (const t of timers) clearTimeout(t);
           resolve(oomSeen);
         };
+        // The child may already be gone (a bounced Docker daemon closes every `docker events`
+        // stream): its `close` fired before stop() was called, so listeners registered below
+        // would never run and this promise would hang the handler forever — before its terminal
+        // write, with the per-job heartbeat still extending the lease, so neither the reaper nor
+        // the stranded-submission reconciler would ever recover it.
+        if (child.exitCode !== null || child.signalCode !== null) {
+          finish();
+          return;
+        }
         child.once("close", finish);
         child.once("error", finish);
         // `docker events` streams forever until told to stop; SIGTERM is usually enough, but it
-        // doesn't always land promptly, so force it shortly after if `close` hasn't fired yet.
+        // doesn't always land promptly, so force it shortly after if `close` hasn't fired yet —
+        // and resolve unconditionally after that as a last-resort backstop, because a wedged
+        // watcher must never outrank delivering the verdict.
         try {
           child.kill("SIGTERM");
         } catch {
           finish();
           return;
         }
-        const forceKill = setTimeout(() => {
-          try {
-            child.kill("SIGKILL");
-          } catch {
-            // already dead
-          }
-        }, 500);
-        forceKill.unref?.();
-        child.once("close", () => clearTimeout(forceKill));
+        timers.push(
+          setTimeout(() => {
+            try {
+              child.kill("SIGKILL");
+            } catch {
+              // already dead
+            }
+          }, 500),
+        );
+        timers.push(setTimeout(finish, 2000));
+        for (const t of timers) t.unref?.();
       }),
   };
 }

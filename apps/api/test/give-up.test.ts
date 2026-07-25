@@ -157,4 +157,99 @@ describe.skipIf(!dbReachable)("give-up idempotency", () => {
     );
     expect(events.rows[0]?.count).toBe("0");
   });
+
+  it("rejects give-up with 409 once the problem is already solved — the UI disables the control, but a stale client can still post", async () => {
+    const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
+    problemVersionIds.push(seeded.problemVersionId);
+    problemIds.push(seeded.problemId);
+
+    const submission = await withTransaction((client) =>
+      insertSubmission(client, {
+        id: `sub_${seeded.problemVersionId}`,
+        user_id: deps.config.singleUserId,
+        problem_version_id: seeded.problemVersionId,
+        mode: "submit",
+        language: "python",
+        source: "def twoSum(nums, target):\n    return []\n",
+        source_hash: "irrelevant",
+        status: "completed",
+      }),
+    );
+    submissionIds.push(submission.id);
+    await pool.query("update submissions set verdict = 'accepted', completed_at = now() where id = $1", [submission.id]);
+
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/problems/${seeded.problemVersionId}/give-up`,
+      payload: {},
+    });
+    expect(res.statusCode).toBe(409);
+
+    const events = await pool.query<{ count: string }>(
+      "select count(*)::text as count from learning_events where problem_version_id = $1 and kind = 'give_up'",
+      [seeded.problemVersionId],
+    );
+    expect(events.rows[0]?.count).toBe("0");
+  });
+
+  it("labels only submissions created AFTER the give-up as practice — a give-up must not retroactively relabel earlier scored attempts", async () => {
+    const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
+    problemVersionIds.push(seeded.problemVersionId);
+    problemIds.push(seeded.problemId);
+    const userId = deps.config.singleUserId;
+
+    // A scored wrong-answer attempt, completed before any give-up.
+    const before = await withTransaction((client) =>
+      insertSubmission(client, {
+        id: `subA${seeded.problemVersionId.slice(4)}`,
+        user_id: userId,
+        problem_version_id: seeded.problemVersionId,
+        mode: "submit",
+        language: "python",
+        source: "def twoSum(nums, target):\n    return []\n",
+        source_hash: "irrelevant",
+        status: "completed",
+      }),
+    );
+    submissionIds.push(before.id);
+    await pool.query("update submissions set verdict = 'wrong_answer', completed_at = now() where id = $1", [before.id]);
+
+    const giveUp = await server.inject({
+      method: "POST",
+      url: `/api/problems/${seeded.problemVersionId}/give-up`,
+      payload: {},
+    });
+    expect(giveUp.statusCode).toBe(200);
+
+    // The pre-give-up submission stays a scored attempt.
+    const latestBefore = await server.inject({
+      method: "GET",
+      url: `/api/problems/${seeded.problemVersionId}/submissions/latest`,
+    });
+    expect(latestBefore.statusCode).toBe(200);
+    expect(JSON.parse(latestBefore.body).submission.practice).toBeUndefined();
+
+    // A post-give-up attempt is practice.
+    const after = await withTransaction((client) =>
+      insertSubmission(client, {
+        id: `subB${seeded.problemVersionId.slice(4)}`,
+        user_id: userId,
+        problem_version_id: seeded.problemVersionId,
+        mode: "submit",
+        language: "python",
+        source: "def twoSum(nums, target):\n    return []\n",
+        source_hash: "irrelevant",
+        status: "completed",
+      }),
+    );
+    submissionIds.push(after.id);
+    await pool.query("update submissions set verdict = 'wrong_answer', completed_at = now() where id = $1", [after.id]);
+
+    const latestAfter = await server.inject({
+      method: "GET",
+      url: `/api/problems/${seeded.problemVersionId}/submissions/latest`,
+    });
+    expect(latestAfter.statusCode).toBe(200);
+    expect(JSON.parse(latestAfter.body).submission.practice).toBe(true);
+  });
 });

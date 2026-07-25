@@ -16,9 +16,9 @@ import {
   insertWorkout,
   insertWorkoutItem,
   listWorkoutItems,
-  maxWorkoutItemPosition,
   query,
   queryOneWith,
+  queryWith,
   startWorkoutItem,
   upsertConceptState,
   withTransaction,
@@ -268,12 +268,33 @@ async function advanceDiagnosticIfNeeded(userId: string, workout: WorkoutRow, it
     }
 
     const candidate = toWorkoutCandidate(candidateRow);
-    const position = (await maxWorkoutItemPosition(workout.id)) + 1;
-    const newItem = await withTransaction((client) =>
-      insertWorkoutItem(client, {
+    // Lock the workout row and re-check inside ONE transaction. Two concurrent GET /current
+    // calls on an all-resolved diagnostic both pass the pending/active gate above, resolve the
+    // same step, and compute the same next position — without the lock the loser dies on the
+    // (workout_id, position) unique key (a 500), or worse appends a duplicate step. The loser
+    // now serializes behind the winner, sees the freshly-appended pending item, and bails.
+    const newItem = await withTransaction(async (client) => {
+      const locked = await queryOneWith<WorkoutRow>(
+        client,
+        `select id from workouts where id = $1 and status = 'active' for update`,
+        [workout.id],
+      );
+      if (!locked) return null;
+      const unresolved = await queryWith<WorkoutItemRow>(
+        client,
+        `select id from workout_items where workout_id = $1 and state in ('pending', 'active') limit 1`,
+        [workout.id],
+      );
+      if (unresolved.length > 0) return null;
+      const maxRow = await queryOneWith<{ max: number | null }>(
+        client,
+        `select max(position) as max from workout_items where workout_id = $1`,
+        [workout.id],
+      );
+      return insertWorkoutItem(client, {
         id: newId(),
         workout_id: workout.id,
-        position,
+        position: (maxRow?.max ?? -1) + 1,
         role: "diagnostic",
         problem_version_id: candidateRow.id,
         rationale: step.rationale,
@@ -284,8 +305,10 @@ async function advanceDiagnosticIfNeeded(userId: string, workout: WorkoutRow, it
           expected_active_minutes: candidate?.expected_active_minutes,
           title: candidate?.title,
         },
-      }),
-    );
+      });
+    });
+    // null: another request appended (or completed the workout) first — return the fresh truth.
+    if (!newItem) return listWorkoutItems(workout.id);
     return [...items, newItem];
   }
 

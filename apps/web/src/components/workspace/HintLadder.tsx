@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HINT_PENALTY_CAPS, type HintLevel } from "@algolift/shared";
 import { api } from "../../lib/api";
+import { formatPercent } from "../../lib/format";
 import { Badge, Button, Dialog, Plate } from "../ui";
 import { Markdown } from "./Markdown";
 
@@ -81,13 +82,13 @@ export function HintLadder({ versionId, disabled = false }: { versionId: string;
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-sm font-medium text-text">{LABELS[level]}</span>
-                {!isTaken && <Badge tone="warn">caps score at {Math.round(cap * 100)}%</Badge>}
+                {!isTaken && <Badge tone="warn">caps score at {formatPercent(cap)}</Badge>}
               </div>
               {isTaken && hintTexts[level] && <Markdown className="text-xs">{hintTexts[level]!}</Markdown>}
               {isTaken && !hintTexts[level] && <p className="text-xs text-text-faint">Loading…</p>}
               {isNext && (
                 <Button size="sm" variant="secondary" onClick={() => setConfirmLevel(level)} disabled={takeMutation.isPending}>
-                  Reveal this hint
+                  {takeMutation.isPending ? "Revealing…" : "Reveal this hint"}
                 </Button>
               )}
               {isLocked && <p className="text-xs text-text-faint">Take the hint above first.</p>}
@@ -101,7 +102,7 @@ export function HintLadder({ versionId, disabled = false }: { versionId: string;
           <div className="space-y-3 text-sm text-text-dim">
             <p>
               Taking <strong className="text-text">{LABELS[confirmLevel]}</strong> caps your maximum score on this
-              problem at <strong className="text-verdict-warn">{Math.round(HINT_PENALTY_CAPS[confirmLevel] * 100)}%</strong>.
+              problem at <strong className="text-verdict-warn">{formatPercent(HINT_PENALTY_CAPS[confirmLevel])}</strong>.
               This can't be undone.
             </p>
           </div>

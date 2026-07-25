@@ -640,8 +640,14 @@ app.post(
   handle((req, res) => {
     const item = workoutItems.get(pparam(req.params.id));
     if (!item) return notFound(res, `no workout item ${pparam(req.params.id)}`);
-    item.state = "active";
-    item.started_at = item.started_at ?? new Date().toISOString();
+    // Mirrors the real API's guard (packages/db/src/workouts.ts startWorkoutItem): only
+    // `pending -> active`. Unconditionally setting `active` un-completed already-terminal items
+    // (solved/skipped/gave_up) every time the client revisited via a workout ladder's "Review"
+    // link — the item mount effect fires this unconditionally, assuming idempotence.
+    if (item.state === "pending") {
+      item.state = "active";
+      item.started_at = item.started_at ?? new Date().toISOString();
+    }
     res.json({ item });
   }),
 );
