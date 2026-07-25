@@ -1,5 +1,5 @@
 """End-to-end tests for the six-stage verification gate (CONTRACTS.md §10), against the REAL
-sandbox (Docker + `algolift/runner-python:1`) and the REAL migrated Postgres schema.
+sandbox (Docker + `leetmind/runner-python:1`) and the REAL migrated Postgres schema.
 
 This is the M2 "done when" criterion from PLAN.md §10: "a deliberately-broken candidate (wrong
 reference, weak tests, surviving mutant) is rejected at the right stage with a stored report."
@@ -19,11 +19,11 @@ from typing import Any
 import pytest
 from conftest import fresh_problem_version_content, postgres_reachable
 
-from algolift_content.db import query_one
-from algolift_content.queue import Job, WorkerContext
-from algolift_content.sandbox import SandboxUnavailable, sandbox_probe
-from algolift_content.verification import handle_verify, verify_problem_version
-from algolift_content.verification.stage_schema import run as run_schema_stage
+from leetmind_content.db import query_one
+from leetmind_content.queue import Job, WorkerContext
+from leetmind_content.sandbox import SandboxUnavailable, sandbox_probe
+from leetmind_content.verification import handle_verify, verify_problem_version
+from leetmind_content.verification.stage_schema import run as run_schema_stage
 
 _sandbox_ok, _sandbox_reason = sandbox_probe()
 
@@ -43,7 +43,7 @@ def _pv_state(version_id: str) -> dict[str, Any] | None:
 
 
 def _problem_concepts(version_id: str) -> list[dict[str, Any]]:
-    from algolift_content.db import query
+    from leetmind_content.db import query
 
     return query(
         "select concept_id, role, weight from problem_concepts where problem_version_id = %s",
@@ -459,7 +459,7 @@ def test_handle_verify_raises_on_infrastructure_failure(
     def _boom(*args: Any, **kwargs: Any) -> Any:
         raise SandboxUnavailable("simulated docker outage")
 
-    monkeypatch.setattr("algolift_content.verification.worker.verify_problem_version", _boom)
+    monkeypatch.setattr("leetmind_content.verification.worker.verify_problem_version", _boom)
 
     with pytest.raises(SandboxUnavailable):
         handle_verify(job, _make_ctx())

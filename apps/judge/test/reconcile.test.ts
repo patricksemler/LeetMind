@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { query } from "@algolift/db";
+import { query } from "@leetmind/db";
 import { reconcileStrandedSubmissions } from "../src/reconcile.js";
 import {
   insertTestSubmission,
@@ -15,7 +15,7 @@ import {
 const dbReachable = await isDatabaseReachable();
 
 // Regression tests for QA-PLAN.md §2.3: a judge job that exhausts its retries (or whose worker
-// died outright, reaped by @algolift/queue's reaper) leaves `jobs.status='dead'` but never wrote
+// died outright, reaped by @leetmind/queue's reaper) leaves `jobs.status='dead'` but never wrote
 // a terminal state for the submission it was judging — confirmed live, the user sees "running…"
 // forever with no recovery.
 describe.skipIf(!dbReachable)("reconcileStrandedSubmissions (integration: live Postgres)", () => {

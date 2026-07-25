@@ -15,13 +15,13 @@
 // database, same as every service), never `TEST_DATABASE_URL`. Per docs/CONTRACTS.md §13 the test
 // suites refuse to run against anything that ISN'T named like a test database; this script does
 // the mirror-image check and refuses to run against anything that IS — an operator who
-// accidentally points DATABASE_URL at `algolift_test` should get a loud refusal, not a requeue
+// accidentally points DATABASE_URL at `leetmind_test` should get a loud refusal, not a requeue
 // that a test run's own truncation immediately erases (or worse, cross-contaminates a live chaos
 // test run).
 import { createInterface } from "node:readline/promises";
 import { Pool } from "pg";
-import { loadBaseConfig } from "@algolift/shared";
-import { Queue, type DeadJobInfo } from "@algolift/queue";
+import { loadBaseConfig } from "@leetmind/shared";
+import { Queue, type DeadJobInfo } from "@leetmind/queue";
 
 const TEST_DB_NAME_PATTERN = /(^|_)test$/;
 
@@ -33,7 +33,7 @@ function extractDatabaseName(url: string): string | undefined {
   }
 }
 
-/** Inverse of `@algolift/db`'s `assertTestDatabase` (docs/CONTRACTS.md §13): this is an operator
+/** Inverse of `@leetmind/db`'s `assertTestDatabase` (docs/CONTRACTS.md §13): this is an operator
  * tool for REAL data, so it refuses to run against anything that looks like a test database,
  * rather than refusing anything that doesn't. */
 function assertNotTestDatabase(url: string): void {

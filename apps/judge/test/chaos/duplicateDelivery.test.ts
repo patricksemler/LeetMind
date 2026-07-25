@@ -12,7 +12,7 @@
 // exercised as a no-op fast path. This test drives that directly: N concurrent calls to the SAME
 // handler, same job, same DB pool.
 import { describe, expect, it, beforeAll, afterEach } from "vitest";
-import type { UserConceptStateRow } from "@algolift/db";
+import type { UserConceptStateRow } from "@leetmind/db";
 import { createJudgeHandler } from "../../src/handler.js";
 import {
   countLearningEvents,

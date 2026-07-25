@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { AppError } from "@algolift/shared";
+import { AppError } from "@leetmind/shared";
 import { describe, expect, it, vi } from "vitest";
 import { MAX_NOTIFY_PAYLOAD_BYTES, notify } from "./notify.js";
 import type { NotifyPayload } from "./types.js";
@@ -17,7 +17,7 @@ describe("notify payload-size guard", () => {
 
     expect(client.query).toHaveBeenCalledTimes(1);
     const [sql, params] = (client.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
-    expect(sql).toContain("pg_notify('algolift_events'");
+    expect(sql).toContain("pg_notify('leetmind_events'");
     expect(params).toEqual([JSON.stringify(payload)]);
   });
 

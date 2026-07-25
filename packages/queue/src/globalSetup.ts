@@ -1,8 +1,8 @@
 /**
- * Vitest globalSetup for @algolift/queue.
+ * Vitest globalSetup for @leetmind/queue.
  *
  * The queue suite deliberately runs against its OWN throwaway Postgres (port 55433) rather than the
- * shared `algolift_test` database: it creates and drops the `jobs` table wholesale and exercises
+ * shared `leetmind_test` database: it creates and drops the `jobs` table wholesale and exercises
  * lease/reaper timing, so it wants exclusive ownership.
  *
  * Previously that container had to be started by hand. When it was absent, `tryConnect()` returned
@@ -15,7 +15,7 @@
  */
 import { execFileSync } from "node:child_process";
 
-const CONTAINER = "algolift-queue-test";
+const CONTAINER = "leetmind-queue-test";
 const IMAGE = "postgres:17-alpine";
 const PORT = "55433";
 
@@ -50,16 +50,16 @@ export async function setup(): Promise<void> {
   docker(["rm", "-f", CONTAINER], { allowFailure: true });
   docker([
     "run", "-d", "--name", CONTAINER,
-    "-e", "POSTGRES_USER=algolift",
-    "-e", "POSTGRES_PASSWORD=algolift",
-    "-e", "POSTGRES_DB=algolift_queue_test",
+    "-e", "POSTGRES_USER=leetmind",
+    "-e", "POSTGRES_PASSWORD=leetmind",
+    "-e", "POSTGRES_DB=leetmind_queue_test",
     "-p", `${PORT}:5432`,
     IMAGE,
   ]);
   startedByUs = true;
 
   for (let i = 0; i < 60; i++) {
-    const ready = docker(["exec", CONTAINER, "pg_isready", "-U", "algolift"], {
+    const ready = docker(["exec", CONTAINER, "pg_isready", "-U", "leetmind"], {
       allowFailure: true,
     });
     if (ready.includes("accepting connections")) return;

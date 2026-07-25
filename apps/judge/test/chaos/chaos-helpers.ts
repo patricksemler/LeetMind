@@ -9,10 +9,10 @@ import { type ChildProcessByStdio, spawn } from "node:child_process";
 import type { Readable } from "node:stream";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getPool, query } from "@algolift/db";
-import { Queue } from "@algolift/queue";
-import type { JudgeJobPayload } from "@algolift/shared";
-import type { SubmissionRow } from "@algolift/db";
+import { getPool, query } from "@leetmind/db";
+import { Queue } from "@leetmind/queue";
+import type { JudgeJobPayload } from "@leetmind/shared";
+import type { SubmissionRow } from "@leetmind/db";
 
 export * from "../helpers.js";
 
@@ -214,7 +214,7 @@ export async function deleteJobs(ids: string[]): Promise<void> {
  * `enqueueJudgeJob` and several other chaos tests use) and track every id they create explicitly,
  * cleaning up via `deleteJobs(ids)` — never a blanket delete-by-kind, since real `generate`/`verify`
  * jobs from a concurrently-run `content` (Python) or `apps/api` test suite against the same
- * `algolift_test` database are NOT rows this suite created and must never be touched (§13 rule 3).
+ * `leetmind_test` database are NOT rows this suite created and must never be touched (§13 rule 3).
  */
 export const CHAOS_QUEUE_KIND = "generate";
 
@@ -233,7 +233,7 @@ export async function assertNoStrayJobs(kind: string): Promise<void> {
         `started (ids: ${rows.map((r) => `${r.id}(${r.status})`).join(", ")}). This test needs an empty ` +
         `queue for that kind to make its counts meaningful — either a previous test run left rows behind ` +
         `(check its afterEach cleanup), or another suite is concurrently enqueuing "${kind}" jobs against ` +
-        `the same algolift_test database. Investigate before re-running.`,
+        `the same leetmind_test database. Investigate before re-running.`,
     );
   }
 }

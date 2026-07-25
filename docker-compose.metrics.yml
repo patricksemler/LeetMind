@@ -18,20 +18,20 @@
 # http://localhost:9090.
 
 networks:
-  algolift:
-    name: algolift
+  leetmind:
+    name: leetmind
     # `external: true` when the main docker-compose.yml's network already exists (i.e. you're
     # running this alongside the full stack) — `docker compose -f a -f b up` creates it once from
     # docker-compose.yml's definition and this file just joins it. If you run this file STANDALONE
     # (api/judge as host processes, nothing else from docker-compose.yml up), Compose will fail to
-    # find an external network named `algolift`; drop `external: true` in that case, or run
-    # `docker network create algolift` first. Kept as `external: true` here because the documented
+    # find an external network named `leetmind`; drop `external: true` in that case, or run
+    # `docker network create leetmind` first. Kept as `external: true` here because the documented
     # one-liner above always brings up docker-compose.yml first.
     external: true
 
 volumes:
-  algolift-prometheus-data:
-  algolift-grafana-data:
+  leetmind-prometheus-data:
+  leetmind-grafana-data:
 
 services:
   prometheus:
@@ -40,7 +40,7 @@ services:
     profiles: ["metrics"]
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - algolift-prometheus-data:/prometheus
+      - leetmind-prometheus-data:/prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=7d
@@ -52,7 +52,7 @@ services:
       # is listed at all: it's how Prometheus reaches an api started via `pnpm dev:api` on the host.
       - "host.docker.internal:host-gateway"
     networks:
-      - algolift
+      - leetmind
 
   grafana:
     image: grafana/grafana:11.3.1
@@ -67,12 +67,12 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       GF_USERS_ALLOW_SIGN_UP: "false"
       # First dashboard a viewer sees on load — no clicking to find it (PLAN.md M5 requirement).
-      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/algolift.json
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/leetmind.json
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - algolift-grafana-data:/var/lib/grafana
+      - leetmind-grafana-data:/var/lib/grafana
     ports:
       - "3001:3000"
     networks:
-      - algolift
+      - leetmind

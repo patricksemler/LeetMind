@@ -2,7 +2,7 @@
 // (server-authoritative timestamps, not client-observed ones — see client.ts's doc comment for
 // why) and computes p50/p95/p99 for end-to-end latency, queue wait, and judge execution time,
 // plus throughput and verdict/error counts. Prints a clean summary table.
-import { query } from "@algolift/db";
+import { query } from "@leetmind/db";
 import type { LoadProfile } from "./config.js";
 
 export interface SubmissionRecord {
@@ -58,7 +58,7 @@ export async function loadSubmissionRecords(
 }
 
 /** Linear-interpolation percentile (same family of estimator as Postgres's
- * `percentile_cont`, which @algolift/queue's own `Queue.stats()` uses — kept consistent rather
+ * `percentile_cont`, which @leetmind/queue's own `Queue.stats()` uses — kept consistent rather
  * than picking a different estimator for this harness). */
 export function percentile(sortedAsc: number[], p: number): number | null {
   if (sortedAsc.length === 0) return null;

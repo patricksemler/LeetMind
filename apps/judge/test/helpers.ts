@@ -23,7 +23,7 @@ import {
   type SubmissionStatus,
   type UserConceptStateRow,
   type WorkoutItemRow,
-} from "@algolift/db";
+} from "@leetmind/db";
 import {
   DEFAULT_SINGLE_USER_ID,
   loadBaseConfig,
@@ -33,8 +33,8 @@ import {
   type JudgeJobPayload,
   type ProblemVersion,
   type Signature,
-} from "@algolift/shared";
-import type { Job, Logger as QueueLogger, WorkerContext } from "@algolift/queue";
+} from "@leetmind/shared";
+import type { Job, Logger as QueueLogger, WorkerContext } from "@leetmind/queue";
 import { buildJudgeDeps, type JudgeDeps } from "../src/deps.js";
 
 export const TEST_USER_ID = DEFAULT_SINGLE_USER_ID;
@@ -268,7 +268,7 @@ export async function reloadWorkoutItem(id: string): Promise<WorkoutItemRow> {
 }
 
 /** Records a give-up the way `POST /api/problems/:versionId/give-up` does at its core — inserts
- * the `editorial` hint_event that both `hasGivenUp` (@algolift/db) and this test suite's
+ * the `editorial` hint_event that both `hasGivenUp` (@leetmind/db) and this test suite's
  * "practice" assertions key off of. */
 export async function recordGiveUp(versionId: string): Promise<void> {
   await withTransaction((client) =>
@@ -278,7 +278,7 @@ export async function recordGiveUp(versionId: string): Promise<void> {
 
 // --- handler-invocation fakes ------------------------------------------------------------------
 
-/** A no-op structural logger satisfying `@algolift/queue`'s `Logger` interface, quiet by default
+/** A no-op structural logger satisfying `@leetmind/queue`'s `Logger` interface, quiet by default
  * so test output isn't drowned in judge log lines. */
 export function silentLogger(): QueueLogger {
   const noop = () => {};

@@ -1,8 +1,8 @@
-"""Tests for algolift_content.generation.prompts.v1 — the prompt builder itself (no model calls)."""
+"""Tests for leetmind_content.generation.prompts.v1 — the prompt builder itself (no model calls)."""
 
 from __future__ import annotations
 
-from algolift_content.generation.prompts.v1 import (
+from leetmind_content.generation.prompts.v1 import (
     BANNED_HINT_WORDS,
     PROMPT_VERSION,
     REQUEST_JSON_BEGIN,
@@ -10,7 +10,7 @@ from algolift_content.generation.prompts.v1 import (
     build_generation_prompt,
     build_repair_prompt,
 )
-from algolift_content.models import GenerationConceptWeight, GenerationRequest, TargetComplexity
+from leetmind_content.models import GenerationConceptWeight, GenerationRequest, TargetComplexity
 
 
 def _sample_request() -> GenerationRequest:

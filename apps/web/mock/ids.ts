@@ -1,7 +1,7 @@
 /**
  * Deterministic pseudo-ULIDs for fixture data, so problem/version/workout ids are stable across
  * mock-server restarts (handy for manual testing and screenshots). Runtime-created rows
- * (submissions, hint events, ...) use the real `newId()` from `@algolift/shared` instead.
+ * (submissions, hint events, ...) use the real `newId()` from `@leetmind/shared` instead.
  */
 const CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

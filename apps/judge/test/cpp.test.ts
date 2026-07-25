@@ -4,7 +4,7 @@
 // owns — see that file's header) for the one piece Python's helpers can't build: a
 // `language: 'cpp'` submission row.
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { query, type UserConceptStateRow } from "@algolift/db";
+import { query, type UserConceptStateRow } from "@leetmind/db";
 import { createJudgeHandler } from "../src/handler.js";
 import { rejudgeSubmission } from "../src/rejudge.js";
 import {

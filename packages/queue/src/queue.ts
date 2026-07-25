@@ -1,6 +1,6 @@
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
-// @algolift/shared per docs/CONTRACTS.md: createLogger(service), newId(), JobKind, JOB_PRIORITY.
-import { createLogger, newId, JOB_PRIORITY, type JobKind } from '@algolift/shared';
+// @leetmind/shared per docs/CONTRACTS.md: createLogger(service), newId(), JobKind, JOB_PRIORITY.
+import { createLogger, newId, JOB_PRIORITY, type JobKind } from '@leetmind/shared';
 
 import type {
   DeadJobInfo,

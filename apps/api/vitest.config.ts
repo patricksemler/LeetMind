@@ -5,7 +5,7 @@ export default defineConfig({
     environment: "node",
     // docs/CONTRACTS.md §13: point DATABASE_URL at a schema-scoped TEST_DATABASE_URL (guarded,
     // migrated) before any test file's top-level code runs, so this process's tests are isolated
-    // from every OTHER concurrently-running test process sharing algolift_test — not just from
+    // from every OTHER concurrently-running test process sharing leetmind_test — not just from
     // the development database.
     setupFiles: ["./test/testSetup.ts"],
     testTimeout: 20_000,

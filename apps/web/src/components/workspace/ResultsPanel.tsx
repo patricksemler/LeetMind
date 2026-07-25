@@ -5,7 +5,7 @@
  * `run`-mode shows them (it's a scratch execution against user-supplied input, not the hidden
  * suite). That gate is enforced here unconditionally, not just trusted from the server payload.
  */
-import type { SubmissionMode, SubmissionStatus, VerdictEvent } from "@algolift/shared";
+import type { SubmissionMode, SubmissionStatus, VerdictEvent } from "@leetmind/shared";
 import { Badge, Meter } from "../ui";
 import type { BadgeTone } from "../ui/Badge";
 import type { MeterTone } from "../ui/Meter";

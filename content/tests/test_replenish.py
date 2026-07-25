@@ -1,4 +1,4 @@
-"""Tests for algolift_content.workers.replenish — compute_demand's prediction rule, replenish_once's
+"""Tests for leetmind_content.workers.replenish — compute_demand's prediction rule, replenish_once's
 watermark top-up + idempotency + per-pass cap, and buffer_report. Requires Postgres (skips the
 whole module otherwise) with migrations + taxonomy seed applied.
 """
@@ -12,9 +12,9 @@ import pytest
 from conftest import postgres_reachable
 from ulid import ULID
 
-from algolift_content.config import get_settings
-from algolift_content.db import assert_test_database, get_pool, query
-from algolift_content.workers.replenish import buffer_report, compute_demand, replenish_once
+from leetmind_content.config import get_settings
+from leetmind_content.db import assert_test_database, get_pool, query
+from leetmind_content.workers.replenish import buffer_report, compute_demand, replenish_once
 
 pytestmark = pytest.mark.skipif(
     not postgres_reachable(), reason="Postgres not reachable on TEST_DATABASE_URL"

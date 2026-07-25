@@ -4,8 +4,8 @@
 // opens, so the route must always check DB state first.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { loadApiConfig } from "@algolift/shared";
-import { notify } from "@algolift/db";
+import { loadApiConfig } from "@leetmind/shared";
+import { notify } from "@leetmind/db";
 import { buildDeps, type Deps } from "../src/deps.js";
 import { buildServer } from "../src/server.js";
 import { notifyBus } from "../src/sse.js";

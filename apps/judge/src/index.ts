@@ -1,9 +1,9 @@
 // Entrypoint: load config, resolve the sandbox image (fail fast if missing), start the reaper and
 // the job-claiming worker loop, graceful shutdown on SIGINT/SIGTERM. CONTRACTS.md apps/judge brief.
-import { closePool } from "@algolift/db";
-import { installShutdownHandlers, runWorker, startReaper, type Logger as QueueLogger } from "@algolift/queue";
-import { ensureImage } from "@algolift/sandbox";
-import { createLogger } from "@algolift/shared";
+import { closePool } from "@leetmind/db";
+import { installShutdownHandlers, runWorker, startReaper, type Logger as QueueLogger } from "@leetmind/queue";
+import { ensureImage } from "@leetmind/sandbox";
+import { createLogger } from "@leetmind/shared";
 import { buildJudgeDeps } from "./deps.js";
 import { createJudgeHandler } from "./handler.js";
 import { startStrandedSweep } from "./reconcile.js";

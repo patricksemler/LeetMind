@@ -8,7 +8,7 @@ import type { SandboxLimits } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../..");
-const IMAGE = process.env.SANDBOX_PYTHON_IMAGE ?? "algolift/runner-python:1";
+const IMAGE = process.env.SANDBOX_PYTHON_IMAGE ?? "leetmind/runner-python:1";
 
 function isDockerUp(): boolean {
   try {
@@ -159,7 +159,7 @@ describe.skipIf(!dockerUp)("sandbox docker integration", () => {
     const result = await runSandboxed({
       image: IMAGE,
       files: {},
-      argv: ["python3", "-c", "open('/etc/algolift-write-test', 'w')"],
+      argv: ["python3", "-c", "open('/etc/leetmind-write-test', 'w')"],
       limits: baseLimits,
     });
 

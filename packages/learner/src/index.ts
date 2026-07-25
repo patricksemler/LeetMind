@@ -1,5 +1,5 @@
 /**
- * `@algolift/learner` — pure Glicko-lite mastery engine (rating/uncertainty, outcome scoring,
+ * `@leetmind/learner` — pure Glicko-lite mastery engine (rating/uncertainty, outcome scoring,
  * SM-2 review scheduling, next-problem selection). CONTRACTS.md §8. No I/O; every function that
  * needs the current time takes it as an injected `now: Date` parameter.
  */

@@ -51,8 +51,8 @@ function runCli(subcommand: string, stdinPayload: string): Promise<CliRun> {
 }
 
 const dockerUp = isDockerUp();
-const IMAGE = process.env.SANDBOX_PYTHON_IMAGE ?? "algolift/runner-python:1";
-const CPP_IMAGE = process.env.SANDBOX_CPP_IMAGE ?? "algolift/runner-cpp:1";
+const IMAGE = process.env.SANDBOX_PYTHON_IMAGE ?? "leetmind/runner-python:1";
+const CPP_IMAGE = process.env.SANDBOX_CPP_IMAGE ?? "leetmind/runner-cpp:1";
 
 describe("sandbox CLI bridge (cli.ts)", () => {
   it("keeps stdout pure JSON when the underlying code logs (no Docker needed)", async () => {

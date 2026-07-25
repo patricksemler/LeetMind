@@ -1,4 +1,4 @@
--- 001_init.sql — AlgoLift core schema (CONTRACTS.md §3)
+-- 001_init.sql — LeetMind core schema (CONTRACTS.md §3)
 --
 -- Tables are created in an order that satisfies every foreign key without
 -- forward references (workouts/workout_items are created before submissions
@@ -336,7 +336,7 @@ create index jobs_claim_idx
 create index jobs_lease_idx
   on jobs (status, lease_expires_at);
 
-create or replace function algolift_touch_updated_at() returns trigger as $$
+create or replace function leetmind_touch_updated_at() returns trigger as $$
 begin
   new.updated_at = now();
   return new;
@@ -346,7 +346,7 @@ $$ language plpgsql;
 create trigger set_updated_at
   before update on jobs
   for each row
-  execute function algolift_touch_updated_at();
+  execute function leetmind_touch_updated_at();
 
 create table worker_heartbeats (
   worker_id    text primary key,

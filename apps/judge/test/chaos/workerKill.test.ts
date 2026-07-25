@@ -18,7 +18,7 @@
 // against that 10s budget AND printed, so repeated runs give a real distribution, not just a
 // pass/fail bit.
 import { describe, expect, it, beforeAll, afterEach } from "vitest";
-import type { UserConceptStateRow } from "@algolift/db";
+import type { UserConceptStateRow } from "@leetmind/db";
 import {
   countExecutionAttempts,
   countLearningEvents,

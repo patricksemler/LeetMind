@@ -1,4 +1,4 @@
-"""Tests for algolift_content.generation.invoker: ClaudeInvoker argv/envelope handling (mocked
+"""Tests for leetmind_content.generation.invoker: ClaudeInvoker argv/envelope handling (mocked
 subprocess — never the real `claude` binary in this test module), StubInvoker determinism and
 gate-shaped output, and the get_invoker() factory."""
 
@@ -11,17 +11,17 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from algolift_content.config import Settings
-from algolift_content.generation.envelope import parse_envelope
-from algolift_content.generation.invoker import (
+from leetmind_content.config import Settings
+from leetmind_content.generation.envelope import parse_envelope
+from leetmind_content.generation.invoker import (
     ClaudeInvoker,
     CodexInvoker,
     InvokerError,
     StubInvoker,
     get_invoker,
 )
-from algolift_content.generation.prompts.v2 import build_generation_prompt
-from algolift_content.models import (
+from leetmind_content.generation.prompts.v2 import build_generation_prompt
+from leetmind_content.models import (
     GenerationConceptWeight,
     GenerationRequest,
     ProblemVersion,
@@ -57,8 +57,8 @@ def test_claude_invoker_argv_has_no_shell_and_correct_flags(
         }
         return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(envelope), stderr="")
 
-    monkeypatch.setattr("algolift_content.generation.invoker.shutil.which", fake_which)
-    monkeypatch.setattr("algolift_content.generation.invoker.subprocess.run", fake_run)
+    monkeypatch.setattr("leetmind_content.generation.invoker.shutil.which", fake_which)
+    monkeypatch.setattr("leetmind_content.generation.invoker.subprocess.run", fake_run)
 
     invoker = ClaudeInvoker(claude_bin="claude")
     result = invoker.invoke("hello world prompt", timeout_ms=5000)
@@ -89,9 +89,9 @@ def test_claude_invoker_adds_model_flag_when_configured(monkeypatch: pytest.Monk
         return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(envelope), stderr="")
 
     monkeypatch.setattr(
-        "algolift_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
+        "leetmind_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
     )
-    monkeypatch.setattr("algolift_content.generation.invoker.subprocess.run", fake_run)
+    monkeypatch.setattr("leetmind_content.generation.invoker.subprocess.run", fake_run)
 
     invoker = ClaudeInvoker(claude_bin="claude", model="claude-sonnet-5")
     invoker.invoke("hi", timeout_ms=5000)
@@ -128,7 +128,7 @@ def test_claude_invoker_sums_cache_tokens_and_attributes_dominant_model(
     (never recomputed), and `model` must be the entry with the most output tokens — not whichever
     key happens to sort/insert first."""
     monkeypatch.setattr(
-        "algolift_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
+        "leetmind_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
     )
 
     def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
@@ -162,7 +162,7 @@ def test_claude_invoker_sums_cache_tokens_and_attributes_dominant_model(
         }
         return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(envelope), stderr="")
 
-    monkeypatch.setattr("algolift_content.generation.invoker.subprocess.run", fake_run)
+    monkeypatch.setattr("leetmind_content.generation.invoker.subprocess.run", fake_run)
 
     invoker = ClaudeInvoker(claude_bin="claude")
     result = invoker.invoke("prompt", timeout_ms=5000)
@@ -191,13 +191,13 @@ def test_claude_invoker_falls_back_gracefully_on_malformed_envelope(
     """A non-JSON (or non-object-JSON) stdout must not raise — it's treated as raw result text
     and logged at warn, per CONTRACTS.md §11 ("be defensive about envelope shape changes")."""
     monkeypatch.setattr(
-        "algolift_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
+        "leetmind_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
     )
 
     def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(argv, 0, stdout="this is not json at all", stderr="")
 
-    monkeypatch.setattr("algolift_content.generation.invoker.subprocess.run", fake_run)
+    monkeypatch.setattr("leetmind_content.generation.invoker.subprocess.run", fake_run)
 
     invoker = ClaudeInvoker(claude_bin="claude")
     result = invoker.invoke("prompt", timeout_ms=5000)
@@ -212,13 +212,13 @@ def test_claude_invoker_falls_back_when_envelope_is_json_but_not_an_object(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "algolift_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
+        "leetmind_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
     )
 
     def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(argv, 0, stdout=json.dumps([1, 2, 3]), stderr="")
 
-    monkeypatch.setattr("algolift_content.generation.invoker.subprocess.run", fake_run)
+    monkeypatch.setattr("leetmind_content.generation.invoker.subprocess.run", fake_run)
 
     invoker = ClaudeInvoker(claude_bin="claude")
     result = invoker.invoke("prompt", timeout_ms=5000)
@@ -229,13 +229,13 @@ def test_claude_invoker_falls_back_when_envelope_is_json_but_not_an_object(
 
 def test_claude_invoker_raises_on_nonzero_exit(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "algolift_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
+        "leetmind_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
     )
 
     def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(argv, 1, stdout="", stderr="boom: internal error")
 
-    monkeypatch.setattr("algolift_content.generation.invoker.subprocess.run", fake_run)
+    monkeypatch.setattr("leetmind_content.generation.invoker.subprocess.run", fake_run)
 
     invoker = ClaudeInvoker(claude_bin="claude")
     with pytest.raises(InvokerError, match="exited 1"):
@@ -245,7 +245,7 @@ def test_claude_invoker_raises_on_nonzero_exit(monkeypatch: pytest.MonkeyPatch) 
 def test_claude_invoker_raises_clear_error_when_binary_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("algolift_content.generation.invoker.shutil.which", lambda name: None)
+    monkeypatch.setattr("leetmind_content.generation.invoker.shutil.which", lambda name: None)
 
     invoker = ClaudeInvoker(claude_bin="claude-does-not-exist")
     with pytest.raises(InvokerError, match="not found on PATH"):
@@ -254,13 +254,13 @@ def test_claude_invoker_raises_clear_error_when_binary_missing(
 
 def test_claude_invoker_raises_on_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "algolift_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
+        "leetmind_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
     )
 
     def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         raise subprocess.TimeoutExpired(cmd=argv, timeout=kwargs.get("timeout", 0))
 
-    monkeypatch.setattr("algolift_content.generation.invoker.subprocess.run", fake_run)
+    monkeypatch.setattr("leetmind_content.generation.invoker.subprocess.run", fake_run)
 
     invoker = ClaudeInvoker(claude_bin="claude")
     with pytest.raises(InvokerError, match="did not return within"):
@@ -269,14 +269,14 @@ def test_claude_invoker_raises_on_timeout(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_claude_invoker_raises_on_is_error_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "algolift_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
+        "leetmind_content.generation.invoker.shutil.which", lambda name: "/usr/local/bin/claude"
     )
 
     def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         envelope = {"result": "rate limited", "is_error": True}
         return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(envelope), stderr="")
 
-    monkeypatch.setattr("algolift_content.generation.invoker.subprocess.run", fake_run)
+    monkeypatch.setattr("leetmind_content.generation.invoker.subprocess.run", fake_run)
 
     invoker = ClaudeInvoker(claude_bin="claude")
     with pytest.raises(InvokerError, match="rate limited"):
@@ -308,7 +308,7 @@ def test_stub_invoker_returns_valid_problem_version_for_known_concepts(concept_i
     invoker = StubInvoker()
     result = invoker.invoke(prompt, timeout_ms=1000)
 
-    # StubInvoker emits ALGOLIFT envelope text, not JSON — genuinely exercising parse_envelope,
+    # StubInvoker emits LEETMIND envelope text, not JSON — genuinely exercising parse_envelope,
     # the same code path a real `claude -p` response goes through.
     assembled = parse_envelope(result.text)
     problem_version = ProblemVersion.model_validate(assembled)  # must not raise
@@ -350,7 +350,7 @@ def test_stub_invoker_hints_avoid_banned_words() -> None:
     """The stub's own templates must satisfy the same schema-stage hint rule real generations
     are held to (CONTRACTS.md §10) — otherwise it would be useless as an offline stand-in for
     exercising the verification gate."""
-    from algolift_content.generation.prompts.v1 import BANNED_HINT_WORDS
+    from leetmind_content.generation.prompts.v1 import BANNED_HINT_WORDS
 
     for concept_id in ("sliding_window", "arrays_hashing"):
         request = _request(concept_id)
@@ -370,7 +370,7 @@ def test_stub_invoker_is_offline_and_makes_no_subprocess_call(
     def _boom(*args: Any, **kwargs: Any) -> Any:
         raise AssertionError("StubInvoker must never shell out")
 
-    monkeypatch.setattr("algolift_content.generation.invoker.subprocess.run", _boom)
+    monkeypatch.setattr("leetmind_content.generation.invoker.subprocess.run", _boom)
     request = _request("sliding_window")
     prompt = build_generation_prompt(request)
     StubInvoker().invoke(prompt, timeout_ms=1000)  # must not raise

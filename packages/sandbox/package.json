@@ -1,11 +1,11 @@
 {
-  "name": "@algolift/sandbox",
+  "name": "@leetmind/sandbox",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
-  "comment:cli": "No `bin` entry: src/cli.ts intentionally carries no shebang (tsx cannot parse shebang + dynamic import), so it is not directly executable. Invoke it as `node --import tsx packages/sandbox/src/cli.ts <subcommand>`, which is what content/algolift_content/sandbox.py does.",
+  "comment:cli": "No `bin` entry: src/cli.ts intentionally carries no shebang (tsx cannot parse shebang + dynamic import), so it is not directly executable. Invoke it as `node --import tsx packages/sandbox/src/cli.ts <subcommand>`, which is what content/leetmind_content/sandbox.py does.",
   "exports": {
     ".": {
       "types": "./src/index.ts",
@@ -18,7 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@algolift/shared": "workspace:*",
+    "@leetmind/shared": "workspace:*",
     "zod": "^3.24.0"
   },
   "devDependencies": {

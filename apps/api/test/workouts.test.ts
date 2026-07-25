@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { loadApiConfig } from "@algolift/shared";
-import { targetBand } from "@algolift/learner";
+import { loadApiConfig } from "@leetmind/shared";
+import { targetBand } from "@leetmind/learner";
 import { buildDeps, type Deps } from "../src/deps.js";
 import { buildServer } from "../src/server.js";
 import { cleanup, isDatabaseReachable, seedApprovedProblem, testPool } from "./helpers.js";

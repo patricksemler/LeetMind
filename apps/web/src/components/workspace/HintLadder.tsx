@@ -9,7 +9,7 @@
  */
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { HINT_PENALTY_CAPS, type HintLevel } from "@algolift/shared";
+import { HINT_PENALTY_CAPS, type HintLevel } from "@leetmind/shared";
 import { api } from "../../lib/api";
 import { formatPercent } from "../../lib/format";
 import { Badge, Button, Dialog, Plate } from "../ui";

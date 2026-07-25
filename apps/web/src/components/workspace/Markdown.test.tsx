@@ -4,7 +4,7 @@ import { Markdown } from "./Markdown";
 
 describe("Markdown", () => {
   it("renders a <script> tag from an LLM-generated statement as inert text, never executing it", () => {
-    const marker = "__ALGOLIFT_XSS_MARKER__";
+    const marker = "__LEETMIND_XSS_MARKER__";
     (window as unknown as Record<string, unknown>)[marker] = false;
     const statement = `Two numbers sum to target.\n\n<script>window.${marker} = true;</script>\n\nReturn the indices.`;
 
@@ -15,7 +15,7 @@ describe("Markdown", () => {
   });
 
   it("strips onerror handlers from an <img> tag instead of rendering them live", () => {
-    const statement = `See the diagram: <img src="x" onerror="window.__ALGOLIFT_PWNED__ = true">`;
+    const statement = `See the diagram: <img src="x" onerror="window.__LEETMIND_PWNED__ = true">`;
     const { container } = render(<Markdown>{statement}</Markdown>);
 
     const img = container.querySelector("img[onerror]");

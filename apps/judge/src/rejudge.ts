@@ -14,8 +14,8 @@ import {
   insertExecutionAttempt,
   queryWith,
   withTransaction,
-} from "@algolift/db";
-import { newId, ProblemVersionSchema } from "@algolift/shared";
+} from "@leetmind/db";
+import { newId, ProblemVersionSchema } from "@leetmind/shared";
 import { buildJudgeDeps, type JudgeDeps } from "./deps.js";
 import { buildComparatorSpec, buildLimits, executeSubmission, selectTests } from "./execution.js";
 

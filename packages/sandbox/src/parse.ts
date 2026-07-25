@@ -10,7 +10,7 @@
  */
 import type { HarnessResult } from "./types.js";
 
-export const RESULT_SENTINEL = "<<<ALGOLIFT_RESULT>>>";
+export const RESULT_SENTINEL = "<<<LEETMIND_RESULT>>>";
 
 export type ParsedHarnessOutput =
   | { ok: true; userOutput: string; result: HarnessResult }

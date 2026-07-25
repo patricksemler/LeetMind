@@ -1,4 +1,4 @@
-import type { Language } from "@algolift/shared";
+import type { Language } from "@leetmind/shared";
 import { formatMs } from "../../lib/format";
 import { Button } from "../ui";
 

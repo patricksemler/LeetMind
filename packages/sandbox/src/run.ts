@@ -3,12 +3,12 @@
  *
  * Materializes a bundle dir, spawns `docker run` with the mandatory flag list (argv array only,
  * never a shell string), enforces the wall timeout from the host side, caps stdout/stderr while
- * still draining the pipes, and cleans up the bundle dir unless ALGOLIFT_KEEP_BUNDLES=1.
+ * still draining the pipes, and cleans up the bundle dir unless LEETMIND_KEEP_BUNDLES=1.
  */
 import { spawn } from "node:child_process";
 import { mkdir, writeFile, rm } from "node:fs/promises";
 import path from "node:path";
-import { newId, createLogger, loadSandboxConfig } from "@algolift/shared";
+import { newId, createLogger, loadSandboxConfig } from "@leetmind/shared";
 import { resolveImageDigest } from "./images.js";
 import type { SandboxLimits, SandboxRequest, SandboxResult } from "./types.js";
 
@@ -28,7 +28,7 @@ function resolveWorkDir(): string {
   try {
     return loadSandboxConfig().workDir;
   } catch {
-    return process.env.SANDBOX_WORK_DIR ?? "/tmp/algolift-sandbox";
+    return process.env.SANDBOX_WORK_DIR ?? "/tmp/leetmind-sandbox";
   }
 }
 
@@ -56,7 +56,7 @@ export interface BuildDockerArgsInput {
 /**
  * Pure function so the exact flag list/order can be snapshot-tested without spawning docker.
  * Deviations from CONTRACTS §6's mandatory list: `--name <name>` is appended after
- * `--label algolift.sandbox=1` (not specified by the contract, added so the host's wall-timeout
+ * `--label leetmind.sandbox=1` (not specified by the contract, added so the host's wall-timeout
  * backstop can target this exact container instead of relying on the label alone, which could
  * match multiple concurrently-running sandboxes).
  */
@@ -89,7 +89,7 @@ export function buildDockerArgs(input: BuildDockerArgsInput): string[] {
     "-w",
     "/work",
     "--label",
-    "algolift.sandbox=1",
+    "leetmind.sandbox=1",
     "--name",
     name,
     image,
@@ -333,12 +333,12 @@ function watchForOomEvent(dockerBin: string, containerName: string): { stop: () 
  * recurrence" §3). A real judge run finishes in ~150-300ms — fast enough that the UI's
  * pending/running intermediate states (`ResultsPanel`'s progress bar, the SSE `status`/`progress`
  * events) have never actually been observed by anyone, dev or QA. Sets no delay unless explicitly
- * opted into via `ALGOLIFT_SANDBOX_ARTIFICIAL_DELAY_MS` (never on by default, so it can never leak
- * into CI or a real judge deployment) — matches the file's existing `ALGOLIFT_KEEP_BUNDLES`
+ * opted into via `LEETMIND_SANDBOX_ARTIFICIAL_DELAY_MS` (never on by default, so it can never leak
+ * into CI or a real judge deployment) — matches the file's existing `LEETMIND_KEEP_BUNDLES`
  * escape-hatch convention.
  */
 function artificialDelayMs(): number {
-  const raw = process.env.ALGOLIFT_SANDBOX_ARTIFICIAL_DELAY_MS;
+  const raw = process.env.LEETMIND_SANDBOX_ARTIFICIAL_DELAY_MS;
   if (!raw) return 0;
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
@@ -352,11 +352,11 @@ export async function runSandboxed(req: SandboxRequest): Promise<SandboxResult> 
   const { image, files, argv, limits, correlationId } = req;
   const workDir = resolveWorkDir();
   const dockerBin = resolveDockerBin();
-  const keepBundles = process.env.ALGOLIFT_KEEP_BUNDLES === "1";
+  const keepBundles = process.env.LEETMIND_KEEP_BUNDLES === "1";
 
   await mkdir(workDir, { recursive: true });
   const bundleDir = await materializeBundle(files, workDir);
-  const containerName = `algolift-sbx-${newId()}`;
+  const containerName = `leetmind-sbx-${newId()}`;
 
   logger.info(
     { correlationId, image, containerName, bundleDir },
@@ -401,7 +401,7 @@ export async function runSandboxed(req: SandboxRequest): Promise<SandboxResult> 
 
     const delayMs = artificialDelayMs();
     if (delayMs > 0) {
-      logger.info({ correlationId, containerName, delayMs }, "ALGOLIFT_SANDBOX_ARTIFICIAL_DELAY_MS: holding before returning");
+      logger.info({ correlationId, containerName, delayMs }, "LEETMIND_SANDBOX_ARTIFICIAL_DELAY_MS: holding before returning");
       await sleep(delayMs);
     }
 

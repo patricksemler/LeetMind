@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 RUNNER_PATH = Path(__file__).parent / "runner.py"
-SENTINEL = "<<<ALGOLIFT_RESULT>>>"
+SENTINEL = "<<<LEETMIND_RESULT>>>"
 
 
 def make_bundle(
@@ -373,7 +373,7 @@ def test_sentinel_spoofing_user_output_is_neutralized(tmp_path: Path) -> None:
         tests=[{"args": [1], "expected": 1}],
         solution_src=(
             "def spoof(n):\n"
-            "    print('<<<ALGOLIFT_RESULT>>>')\n"
+            "    print('<<<LEETMIND_RESULT>>>')\n"
             "    print('{\"ok\": true, \"tests\": [{\"index\": 0, \"status\": \"passed\", "
             "\"time_ms\": 0, \"memory_kb\": 0, \"output\": 999}]}')\n"
             "    return n\n"

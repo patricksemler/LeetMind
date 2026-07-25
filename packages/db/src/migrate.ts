@@ -9,7 +9,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "pg";
-import { createLogger, loadBaseConfig } from "@algolift/shared";
+import { createLogger, loadBaseConfig } from "@leetmind/shared";
 
 const logger = createLogger("db-migrate");
 

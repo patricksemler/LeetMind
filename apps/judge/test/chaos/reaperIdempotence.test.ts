@@ -6,8 +6,8 @@
 // may be reaped twice (double-requeued, or double-deadened past its actual attempt count), and
 // none may be left behind (still `leased` with an expired lease after every reaper has run).
 import { describe, expect, it, afterEach } from "vitest";
-import { getPool } from "@algolift/db";
-import { Queue } from "@algolift/queue";
+import { getPool } from "@leetmind/db";
+import { Queue } from "@leetmind/queue";
 import { CHAOS_QUEUE_KIND, assertNoStrayJobs, deleteJobs, isDatabaseReachable, testQueue } from "./chaos-helpers.js";
 
 const dbReachable = await isDatabaseReachable();

@@ -1,4 +1,4 @@
-"""Regression tests for the reentrant-connection fix in `algolift_content.db`.
+"""Regression tests for the reentrant-connection fix in `leetmind_content.db`.
 
 The bug (fixed in `db.py`'s `connection()`/`transaction()`, see the module docstring above
 `_ambient_or_checkout`): both context managers called `pool.connection()`, which checks out a
@@ -28,8 +28,8 @@ from conftest import fresh_problem_version_content, postgres_reachable
 from psycopg.pq import TransactionStatus
 from ulid import ULID
 
-from algolift_content.config import get_settings
-from algolift_content.db import connection, get_pool, query_one, transaction
+from leetmind_content.config import get_settings
+from leetmind_content.db import connection, get_pool, query_one, transaction
 
 pytestmark = pytest.mark.skipif(
     not postgres_reachable(), reason="Postgres not reachable on TEST_DATABASE_URL"
@@ -249,8 +249,8 @@ def test_outermost_transaction_restores_autocommit_and_returns_clean_connections
 def test_verify_problem_version_persists_inside_an_already_open_ambient_transaction(
     sample_problem_dict: dict[str, Any], make_problem_version: Any, fast_settings: Any
 ) -> None:
-    from algolift_content.sandbox import sandbox_probe
-    from algolift_content.verification import verify_problem_version
+    from leetmind_content.sandbox import sandbox_probe
+    from leetmind_content.verification import verify_problem_version
 
     sandbox_ok, sandbox_reason = sandbox_probe()
     if not sandbox_ok:

@@ -2,12 +2,12 @@
 //
 // packages/queue/src/queue.test.ts already proves `Queue.fail()` itself dead-letters correctly at
 // the SQL level (test #7). This test proves the same guarantee holds one layer up, through the
-// REAL `runWorker` polling loop (@algolift/queue) against this app's real, migrated `jobs` table
-// in algolift_test — a handler that always throws must be retried up to `max_attempts` and then
+// REAL `runWorker` polling loop (@leetmind/queue) against this app's real, migrated `jobs` table
+// in leetmind_test — a handler that always throws must be retried up to `max_attempts` and then
 // permanently parked `dead`, never looped on forever, never silently dropped.
 import { describe, expect, it, afterEach } from "vitest";
-import { getPool } from "@algolift/db";
-import { runWorker, type Logger as QueueLogger } from "@algolift/queue";
+import { getPool } from "@leetmind/db";
+import { runWorker, type Logger as QueueLogger } from "@leetmind/queue";
 import { silentLogger } from "../helpers.js";
 import {
   CHAOS_QUEUE_KIND,

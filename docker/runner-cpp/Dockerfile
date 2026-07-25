@@ -1,4 +1,4 @@
-# AlgoLift C++ sandbox runner image — docs/CONTRACTS.md §6 / §6.1.
+# LeetMind C++ sandbox runner image — docs/CONTRACTS.md §6 / §6.1.
 #
 # Not exercised until M4 (the C++ judge pipeline), but must build cleanly now so
 # scripts/build-images.sh always produces both images. Same runtime constraints as the Python
@@ -10,7 +10,7 @@
 # -static-libstdc++` (see docs/CONTRACTS.md §7's C++ bundle compile step).
 FROM gcc:14
 
-LABEL algolift.runner=cpp
+LABEL leetmind.runner=cpp
 
 WORKDIR /work
 

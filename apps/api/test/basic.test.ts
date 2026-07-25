@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { loadApiConfig, ProgressResponse, SystemStatsResponse } from "@algolift/shared";
+import { loadApiConfig, ProgressResponse, SystemStatsResponse } from "@leetmind/shared";
 import { buildDeps, type Deps } from "../src/deps.js";
 import { buildServer } from "../src/server.js";
 import { isDatabaseReachable } from "./helpers.js";

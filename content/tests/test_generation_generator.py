@@ -1,4 +1,4 @@
-"""Tests for algolift_content.generation.generator.generate_problem — the build-prompt -> invoke
+"""Tests for leetmind_content.generation.generator.generate_problem — the build-prompt -> invoke
 -> parse -> (retry) -> persist+enqueue pipeline (CONTRACTS.md §11). Uses StubInvoker and small
 fake Invoker test doubles; never the real `claude` binary. Requires Postgres (skips the whole
 module otherwise) with migrations applied — writes/reads the real `problems`, `problem_versions`,
@@ -13,15 +13,15 @@ from typing import Any
 import pytest
 from conftest import postgres_reachable
 
-from algolift_content.config import get_settings
-from algolift_content.db import assert_test_database, get_pool, query
-from algolift_content.generation.generator import (
+from leetmind_content.config import get_settings
+from leetmind_content.db import assert_test_database, get_pool, query
+from leetmind_content.generation.generator import (
     GenerationSchemaExhausted,
     generate_problem,
 )
-from algolift_content.generation.invoker import InvokeResult, StubInvoker
-from algolift_content.models import GenerationConceptWeight, GenerationRequest
-from algolift_content.queue import Queue
+from leetmind_content.generation.invoker import InvokeResult, StubInvoker
+from leetmind_content.models import GenerationConceptWeight, GenerationRequest
+from leetmind_content.queue import Queue
 
 pytestmark = pytest.mark.skipif(
     not postgres_reachable(), reason="Postgres not reachable on TEST_DATABASE_URL"
@@ -133,7 +133,7 @@ def test_generate_problem_end_to_end_with_stub_invoker() -> None:
     assert runs[0]["status"] == "ok"
     assert runs[0]["problem_version_id"] == candidate.problem_version_id
     assert runs[0]["kind"] == "generate"
-    # v2 (the ALGOLIFT-envelope prompt) is the default now.
+    # v2 (the LEETMIND-envelope prompt) is the default now.
     assert runs[0]["prompt_version"] == "v2"
     # usage/model_usage are nested into the request jsonb (model_runs has no dedicated usage
     # column) — see generator._model_run_request_payload.
@@ -190,7 +190,7 @@ def test_generate_problem_retries_on_schema_failure_then_succeeds() -> None:
     assert runs[1]["problem_version_id"] == candidate.problem_version_id
     # Garbage (non-envelope) text fails at the envelope-parsing stage now, not JSON decoding —
     # the error names the specific missing delimiter (EnvelopeError, see envelope.py).
-    assert "<<<ALGOLIFT_META>>>" in (runs[0]["error"] or "")
+    assert "<<<LEETMIND_META>>>" in (runs[0]["error"] or "")
 
 
 # ---------------------------------------------------------------------------

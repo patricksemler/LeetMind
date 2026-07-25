@@ -8,7 +8,7 @@ describe("migrate runner (pure helpers, no DB required)", () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), "algolift-migrations-"));
+    dir = await mkdtemp(path.join(tmpdir(), "leetmind-migrations-"));
   });
 
   afterEach(async () => {

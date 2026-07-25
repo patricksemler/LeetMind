@@ -7,8 +7,8 @@
 // `problem_versions` row), not just a bare payload. A rollback of that combined write must leave
 // NEITHER row behind.
 import { describe, expect, it, afterEach } from "vitest";
-import { query, withTransaction, insertSubmission } from "@algolift/db";
-import { newId } from "@algolift/shared";
+import { query, withTransaction, insertSubmission } from "@leetmind/db";
+import { newId } from "@leetmind/shared";
 import {
   isDatabaseReachable,
   seedApprovedProblem,

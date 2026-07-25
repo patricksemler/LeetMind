@@ -1,5 +1,5 @@
 {
-  "name": "@algolift/judge",
+  "name": "@leetmind/judge",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,11 +15,11 @@
   },
   "dependencies": {
     "pg": "^8.13.0",
-    "@algolift/shared": "workspace:*",
-    "@algolift/db": "workspace:*",
-    "@algolift/queue": "workspace:*",
-    "@algolift/sandbox": "workspace:*",
-    "@algolift/learner": "workspace:*"
+    "@leetmind/shared": "workspace:*",
+    "@leetmind/db": "workspace:*",
+    "@leetmind/queue": "workspace:*",
+    "@leetmind/sandbox": "workspace:*",
+    "@leetmind/learner": "workspace:*"
   },
   "devDependencies": {
     "@types/pg": "^8.11.0",

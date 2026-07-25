@@ -2,8 +2,8 @@
 // event. Defence in depth: the judge is expected to already scrub hidden-expected-value preview
 // fields for `submit`-mode failures, but this app must never trust that and re-strips them here
 // too (docs/CONTRACTS.md §4.5, apps/api brief).
-import { getProblemVersion, query, type ConceptRow, type SubmissionFailure, type SubmissionMode, type SubmissionRow } from "@algolift/db";
-import { ProblemVersionSchema, type Submission } from "@algolift/shared";
+import { getProblemVersion, query, type ConceptRow, type SubmissionFailure, type SubmissionMode, type SubmissionRow } from "@leetmind/db";
+import { ProblemVersionSchema, type Submission } from "@leetmind/shared";
 import { hasEarnedReveal } from "./publicProblem.js";
 
 /** Strips `expected_preview`/`input_preview`/`actual_preview` from a failure object when
@@ -32,7 +32,7 @@ export function toSafeSubmission(row: SubmissionRow): Submission {
     total_tests: row.total_tests,
     runtime_ms: row.runtime_ms,
     memory_kb: row.memory_kb,
-    // Cast: `SubmissionFailure` (plain @algolift/db interface) vs. the zod-`.passthrough()`-
+    // Cast: `SubmissionFailure` (plain @leetmind/db interface) vs. the zod-`.passthrough()`-
     // inferred `Submission['failure']` (which additionally carries an index signature) are
     // structurally identical in every field that matters; only the index signature differs.
     failure: (row.failure ? sanitizeFailure(row.failure, row.mode) : null) as Submission["failure"],

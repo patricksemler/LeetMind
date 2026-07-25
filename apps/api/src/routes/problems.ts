@@ -5,9 +5,9 @@ import {
   listConceptStates,
   type ProblemVersionRow,
   type UserConceptStateRow,
-} from "@algolift/db";
-import { NextProblemQuery, notFound } from "@algolift/shared";
-import { selectNext, targetBand, type CandidateProblem, type ConceptState } from "@algolift/learner";
+} from "@leetmind/db";
+import { NextProblemQuery, notFound } from "@leetmind/shared";
+import { selectNext, targetBand, type CandidateProblem, type ConceptState } from "@leetmind/learner";
 import type { Deps } from "../deps.js";
 import { buildPublicProblem, type PublicProblemWithNames } from "../mappers/publicProblem.js";
 import { requireId } from "../server.js";

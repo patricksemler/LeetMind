@@ -1,20 +1,20 @@
 // POST /api/generate-now — the M3 "escape hatch": enqueue a `generate` job at elevated priority
 // (docs/CONTRACTS.md §9). Uses a fresh, always-unique idempotency key rather than the
-// replenishment worker's `generate:<concept>:<band>:<slot>` scheme (content/algolift_content
+// replenishment worker's `generate:<concept>:<band>:<slot>` scheme (content/leetmind_content
 // /workers/replenish.py, docs/CONTRACTS.md §11) deliberately: reusing that scheme risks a manual
 // request silently colliding with (and no-op'ing against) an already-queued background
 // replenishment job for the same concept/band cell, which would defeat the entire point of an
 // on-demand "generate now" button.
 import type { FastifyInstance } from "fastify";
-import { withTransaction } from "@algolift/db";
-import { GenerateNowRequest, GenerationRequestSchema, newId } from "@algolift/shared";
+import { withTransaction } from "@leetmind/db";
+import { GenerateNowRequest, GenerationRequestSchema, newId } from "@leetmind/shared";
 import type { Deps } from "../deps.js";
 
 /** Lower runs sooner (docs/CONTRACTS.md §4.4: JOB_PRIORITY.generate = 100). Elevated well above
  * that, and above judge (10)/verify (50) too, so a manual request jumps the whole queue. */
 const ELEVATED_GENERATE_PRIORITY = 1;
 
-/** Must track content/algolift_content/generation/prompts/v1.py's `PROMPT_VERSION` (currently
+/** Must track content/leetmind_content/generation/prompts/v1.py's `PROMPT_VERSION` (currently
  * "v1", per docs/CONTRACTS.md §11) — the content plane is a separate Python codebase apps/api may
  * not import, so this is a documented cross-language constant, not a guess. */
 const PROMPT_VERSION = "v1";

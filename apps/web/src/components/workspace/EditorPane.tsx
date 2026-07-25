@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import Editor, { type BeforeMount } from "@monaco-editor/react";
-import type { Language } from "@algolift/shared";
+import type { Language } from "@leetmind/shared";
 
 const MONACO_LANGUAGE: Record<Language, string> = { python: "python", cpp: "cpp" };
 
-type MonacoThemeName = "algolift-dark" | "algolift-light";
+type MonacoThemeName = "leetmind-dark" | "leetmind-light";
 
 const defineTheme: BeforeMount = (monaco) => {
-  monaco.editor.defineTheme("algolift-dark", {
+  monaco.editor.defineTheme("leetmind-dark", {
     base: "vs-dark",
     inherit: true,
     rules: [],
@@ -20,11 +20,11 @@ const defineTheme: BeforeMount = (monaco) => {
       "editor.selectionBackground": "#2c4a7a80",
     },
   });
-  // Same mapping as "algolift-dark", against the light-theme token values in index.css's
+  // Same mapping as "leetmind-dark", against the light-theme token values in index.css's
   // `:root[data-theme="light"]` block: bg-inset for the base surface, bg-raised (brighter, same
   // relationship as dark's inset→raised step) for the active line, border-strong for gutter
   // digits, text-dim for the active one, accent for the caret.
-  monaco.editor.defineTheme("algolift-light", {
+  monaco.editor.defineTheme("leetmind-light", {
     base: "vs",
     inherit: true,
     rules: [],
@@ -41,9 +41,9 @@ const defineTheme: BeforeMount = (monaco) => {
 
 function resolveMonacoTheme(): MonacoThemeName {
   const explicit = document.documentElement.dataset.theme;
-  if (explicit === "light") return "algolift-light";
-  if (explicit === "dark") return "algolift-dark";
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "algolift-light" : "algolift-dark";
+  if (explicit === "light") return "leetmind-light";
+  if (explicit === "dark") return "leetmind-dark";
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "leetmind-light" : "leetmind-dark";
 }
 
 /** Tracks which Monaco theme should be active, mirroring index.css's own precedence: an explicit

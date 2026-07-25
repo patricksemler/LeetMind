@@ -9,9 +9,9 @@
 // returns false because the `jobs` row really is no longer leased by A, not because a test double
 // says so.
 import { describe, expect, it, beforeAll, afterEach } from "vitest";
-import type { UserConceptStateRow } from "@algolift/db";
-import type { Job } from "@algolift/queue";
-import type { JudgeJobPayload } from "@algolift/shared";
+import type { UserConceptStateRow } from "@leetmind/db";
+import type { Job } from "@leetmind/queue";
+import type { JudgeJobPayload } from "@leetmind/shared";
 import { createJudgeHandler } from "../../src/handler.js";
 import {
   countExecutionAttempts,

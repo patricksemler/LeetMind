@@ -1,4 +1,4 @@
-# AlgoLift — M5 measured numbers
+# LeetMind — M5 measured numbers
 
 **These numbers are measured, not targets.** PLAN.md §11 explicitly cuts the GPT spec's
 "100-session / 25-concurrent-execution" targets in favor of honest, reproducible, single-machine
@@ -22,7 +22,7 @@ where the two versions agree, and one place they materially disagree.
 | Node.js | v26.5.0 |
 | Docker | Docker version 29.5.2, build 79eb04c |
 | Docker Compose | Docker Compose version v5.1.3 |
-| Database | dedicated `algolift_test` database (docs/CONTRACTS.md §13), NOT the dev database |
+| Database | dedicated `leetmind_test` database (docs/CONTRACTS.md §13), NOT the dev database |
 | Date | 2026-07-23 |
 
 Single machine, single process per service, Docker Desktop on macOS — see §8 before generalizing.
@@ -30,9 +30,9 @@ Single machine, single process per service, Docker Desktop on macOS — see §8 
 **Machine was not fully idle.** A second agent was concurrently verifying this repo's Grafana
 dashboard on the same machine — running its own API/judge processes (ports 18080/other, distinct
 from this harness's 8098), `scripts/demo.sh`, and Prometheus/Grafana containers — for the entire
-window these three runs were taken. `docker ps --filter label=algolift.sandbox=1` and a stray
+window these three runs were taken. `docker ps --filter label=leetmind.sandbox=1` and a stray
 unrelated `pytest` process (a different project entirely) were checked before every run; no
-`algolift.sandbox=1` containers were ever running at the moment a run started, but background load
+`leetmind.sandbox=1` containers were ever running at the moment a run started, but background load
 average hovered around 3–5.5 (out of 10 logical cores) throughout, higher than a truly quiet
 machine. This is disclosed per-run in §3 rather than papered over — a genuinely idle machine would
 likely show tighter tails than the ones below.
@@ -61,18 +61,18 @@ a 4-session × 10-submission (40 total) profile. `scripts/loadtest/config.ts`'s 
 this repository is 6×20 (120 total) with no override; it is not clear whether the previous agent
 ran with undocumented env-var overrides or whether the default changed since. This run used
 whatever `config.ts` specifies today, unmodified, which is the reproducible thing to do — anyone
-re-running `pnpm --filter @algolift/scripts loadtest` today gets this profile, not the 40-submission
+re-running `pnpm --filter @leetmind/scripts loadtest` today gets this profile, not the 40-submission
 one.
 
 ## 3. Three independent runs
 
 Each run seeds its own problem, drives the full profile, measures, writes its own report, and
-cleans up its own rows before the next run starts — verified clean (`algolift_test` back to 0 rows
+cleans up its own rows before the next run starts — verified clean (`leetmind_test` back to 0 rows
 for `problem_versions`/`submissions`/`learning_events`/`jobs`) between every run (see §6).
 
 ### Run 1 — id `01KY7NK08BZMWYNP8E5JKR92JW`, 2026-07-23T14:22:18Z
 
-Machine check immediately before start: load average 3.47/3.08/3.04, 0 `algolift.sandbox` containers running. Wall-clock for the load: **101.35s**.
+Machine check immediately before start: load average 3.47/3.08/3.04, 0 `leetmind.sandbox` containers running. Wall-clock for the load: **101.35s**.
 
 **End-to-end submission latency (POST → terminal verdict)**
 
@@ -100,7 +100,7 @@ Throughput: **71.0 submissions/min**. Incomplete: 0. Verdicts: `accepted` 77, `w
 
 ### Run 2 — id `01KY7NQS251E9TAJP4A4MX2E3R`, 2026-07-23T14:24:39Z
 
-Machine check immediately before start: load average 3.31/3.61/3.29, 0 `algolift.sandbox` containers running. Wall-clock for the load: **86.28s**.
+Machine check immediately before start: load average 3.31/3.61/3.29, 0 `leetmind.sandbox` containers running. Wall-clock for the load: **86.28s**.
 
 **End-to-end submission latency**
 
@@ -133,7 +133,7 @@ from this run's own burst of concurrent `docker run`s finishing) before settling
 ### Run 3 — id `01KY7NWSWBZS67GMMJDA8KCCYJ`, 2026-07-23T14:27:38Z
 
 Machine check immediately before start: load average had settled to 4.96/5.27/4.10 (elevated
-relative to Run 1/2's baseline — see note above — but with 0 `algolift.sandbox` containers
+relative to Run 1/2's baseline — see note above — but with 0 `leetmind.sandbox` containers
 running), the highest starting load average of the three runs. Wall-clock for the load: **100.32s**.
 
 **End-to-end submission latency**
@@ -203,9 +203,9 @@ image doing nothing (`python3 -c pass` / `true`), using the exact production fla
 (`packages/sandbox/src/run.ts buildDockerArgs`, `docs/CONTRACTS.md §6`: `--network none
 --read-only --tmpfs /work:rw,size=64m,mode=1777,exec --memory 256m --memory-swap 256m --cpus 1.0
 --pids-limit 64 --cap-drop ALL --security-opt no-new-privileges -u 65534:65534 -w /work --label
-algolift.sandbox=1`), measured host-side wall-clock around the `spawnSync` call.
+leetmind.sandbox=1`), measured host-side wall-clock around the `spawnSync` call.
 
-**`algolift/runner-python:1`, no-op**
+**`leetmind/runner-python:1`, no-op**
 
 | n | p50 | p95 | p99 | min | max | mean |
 |---|---|---|---|---|---|---|
@@ -213,7 +213,7 @@ algolift.sandbox=1`), measured host-side wall-clock around the `spawnSync` call.
 
 Raw (ms): `140.0, 143.2, 142.1, 151.2, 142.0, 139.7, 137.2, 135.2, 148.4, 139.2, 132.6, 171.5, 138.8, 142.8, 148.2, 138.3, 144.8, 121.7, 142.3, 213.8`
 
-**`algolift/runner-cpp:1`, no-op**
+**`leetmind/runner-cpp:1`, no-op**
 
 | n | p50 | p95 | p99 | min | max | mean |
 |---|---|---|---|---|---|---|
@@ -303,7 +303,7 @@ reap/requeue/claim path is CPU- or I/O-heavy enough for 6 concurrent judge slots
 slow it down; the 30s number is a policy choice (`QUEUE_LEASE_SECONDS`), not a physical limit.
 
 **A second, unplanned finding from the same instrumentation:** `GET /metrics`'s
-`algolift_queue_lease_recovery{outcome="reaped_total"}` read **3** at the end of every one of the
+`leetmind_queue_lease_recovery{outcome="reaped_total"}` read **3** at the end of every one of the
 three runs — not 1. Only one job per run was the deliberately-`SIGKILL`ed victim above; the other
 two `reaped_total` per run were **organic** — real submissions whose processing (queue wait +, for
 C++, the multi-second compile from §4.3) genuinely exceeded the 30-second lease window with no
@@ -317,7 +317,7 @@ profile with less queueing simply doesn't push any organic job past 30s.)
 
 ## 6. Cleanup and database isolation
 
-`algolift_test` row counts (`problem_versions`/`submissions`/`learning_events`/`jobs`), checked
+`leetmind_test` row counts (`problem_versions`/`submissions`/`learning_events`/`jobs`), checked
 after **every** run's cleanup, not just the last:
 
 | Checkpoint | problem_versions | submissions | learning_events | jobs |
@@ -328,10 +328,10 @@ after **every** run's cleanup, not just the last:
 | After Run 3 cleanup | 0 | 0 | 0 | 0 |
 
 Each run logged `Cleaned up: 121 submission(s), the seeded problem, jobs, and worker heartbeats.`
-(120 load-generated + 1 lease-recovery victim). `algolift_test` was empty of this harness's tables
+(120 load-generated + 1 lease-recovery victim). `leetmind_test` was empty of this harness's tables
 before the first run and after every subsequent run.
 
-**Dev database (`algolift`) — confirmed untouched by this harness**, checked at the same
+**Dev database (`leetmind`) — confirmed untouched by this harness**, checked at the same
 checkpoints (a *second*, concurrently-running agent was legitimately using this same dev database
 for its own Grafana-dashboard verification work for the entire session, which is why these numbers
 are not static — that drift is real, but it is not this harness's):
@@ -344,7 +344,7 @@ are not static — that drift is real, but it is not this harness's):
 | After Run 3 | 14 | 4 | 4 | 5 |
 
 `submissions`/`learning_events`/`problem_versions` did not move between "after Run 1" and "after
-Run 3" — exactly what's expected if this harness only ever touches `algolift_test` (it does:
+Run 3" — exactly what's expected if this harness only ever touches `leetmind_test` (it does:
 `run.ts` calls `assertTestDatabase(databaseUrl)` before doing anything, and every spawned
 process's `DATABASE_URL` is pinned explicitly to `testDatabaseUrl()`, never inherited from the
 shell). The `jobs` count moving 4→14→...→5 between "before" and "after Run 1" and again 4→5 between
@@ -391,7 +391,7 @@ be verified, differs from this one in ways worth naming plainly:
 - **Docker Desktop VM overhead on macOS.** Every sandboxed execution crosses into Docker Desktop's
   Linux VM; a native Linux host would likely see lower per-execution overhead. Not isolated from
   "real" judge work in these numbers — folded in, which is honest but means these are a
-  macOS-Docker-Desktop number, not a generic "AlgoLift's judge" number.
+  macOS-Docker-Desktop number, not a generic "LeetMind's judge" number.
 - **Warm image cache.** Both runner images were already built locally and run many times before
   this measurement (needed just to run this very harness — `assertDockerAndImages()` refuses to
   start otherwise). A cold `docker pull`/first-run cost is not represented anywhere above.
@@ -411,15 +411,15 @@ be verified, differs from this one in ways worth naming plainly:
 
 ## Grafana dashboard (M5 metrics stack)
 
-![AlgoLift M5 Grafana dashboard — Queue, Judge, and Content plane rows, all panels showing real data except the Generation funnel, which legitimately reads "No data" because the content worker's generate/verify handlers are still unimplemented placeholders.](images/dashboard.png)
+![LeetMind M5 Grafana dashboard — Queue, Judge, and Content plane rows, all panels showing real data except the Generation funnel, which legitimately reads "No data" because the content worker's generate/verify handlers are still unimplemented placeholders.](images/dashboard.png)
 
 ## 9. Reproduction
 
 ```
-LOADTEST_API_PORT=8098 pnpm --filter @algolift/scripts loadtest
+LOADTEST_API_PORT=8098 pnpm --filter @leetmind/scripts loadtest
 ```
 
-Before running: confirm no `docker ps --filter label=algolift.sandbox=1` containers are active and
+Before running: confirm no `docker ps --filter label=leetmind.sandbox=1` containers are active and
 load average is near baseline for your machine — §1/§3's per-run machine-quiet checks are part of
-the method, not incidental. The harness itself asserts `algolift_test` (never the dev database,
+the method, not incidental. The harness itself asserts `leetmind_test` (never the dev database,
 `docs/CONTRACTS.md §13`) and cleans up its own rows on every exit path, including failure.

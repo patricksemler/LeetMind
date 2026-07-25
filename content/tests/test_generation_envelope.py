@@ -1,4 +1,4 @@
-"""Tests for algolift_content.generation.envelope — the delimited ALGOLIFT envelope wire format
+"""Tests for leetmind_content.generation.envelope — the delimited LEETMIND envelope wire format
 that replaced prompt v1's single-JSON-object format (see envelope.py's module docstring for why:
 a real `claude -p` call broke with `Expecting ',' delimiter: line 1 column 6384` trying to
 JSON-escape a multi-line Python program mid-response)."""
@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from algolift_content.generation.envelope import (
+from leetmind_content.generation.envelope import (
     END_DELIM,
     HINT_SUBFIELDS,
     META_DELIM,
@@ -22,7 +22,7 @@ from algolift_content.generation.envelope import (
     parse_envelope,
     render_envelope,
 )
-from algolift_content.models import ProblemVersion
+from leetmind_content.models import ProblemVersion
 
 # ---------------------------------------------------------------------------
 # A complete, valid problem dict — the baseline every test starts from.
@@ -198,7 +198,7 @@ def test_field_order_is_shuffled_and_still_parses() -> None:
 
     # Find each field delimiter's line index within the FIELD region.
     field_starts = [
-        i for i, line in enumerate(lines) if re.match(r"^<<<ALGOLIFT_FIELD:", line)
+        i for i, line in enumerate(lines) if re.match(r"^<<<LEETMIND_FIELD:", line)
     ]
     segments = []
     for i, start in enumerate(field_starts):
@@ -261,20 +261,20 @@ def test_tolerates_field_level_fence_and_stray_blank_lines() -> None:
     meta = {k: problem[k] for k in REQUIRED_META_FIELDS}
     text = (
         f"{META_DELIM}\n{json.dumps(meta)}\n"
-        f"<<<ALGOLIFT_FIELD:statement_md>>>\n{problem['statement_md']}\n"
-        f"<<<ALGOLIFT_FIELD:constraints_md>>>\n{problem['constraints_md']}\n"
-        "<<<ALGOLIFT_FIELD:reference_solution_py>>>\n"
+        f"<<<LEETMIND_FIELD:statement_md>>>\n{problem['statement_md']}\n"
+        f"<<<LEETMIND_FIELD:constraints_md>>>\n{problem['constraints_md']}\n"
+        "<<<LEETMIND_FIELD:reference_solution_py>>>\n"
         "\n```python\n" + problem["reference_solution_py"] + "```\n\n"
-        f"<<<ALGOLIFT_FIELD:brute_force_py>>>\n{problem['brute_force_py']}\n"
-        f"<<<ALGOLIFT_FIELD:input_generator_py>>>\n{problem['input_generator_py']}\n"
-        f"<<<ALGOLIFT_FIELD:mutants_py[0]>>>\n{problem['mutants_py'][0]}\n"
-        f"<<<ALGOLIFT_FIELD:mutants_py[1]>>>\n{problem['mutants_py'][1]}\n"
-        f"<<<ALGOLIFT_FIELD:mutants_py[2]>>>\n{problem['mutants_py'][2]}\n"
-        f"<<<ALGOLIFT_FIELD:hints.l1_orientation>>>\n{problem['hints']['l1_orientation']}\n"
-        f"<<<ALGOLIFT_FIELD:hints.l2_conceptual>>>\n{problem['hints']['l2_conceptual']}\n"
-        f"<<<ALGOLIFT_FIELD:hints.l3_structural>>>\n{problem['hints']['l3_structural']}\n"
-        f"<<<ALGOLIFT_FIELD:hints.outline>>>\n{problem['hints']['outline']}\n"
-        f"<<<ALGOLIFT_FIELD:hints.editorial_md>>>\n{problem['hints']['editorial_md']}\n"
+        f"<<<LEETMIND_FIELD:brute_force_py>>>\n{problem['brute_force_py']}\n"
+        f"<<<LEETMIND_FIELD:input_generator_py>>>\n{problem['input_generator_py']}\n"
+        f"<<<LEETMIND_FIELD:mutants_py[0]>>>\n{problem['mutants_py'][0]}\n"
+        f"<<<LEETMIND_FIELD:mutants_py[1]>>>\n{problem['mutants_py'][1]}\n"
+        f"<<<LEETMIND_FIELD:mutants_py[2]>>>\n{problem['mutants_py'][2]}\n"
+        f"<<<LEETMIND_FIELD:hints.l1_orientation>>>\n{problem['hints']['l1_orientation']}\n"
+        f"<<<LEETMIND_FIELD:hints.l2_conceptual>>>\n{problem['hints']['l2_conceptual']}\n"
+        f"<<<LEETMIND_FIELD:hints.l3_structural>>>\n{problem['hints']['l3_structural']}\n"
+        f"<<<LEETMIND_FIELD:hints.outline>>>\n{problem['hints']['outline']}\n"
+        f"<<<LEETMIND_FIELD:hints.editorial_md>>>\n{problem['hints']['editorial_md']}\n"
         f"{END_DELIM}\n"
     )
     assembled = parse_envelope(text)
@@ -319,7 +319,7 @@ def test_missing_required_field_block_is_named_precisely() -> None:
     text = render_envelope(problem)
     # Remove the constraints_md field block entirely.
     pattern = re.compile(
-        r"<<<ALGOLIFT_FIELD:constraints_md>>>\n.*?(?=<<<ALGOLIFT_FIELD:)", re.DOTALL
+        r"<<<LEETMIND_FIELD:constraints_md>>>\n.*?(?=<<<LEETMIND_FIELD:)", re.DOTALL
     )
     stripped = pattern.sub("", text, count=1)
     with pytest.raises(EnvelopeError, match="constraints_md"):
@@ -330,7 +330,7 @@ def test_missing_hint_subfield_is_named_precisely() -> None:
     problem = _valid_problem()
     text = render_envelope(problem)
     pattern = re.compile(
-        r"<<<ALGOLIFT_FIELD:hints\.outline>>>\n.*?(?=<<<ALGOLIFT_FIELD:)", re.DOTALL
+        r"<<<LEETMIND_FIELD:hints\.outline>>>\n.*?(?=<<<LEETMIND_FIELD:)", re.DOTALL
     )
     stripped = pattern.sub("", text, count=1)
     with pytest.raises(EnvelopeError, match=r"hints\.outline"):
@@ -356,7 +356,7 @@ def test_unknown_field_block_is_reported() -> None:
     problem = _valid_problem()
     text = render_envelope(problem)
     injected = text.replace(
-        END_DELIM, "<<<ALGOLIFT_FIELD:totally_made_up_field>>>\nsome content\n" + END_DELIM
+        END_DELIM, "<<<LEETMIND_FIELD:totally_made_up_field>>>\nsome content\n" + END_DELIM
     )
     with pytest.raises(EnvelopeError, match="totally_made_up_field"):
         parse_envelope(injected)
@@ -366,7 +366,7 @@ def test_duplicate_field_block_is_reported() -> None:
     problem = _valid_problem()
     text = render_envelope(problem)
     dup_block = (
-        "<<<ALGOLIFT_FIELD:statement_md>>>\n" + problem["statement_md"] + "\n"
+        "<<<LEETMIND_FIELD:statement_md>>>\n" + problem["statement_md"] + "\n"
     )
     injected = text.replace(END_DELIM, dup_block + END_DELIM)
     with pytest.raises(EnvelopeError, match="duplicate"):
@@ -405,9 +405,9 @@ def test_mutants_assembled_in_index_order_regardless_of_source_order() -> None:
     # Physically reorder the mutant blocks in the text (index 2, then 0, then 3, then 1).
     blocks = {}
     for i in range(4):
-        marker = f"<<<ALGOLIFT_FIELD:mutants_py[{i}]>>>"
+        marker = f"<<<LEETMIND_FIELD:mutants_py[{i}]>>>"
         start = text.index(marker)
-        next_delim = text.index("<<<ALGOLIFT_", start + len(marker))
+        next_delim = text.index("<<<LEETMIND_", start + len(marker))
         blocks[i] = text[start:next_delim]
     without_mutants = text
     for block in blocks.values():
@@ -486,23 +486,23 @@ def test_field_content_with_quotes_newlines_and_backslashes_is_preserved_verbati
 def test_documented_edge_case_a_line_identical_to_a_delimiter_inside_content_is_misread() -> None:
     """Documented, tested limitation (envelope.py's module docstring): a delimiter only counts if
     the ENTIRE line matches — but that also means a field's raw content that happens to contain a
-    bare line byte-identical to a real delimiter WILL be misread as one. `print("<<<ALGOLIFT_...")`
+    bare line byte-identical to a real delimiter WILL be misread as one. `print("<<<LEETMIND_...")`
     is safe (extra characters on the line disqualify it); a line that is ONLY the delimiter text is
     not."""
     problem = _valid_problem()
     # Safe case: the delimiter-shaped text has other characters on the same line.
     problem["reference_solution_py"] = (
-        'def longestRun(s):\n    print("<<<ALGOLIFT_FIELD:evil>>>")\n    return 1\n'
+        'def longestRun(s):\n    print("<<<LEETMIND_FIELD:evil>>>")\n    return 1\n'
     )
     text = render_envelope(problem)
     assembled = parse_envelope(text)  # must NOT raise — the line isn't a bare delimiter
-    assert '<<<ALGOLIFT_FIELD:evil>>>' in assembled["reference_solution_py"]
+    assert '<<<LEETMIND_FIELD:evil>>>' in assembled["reference_solution_py"]
 
     # Unsafe case: a bare line that IS exactly a delimiter, embedded inside content.
     problem2 = _valid_problem()
     problem2["reference_solution_py"] = (
         "def longestRun(s):\n"
-        "<<<ALGOLIFT_FIELD:evil>>>\n"  # a full, bare line identical to a delimiter
+        "<<<LEETMIND_FIELD:evil>>>\n"  # a full, bare line identical to a delimiter
         "    return 1\n"
     )
     text2 = render_envelope(problem2)
@@ -530,15 +530,15 @@ def _hand_build_envelope(
     parts = [META_DELIM, json.dumps(meta)]
     for name in REQUIRED_SCALAR_FIELDS:
         if name in problem:
-            parts.append(f"<<<ALGOLIFT_FIELD:{name}>>>")
+            parts.append(f"<<<LEETMIND_FIELD:{name}>>>")
             parts.append(problem[name])
     for i, mutant in enumerate(problem.get("mutants_py", [])):
-        parts.append(f"<<<ALGOLIFT_FIELD:mutants_py[{i}]>>>")
+        parts.append(f"<<<LEETMIND_FIELD:mutants_py[{i}]>>>")
         parts.append(mutant)
     for sub in HINT_SUBFIELDS:
         hints = problem.get("hints", {})
         if sub in hints:
-            parts.append(f"<<<ALGOLIFT_FIELD:hints.{sub}>>>")
+            parts.append(f"<<<LEETMIND_FIELD:hints.{sub}>>>")
             parts.append(hints[sub])
     parts.append(END_DELIM)
     return "\n".join(parts) + "\n"

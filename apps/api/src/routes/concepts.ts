@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { listConceptEdges, listConcepts } from "@algolift/db";
+import { listConceptEdges, listConcepts } from "@leetmind/db";
 import type { Deps } from "../deps.js";
 
 export function registerConceptRoutes(fastify: FastifyInstance, _deps: Deps): void {

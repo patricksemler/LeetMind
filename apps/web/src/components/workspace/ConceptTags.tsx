@@ -1,4 +1,4 @@
-import type { Concept } from "@algolift/shared";
+import type { Concept } from "@leetmind/shared";
 import { Badge } from "../ui";
 
 interface ProblemConceptRef {

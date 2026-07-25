@@ -315,7 +315,7 @@ export const ProgressResponse = z
 export type ProgressResponse = z.infer<typeof ProgressResponse>;
 
 // --- GET /api/system/stats ----------------------------------------------------------------------
-// Tightened to apps/api/src/routes/system.ts / @algolift/queue's Queue.stats() actual field names
+// Tightened to apps/api/src/routes/system.ts / @leetmind/queue's Queue.stats() actual field names
 // (QA-PLAN.md "Prevent recurrence" §1 — see ProgressResponse's comment above for why the previous
 // `z.record` catch-alls never would have caught this page's Phase-1 drift bugs: "0 / 0 / 0 ms",
 // literal "window × 0" badges, "0% / by_stage").

@@ -1,11 +1,11 @@
 // GET /api/system/stats — queue depth/waits, worker liveness, verdict distribution, buffer depth,
 // generation pass-rate by stage, model-run latency/cost, dead jobs, plus the learner engine's
 // tunable constants (docs/CONTRACTS.md §9, PLAN.md §8 "/system"). All plain SQL over existing
-// tables except queue stats/dead jobs, which reuse `Queue.stats()` (@algolift/queue already owns
+// tables except queue stats/dead jobs, which reuse `Queue.stats()` (@leetmind/queue already owns
 // that query).
 import type { FastifyInstance } from "fastify";
-import { countApprovedUnattemptedByBand, query } from "@algolift/db";
-import { LEARNER_CONSTANTS } from "@algolift/learner";
+import { countApprovedUnattemptedByBand, query } from "@leetmind/db";
+import { LEARNER_CONSTANTS } from "@leetmind/learner";
 import type { Deps } from "../deps.js";
 
 const STALE_WORKER_SECONDS = 30;

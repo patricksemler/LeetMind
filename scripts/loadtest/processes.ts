@@ -147,7 +147,7 @@ export function spawnJudgeWorker(opts: { databaseUrl: string; workerId: string; 
     // generous timeout here avoids a flaky false "not ready" on a loaded machine.
     timeoutMs: 45_000,
     pollReady: async () => {
-      const { query } = await import("@algolift/db");
+      const { query } = await import("@leetmind/db");
       const rows = await query<{ worker_id: string }>(
         "select worker_id from worker_heartbeats where worker_id = $1",
         [opts.workerId],

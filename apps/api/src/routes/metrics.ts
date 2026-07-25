@@ -16,7 +16,7 @@
 // pre-declared metric objects, not for periodically re-deriving gauges from SQL. ~40 lines of
 // text-formatting is less surface area than a new dependency for this shape of exporter.
 import type { FastifyInstance } from "fastify";
-import { countApprovedUnattemptedByBand, query } from "@algolift/db";
+import { countApprovedUnattemptedByBand, query } from "@leetmind/db";
 import type { Deps } from "../deps.js";
 
 const STALE_WORKER_SECONDS = 30;
@@ -114,7 +114,7 @@ export function registerMetricsRoutes(fastify: FastifyInstance, deps: Deps): voi
 
   fastify.get("/metrics", async (_request, reply) => {
     const [queueStats, workers, verdictCounts, bufferDepth, stageRows, latency] = await Promise.all([
-      // Same call `/api/system/stats` makes (@algolift/queue already owns this query) — queue
+      // Same call `/api/system/stats` makes (@leetmind/queue already owns this query) — queue
       // depth by kind/status, oldest queued age, wait-time percentiles, lease recovery, dead jobs.
       deps.queue.stats(),
       query<{ worker_id: string; kind: string; last_seen_at: Date; stale: boolean }>(
@@ -152,110 +152,110 @@ export function registerMetricsRoutes(fastify: FastifyInstance, deps: Deps): voi
     const w = new MetricsWriter();
 
     // --- queue depth by kind and status --------------------------------------------------------
-    w.declare({ name: "algolift_queue_depth", help: "Number of jobs by kind and status.", type: "gauge" });
+    w.declare({ name: "leetmind_queue_depth", help: "Number of jobs by kind and status.", type: "gauge" });
     for (const k of queueStats.kinds) {
       for (const [status, count] of Object.entries(k.counts)) {
-        w.sample("algolift_queue_depth", { kind: k.kind, status }, count);
+        w.sample("leetmind_queue_depth", { kind: k.kind, status }, count);
       }
     }
 
     // --- oldest queued age ----------------------------------------------------------------------
     w.declare({
-      name: "algolift_queue_oldest_queued_age_ms",
+      name: "leetmind_queue_oldest_queued_age_ms",
       help: "Age in ms of the oldest still-queued job, per kind (absent when nothing is queued for that kind).",
       type: "gauge",
     });
     for (const k of queueStats.kinds) {
       if (k.oldest_queued_age_ms !== null) {
-        w.sample("algolift_queue_oldest_queued_age_ms", { kind: k.kind }, k.oldest_queued_age_ms);
+        w.sample("leetmind_queue_oldest_queued_age_ms", { kind: k.kind }, k.oldest_queued_age_ms);
       }
     }
 
     // --- queue wait-time percentiles (Queue.stats()'s own approximation, see its doc comment) ---
     w.declare({
-      name: "algolift_queue_wait_ms",
+      name: "leetmind_queue_wait_ms",
       help: "Approximate queue wait time percentiles (enqueue -> claim) over the last hour.",
       type: "gauge",
     });
-    w.sample("algolift_queue_wait_ms", { quantile: "0.5" }, queueStats.wait_time_ms.p50);
-    w.sample("algolift_queue_wait_ms", { quantile: "0.95" }, queueStats.wait_time_ms.p95);
+    w.sample("leetmind_queue_wait_ms", { quantile: "0.5" }, queueStats.wait_time_ms.p50);
+    w.sample("leetmind_queue_wait_ms", { quantile: "0.95" }, queueStats.wait_time_ms.p95);
 
     // --- dead-job count ---------------------------------------------------------------------------
-    w.declare({ name: "algolift_queue_dead_jobs", help: "Total jobs currently in status=dead.", type: "gauge" });
-    w.sample("algolift_queue_dead_jobs", {}, queueStats.dead_count);
+    w.declare({ name: "leetmind_queue_dead_jobs", help: "Total jobs currently in status=dead.", type: "gauge" });
+    w.sample("leetmind_queue_dead_jobs", {}, queueStats.dead_count);
 
     // --- lease recovery (chaos/reliability signal, cheap to expose since Queue.stats() already
     // computes it) --------------------------------------------------------------------------------
     w.declare({
-      name: "algolift_queue_lease_recovery",
-      help: "Jobs ever tagged with the lease-expired marker, bucketed by outcome (see @algolift/queue LeaseRecoveryStats doc comment for precision caveats).",
+      name: "leetmind_queue_lease_recovery",
+      help: "Jobs ever tagged with the lease-expired marker, bucketed by outcome (see @leetmind/queue LeaseRecoveryStats doc comment for precision caveats).",
       type: "gauge",
     });
-    w.sample("algolift_queue_lease_recovery", { outcome: "reaped_total" }, queueStats.lease_recovery.reaped_total);
-    w.sample("algolift_queue_lease_recovery", { outcome: "recovered" }, queueStats.lease_recovery.recovered);
-    w.sample("algolift_queue_lease_recovery", { outcome: "still_pending" }, queueStats.lease_recovery.still_pending);
-    w.sample("algolift_queue_lease_recovery", { outcome: "dead_after_reap" }, queueStats.lease_recovery.dead_after_reap);
+    w.sample("leetmind_queue_lease_recovery", { outcome: "reaped_total" }, queueStats.lease_recovery.reaped_total);
+    w.sample("leetmind_queue_lease_recovery", { outcome: "recovered" }, queueStats.lease_recovery.recovered);
+    w.sample("leetmind_queue_lease_recovery", { outcome: "still_pending" }, queueStats.lease_recovery.still_pending);
+    w.sample("leetmind_queue_lease_recovery", { outcome: "dead_after_reap" }, queueStats.lease_recovery.dead_after_reap);
 
     // --- worker liveness -------------------------------------------------------------------------
     w.declare({
-      name: "algolift_worker_up",
+      name: "leetmind_worker_up",
       help: "1 if the worker's last heartbeat is within the staleness window, else 0.",
       type: "gauge",
     });
     w.declare({
-      name: "algolift_worker_last_seen_seconds_ago",
+      name: "leetmind_worker_last_seen_seconds_ago",
       help: "Seconds since this worker's last heartbeat.",
       type: "gauge",
     });
     for (const worker of workers) {
       const labels = { worker_id: worker.worker_id, kind: worker.kind };
-      w.sample("algolift_worker_up", labels, worker.stale ? 0 : 1);
+      w.sample("leetmind_worker_up", labels, worker.stale ? 0 : 1);
       const secondsAgo = (Date.now() - new Date(worker.last_seen_at).getTime()) / 1000;
-      w.sample("algolift_worker_last_seen_seconds_ago", labels, Math.max(0, secondsAgo));
+      w.sample("leetmind_worker_last_seen_seconds_ago", labels, Math.max(0, secondsAgo));
     }
 
     // --- judge verdict counts by verdict (all-time counter) -------------------------------------
     w.declare({
-      name: "algolift_submissions_verdict_total",
+      name: "leetmind_submissions_verdict_total",
       help: "Total completed submissions by terminal verdict (all-time; use rate()/increase() for throughput).",
       type: "counter",
     });
     for (const row of verdictCounts) {
-      w.sample("algolift_submissions_verdict_total", { verdict: row.verdict }, row.count);
+      w.sample("leetmind_submissions_verdict_total", { verdict: row.verdict }, row.count);
     }
 
     // --- submission end-to-end latency histogram (created -> completed) -------------------------
     w.declare({
-      name: "algolift_submission_latency_ms",
+      name: "leetmind_submission_latency_ms",
       help: "End-to-end submission latency in ms, POST /api/submissions created_at -> completed_at.",
       type: "histogram",
     });
     for (const bucket of latency.buckets) {
-      w.sample("algolift_submission_latency_ms_bucket", { le: bucket.le }, bucket.count);
+      w.sample("leetmind_submission_latency_ms_bucket", { le: bucket.le }, bucket.count);
     }
-    w.sample("algolift_submission_latency_ms_bucket", { le: "+Inf" }, latency.count);
-    w.sample("algolift_submission_latency_ms_sum", {}, latency.sumMs);
-    w.sample("algolift_submission_latency_ms_count", {}, latency.count);
+    w.sample("leetmind_submission_latency_ms_bucket", { le: "+Inf" }, latency.count);
+    w.sample("leetmind_submission_latency_ms_sum", {}, latency.sumMs);
+    w.sample("leetmind_submission_latency_ms_count", {}, latency.count);
 
     // --- generation pass-rate by verification stage ----------------------------------------------
     w.declare({
-      name: "algolift_generation_stage_total",
+      name: "leetmind_generation_stage_total",
       help: "Verification-report stage outcomes, by stage and result (passed|failed).",
       type: "counter",
     });
     for (const row of stageRows) {
-      w.sample("algolift_generation_stage_total", { stage: row.stage, result: "passed" }, row.passed);
-      w.sample("algolift_generation_stage_total", { stage: row.stage, result: "failed" }, row.total - row.passed);
+      w.sample("leetmind_generation_stage_total", { stage: row.stage, result: "passed" }, row.passed);
+      w.sample("leetmind_generation_stage_total", { stage: row.stage, result: "failed" }, row.total - row.passed);
     }
 
     // --- buffer depth per concept x rating band ---------------------------------------------------
     w.declare({
-      name: "algolift_buffer_depth",
+      name: "leetmind_buffer_depth",
       help: "Approved, unattempted problems per concept x rating band (the replenishment buffer, PLAN.md §5).",
       type: "gauge",
     });
     for (const row of bufferDepth) {
-      w.sample("algolift_buffer_depth", { concept: row.concept_id, band: row.band }, row.count);
+      w.sample("leetmind_buffer_depth", { concept: row.concept_id, band: row.band }, row.count);
     }
 
     reply

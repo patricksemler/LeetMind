@@ -10,7 +10,7 @@
 // hint's own copy — checking for the token substring can never collide with ordinary prose.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { loadApiConfig, newId } from "@algolift/shared";
+import { loadApiConfig, newId } from "@leetmind/shared";
 import { buildDeps, type Deps } from "../src/deps.js";
 import { buildServer } from "../src/server.js";
 import { notifyBus } from "../src/sse.js";

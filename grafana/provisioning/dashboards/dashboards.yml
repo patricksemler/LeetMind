@@ -3,7 +3,7 @@
 apiVersion: 1
 
 providers:
-  - name: algolift
+  - name: leetmind
     orgId: 1
     folder: ""
     type: file

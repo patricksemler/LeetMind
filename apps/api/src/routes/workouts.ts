@@ -1,5 +1,5 @@
 // M3 workout endpoints (docs/CONTRACTS.md §9, PLAN.md §8). Assembly itself is pure and lives in
-// `@algolift/learner`'s `assembleWorkout`/`assembleDiagnostic`/`nextDiagnosticStep`; this file's
+// `@leetmind/learner`'s `assembleWorkout`/`assembleDiagnostic`/`nextDiagnosticStep`; this file's
 // job is entirely DB glue: gather candidates + state, call the pure assembler, persist
 // transactionally, and (for diagnostics) drive the adaptive one-item-at-a-time loop.
 import type { FastifyInstance } from "fastify";
@@ -27,14 +27,14 @@ import {
   type WorkoutItemRow,
   type WorkoutItemState,
   type WorkoutRow,
-} from "@algolift/db";
+} from "@leetmind/db";
 import {
   CreateWorkoutRequest,
   learningEventKey,
   newId,
   notFound,
   SkipWorkoutItemRequest,
-} from "@algolift/shared";
+} from "@leetmind/shared";
 import {
   assembleDiagnostic,
   assembleWorkout,
@@ -46,7 +46,7 @@ import {
   type DiagnosticHistoryEntry,
   type DiagnosticOutcome,
   type DiagnosticPlanStep,
-} from "@algolift/learner";
+} from "@leetmind/learner";
 import type { Deps } from "../deps.js";
 import { requireId } from "../server.js";
 import {
@@ -118,7 +118,7 @@ async function applyInabilitySkip(
     }
 
     // Row-locked and in a globally consistent sorted order — see getConceptStateForUpdate's doc
-    // comment (@algolift/db): the same read-modify-write-without-a-lock shape caused a confirmed-
+    // comment (@leetmind/db): the same read-modify-write-without-a-lock shape caused a confirmed-
     // live mastery lost-update race elsewhere (QA-PLAN.md §2.2).
     const stateMap: Record<string, UserConceptStateRow> = {};
     for (const id of [...conceptIds].sort()) {

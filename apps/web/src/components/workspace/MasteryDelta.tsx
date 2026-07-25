@@ -1,4 +1,4 @@
-import type { ConceptChange } from "@algolift/shared";
+import type { ConceptChange } from "@leetmind/shared";
 import { RatingMeter } from "../ui";
 
 /**

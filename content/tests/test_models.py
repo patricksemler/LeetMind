@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from algolift_content.models import (
+from leetmind_content.models import (
     SERVER_ONLY_FIELDS,
     ProblemVersion,
     Signature,

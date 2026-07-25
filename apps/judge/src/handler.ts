@@ -18,9 +18,9 @@ import {
   updateSubmissionStatus,
   withTransaction,
   type SubmissionRow,
-} from "@algolift/db";
-import type { JobHandler, WorkerContext } from "@algolift/queue";
-import { newId, ProblemVersionSchema, type JudgeJobPayload, type SubmissionStatus } from "@algolift/shared";
+} from "@leetmind/db";
+import type { JobHandler, WorkerContext } from "@leetmind/queue";
+import { newId, ProblemVersionSchema, type JudgeJobPayload, type SubmissionStatus } from "@leetmind/shared";
 import type { JudgeDeps } from "./deps.js";
 import { buildComparatorSpec, buildLimits, executeSubmission, selectTests } from "./execution.js";
 import { applyMastery } from "./mastery.js";

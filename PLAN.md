@@ -1,4 +1,4 @@
-# AlgoLift — Implementation Plan
+# LeetMind — Implementation Plan
 
 **Progressive overload for problem solving.** An adaptive algorithm-training platform that generates original, deterministically verified problems on your machine, judges your code in sandboxes, and models your mastery per concept so every session targets the edge of your ability — covering the pattern families of the NeetCode 150.
 

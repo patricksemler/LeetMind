@@ -5,7 +5,7 @@
  * `GET /api/submissions/:id` is always consistent with the last event published, and updates
  * concept mastery using the local `mastery.ts` reimplementation of CONTRACTS §8.
  */
-import type { SubmissionStatus } from "@algolift/shared";
+import type { SubmissionStatus } from "@leetmind/shared";
 import {
   bumpSubmissionCount,
   conceptState,

@@ -4,7 +4,7 @@
  * submit, or a recorded give-up) on `GET /api/submissions/:id` and the SSE `verdict` event. Built
  * from an explicit allowlist, never by spreading the raw fixture content.
  */
-import type { Reveal } from "@algolift/shared";
+import type { Reveal } from "@leetmind/shared";
 import { CONCEPTS } from "./fixtures/concepts.js";
 import type { ProblemFixture } from "./fixtures/problems.js";
 import { hasSolvedOrGivenUp } from "./state.js";

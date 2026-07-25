@@ -15,7 +15,7 @@
  *     (`exact`, `float_tol` abs+rel 1e-6, `unordered` — recursive multiset via canonical-key sort)
  *   - enforces a per-test time budget (a detached pthread with a large stack, matching
  *     `runner.py`'s `threading.stack_size` — see `THREAD_STACK_SIZE` below) and emits exactly one
- *     `<<<ALGOLIFT_RESULT>>>` sentinel line followed by one JSON object, identical in shape to the
+ *     `<<<LEETMIND_RESULT>>>` sentinel line followed by one JSON object, identical in shape to the
  *     Python harness's protocol. `expected` is never emitted.
  *   - a test whose bundled case has no `expected` key (CONTRACTS §4.5 — `run` against
  *     `custom_input`) is reported `status: "completed"` rather than compared at all.
@@ -33,7 +33,7 @@
  * code for it, and `main.cpp`'s own comparator dispatcher throws if it's somehow reached anyway
  * (defense in depth, converted to a top-level `harness_error` by `main()`'s outer catch).
  */
-import { parseParamType, type ParamTypeAst, type Signature } from "@algolift/shared";
+import { parseParamType, type ParamTypeAst, type Signature } from "@leetmind/shared";
 
 /** Maps a parsed `ParamTypeAst` to its C++ type spelling — CONTRACTS §7's type table, applied
  * recursively so `list[list[int]]` -> `std::vector<std::vector<long long>>`. */
@@ -336,7 +336,7 @@ bool compare_values(const json& output, const json& expected, const json& compar
 // ---------------------------------------------------------------------------
 // Misc helpers
 // ---------------------------------------------------------------------------
-const std::string RESULT_SENTINEL = "<<<ALGOLIFT_RESULT>>>";
+const std::string RESULT_SENTINEL = "<<<LEETMIND_RESULT>>>";
 constexpr size_t MAX_TEST_STDOUT_BYTES = 4 * 1024;
 constexpr size_t MAX_OUTPUT_JSON_BYTES = 2 * 1024;
 constexpr int DEFAULT_PER_TEST_TIMEOUT_MS = 5000;
@@ -405,7 +405,7 @@ void emit_result(const json& payload) {
     // Redact any literal sentinel substring embedded in the payload itself (e.g. captured stdout
     // containing a spoofed result block) so the line written immediately below is guaranteed to
     // be the only true occurrence in the whole stream — same defense as runner.py's emit().
-    body = replace_all(body, RESULT_SENTINEL, "<<<ALGOLIFT_RESULT (redacted, embedded in output)>>>");
+    body = replace_all(body, RESULT_SENTINEL, "<<<LEETMIND_RESULT (redacted, embedded in output)>>>");
     std::fputs(RESULT_SENTINEL.c_str(), stdout);
     std::fputc('\\n', stdout);
     std::fputs(body.c_str(), stdout);

@@ -2,8 +2,8 @@
 // M4 file-boundary rule (helpers.ts is owned by the concurrent chaos/idempotency-suite agent).
 // Reuses helpers.ts's problem-seeding/teardown/ctx machinery (import only, never edited) and adds
 // the one thing it doesn't have: inserting a submission with `language: 'cpp'`.
-import { insertSubmission, withTransaction, type SubmissionRow } from "@algolift/db";
-import { newId } from "@algolift/shared";
+import { insertSubmission, withTransaction, type SubmissionRow } from "@leetmind/db";
+import { newId } from "@leetmind/shared";
 import { TEST_USER_ID } from "./helpers.js";
 
 export interface InsertCppSubmissionOpts {

@@ -1,4 +1,4 @@
-import type { ProblemVersion } from "@algolift/shared";
+import type { ProblemVersion } from "@leetmind/shared";
 import { fixedId } from "../ids.js";
 
 export interface ProblemFixture {

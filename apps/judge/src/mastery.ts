@@ -19,9 +19,9 @@ import {
   upsertConceptState,
   type SubmissionRow,
   type UserConceptStateRow,
-} from "@algolift/db";
-import { learningEventKey, newId, type HintLevel, type ProblemVersion, type Verdict } from "@algolift/shared";
-import { outcomeScore, scheduleReview, updateConcepts, type ConceptChange } from "@algolift/learner";
+} from "@leetmind/db";
+import { learningEventKey, newId, type HintLevel, type ProblemVersion, type Verdict } from "@leetmind/shared";
+import { outcomeScore, scheduleReview, updateConcepts, type ConceptChange } from "@leetmind/learner";
 
 const HINT_LEVEL_ORDER: readonly HintLevel[] = [
   "l1_orientation",
@@ -93,7 +93,7 @@ function snapshotStates(states: Record<string, UserConceptStateRow>): Record<str
 }
 
 /** Bookkeeping counters (attempts/solves/streaks/hint_counts/total_active_ms) are owned by the
- * judge — CONTRACTS.md §8 fixes the rating/uncertainty/SM-2 math (owned by @algolift/learner) but
+ * judge — CONTRACTS.md §8 fixes the rating/uncertainty/SM-2 math (owned by @leetmind/learner) but
  * leaves these plain counters to whichever caller updates `user_concept_state`. This mirrors the
  * bookkeeping apps/api's give-up route already applies. */
 function computeCounterUpdates(
@@ -117,7 +117,7 @@ function computeCounterUpdates(
   }
   // `Number(...)` is defence in depth, not superstition. `total_active_ms` is the schema's only
   // bigint, and node-postgres returns bigint as a string unless a type parser is registered
-  // (@algolift/db's pool.ts registers one). Without the coercion, a regression in that parser
+  // (@leetmind/db's pool.ts registers one). Without the coercion, a regression in that parser
   // turns this `+` back into string concatenation — which is exactly the bug that previously
   // corrupted this column and dead-lettered judge jobs.
   const total_active_ms = Number(old.total_active_ms) + activeMs;

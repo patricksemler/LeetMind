@@ -1,4 +1,4 @@
-import { parseParamType } from "@algolift/shared";
+import { parseParamType } from "@leetmind/shared";
 import { describe, expect, it } from "vitest";
 import type { Signature } from "../types.js";
 import { cppType, generateMainCpp } from "./codegen.js";
@@ -54,7 +54,7 @@ describe("generateMainCpp — structural properties (no Docker)", () => {
 
   it("emits exactly one sentinel emission call site and never emits an 'expected' JSON key", () => {
     const src = generateMainCpp(twoSum);
-    expect(src).toContain("<<<ALGOLIFT_RESULT>>>");
+    expect(src).toContain("<<<LEETMIND_RESULT>>>");
     // The harness never builds an "expected" field into any per-test result object.
     expect(src).not.toMatch(/result\["expected"\]/);
   });

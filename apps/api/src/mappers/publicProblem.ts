@@ -3,8 +3,8 @@
 // docs/CONTRACTS.md §4.2) and then does exactly one extra thing that's this app's job, not
 // shared's: hydrating `concepts_revealed` refs (`{id, role, weight}`) with concept names by
 // joining the `concepts` table, since `toPublicProblem` intentionally has no DB access.
-import { queryOne, query, listHintEvents, type ProblemVersionRow, type ConceptRow } from "@algolift/db";
-import { ProblemVersionSchema, toPublicProblem, type PublicProblem } from "@algolift/shared";
+import { queryOne, query, listHintEvents, type ProblemVersionRow, type ConceptRow } from "@leetmind/db";
+import { ProblemVersionSchema, toPublicProblem, type PublicProblem } from "@leetmind/shared";
 
 export interface RevealedConcept {
   id: string;
@@ -19,9 +19,9 @@ export type PublicProblemWithNames = Omit<PublicProblem, "concepts_revealed"> & 
 
 /**
  * True iff `userId` has an accepted `submit`-mode submission against `problemVersionId`.
- * Not exported from `@algolift/db` (no existing helper covers this exact predicate), so it's a
+ * Not exported from `@leetmind/db` (no existing helper covers this exact predicate), so it's a
  * small ad hoc query here rather than a new package export — this app may only ever *read* via
- * `@algolift/db`'s generic `query`/`queryOne`, not add methods to that package.
+ * `@leetmind/db`'s generic `query`/`queryOne`, not add methods to that package.
  */
 async function hasAcceptedSubmission(userId: string, problemVersionId: string): Promise<boolean> {
   const row = await queryOne<{ exists: boolean }>(

@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { GetSubmissionResponse } from "@algolift/shared";
+import type { GetSubmissionResponse } from "@leetmind/shared";
 import { useSubmissionEvents } from "./useSubmissionEvents";
 
 class FakeEventSource {

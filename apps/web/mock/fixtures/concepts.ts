@@ -1,4 +1,4 @@
-import type { Concept, ConceptEdge } from "@algolift/shared";
+import type { Concept, ConceptEdge } from "@leetmind/shared";
 
 /** Mirrors docs/CONTRACTS.md §3 taxonomy seed exactly — ids are load-bearing elsewhere. */
 const NAMES: Record<string, string> = {

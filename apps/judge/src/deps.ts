@@ -5,15 +5,15 @@
 // lists only `pg` + the workspace packages) — the logger type is inferred from
 // `createLogger`'s return type rather than imported from `pino` directly.
 import type { Pool } from "pg";
-import { getPool } from "@algolift/db";
-import { Queue, type Logger as QueueLogger } from "@algolift/queue";
+import { getPool } from "@leetmind/db";
+import { Queue, type Logger as QueueLogger } from "@leetmind/queue";
 import {
   createLogger,
   loadJudgeConfig,
   loadSandboxConfig,
   type JudgeConfig,
   type SandboxConfig,
-} from "@algolift/shared";
+} from "@leetmind/shared";
 
 export type JudgeLogger = ReturnType<typeof createLogger>;
 

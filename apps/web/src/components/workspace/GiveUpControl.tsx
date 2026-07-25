@@ -6,7 +6,7 @@
  */
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import type { GiveUpResponse } from "@algolift/shared";
+import type { GiveUpResponse } from "@leetmind/shared";
 import { api } from "../../lib/api";
 import { Button, Dialog } from "../ui";
 

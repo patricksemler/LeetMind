@@ -1,11 +1,11 @@
 """Pure-Python tests for the shrink-candidate generation / size metric in
-`algolift_content.verification.shrink` (the parts that don't need the sandbox — the sandboxed
+`leetmind_content.verification.shrink` (the parts that don't need the sandbox — the sandboxed
 `shrink_counterexample` end-to-end path is covered in test_verification_gate.py).
 """
 
 from __future__ import annotations
 
-from algolift_content.verification.shrink import shrink_candidates, size_metric
+from leetmind_content.verification.shrink import shrink_candidates, size_metric
 
 
 def test_size_metric_prefers_smaller_lists() -> None:

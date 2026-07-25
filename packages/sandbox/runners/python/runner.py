@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AlgoLift Python harness runner — CONTRACTS.md §6 / §7.
+LeetMind Python harness runner — CONTRACTS.md §6 / §7.
 
 Stdlib-only, dependency-free driver that runs a user's `solution.py` against a bundle of tests
 and emits the sentinel result protocol. Designed to be checked into
@@ -22,7 +22,7 @@ Bundle layout (see docs/CONTRACTS.md §7), all read from --bundle (default /bund
 Protocol: arbitrary user output may appear first, then EXACTLY ONE sentinel line, then EXACTLY
 ONE JSON object on stdout:
 
-    <<<ALGOLIFT_RESULT>>>
+    <<<LEETMIND_RESULT>>>
     {"ok": true, "tests": [...]}
 
 The host parses the LAST occurrence of the sentinel, so nothing this program does before that
@@ -51,7 +51,7 @@ import types
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-RESULT_SENTINEL = "<<<ALGOLIFT_RESULT>>>"
+RESULT_SENTINEL = "<<<LEETMIND_RESULT>>>"
 
 MAX_TEST_STDOUT_BYTES = 4 * 1024
 MAX_OUTPUT_JSON_BYTES = 2 * 1024
@@ -545,7 +545,7 @@ def run_one_test(
 
 
 def main(argv: Optional[list] = None) -> None:
-    parser = argparse.ArgumentParser(description="AlgoLift Python harness runner")
+    parser = argparse.ArgumentParser(description="LeetMind Python harness runner")
     parser.add_argument("--bundle", default="/bundle", help="bundle directory (default: /bundle)")
     args = parser.parse_args(argv)
     bundle_dir = Path(args.bundle)
@@ -569,7 +569,7 @@ def main(argv: Optional[list] = None) -> None:
         # of the genuine sentinel line below, and fail to parse the remainder as JSON. Redact
         # every occurrence of the sentinel out of the payload text itself so the line written
         # immediately below is guaranteed to be the only true occurrence in the whole stream.
-        body = body.replace(RESULT_SENTINEL, "<<<ALGOLIFT_RESULT (redacted, embedded in output)>>>")
+        body = body.replace(RESULT_SENTINEL, "<<<LEETMIND_RESULT (redacted, embedded in output)>>>")
         real_stdout.write(RESULT_SENTINEL + "\n")
         real_stdout.write(body + "\n")
         real_stdout.flush()

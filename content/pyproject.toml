@@ -1,7 +1,7 @@
 [project]
-name = "algolift-content"
+name = "leetmind-content"
 version = "0.1.0"
-description = "AlgoLift content plane — problem generation and verification (docs/CONTRACTS.md §10, §11)"
+description = "LeetMind content plane — problem generation and verification (docs/CONTRACTS.md §10, §11)"
 requires-python = ">=3.12"
 dependencies = [
   "pydantic>=2.9",
@@ -25,7 +25,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["algolift_content"]
+packages = ["leetmind_content"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

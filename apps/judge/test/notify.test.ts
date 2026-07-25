@@ -1,12 +1,12 @@
-// CONTRACTS.md §4.5: judge/content workers emit `pg_notify('algolift_events', ...)` inside the
+// CONTRACTS.md §4.5: judge/content workers emit `pg_notify('leetmind_events', ...)` inside the
 // same transaction as each state write. This test opens its own `LISTEN` client (the same
 // transport apps/api's SSE fanout uses) and asserts the exact, ordered sequence of events a real
 // submission produces: assigned/compiling/running/completed status transitions, progress at start
 // and completion, the verdict, and finally mastery.
 import { Client } from "pg";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { loadBaseConfig, NOTIFY_CHANNEL } from "@algolift/shared";
-import type { UserConceptStateRow } from "@algolift/db";
+import { loadBaseConfig, NOTIFY_CHANNEL } from "@leetmind/shared";
+import type { UserConceptStateRow } from "@leetmind/db";
 import { createJudgeHandler } from "../src/handler.js";
 import {
   insertTestSubmission,

@@ -1,6 +1,6 @@
 /**
- * Thin, typed HTTP client for the AlgoLift API (docs/CONTRACTS.md §9). Every response is parsed
- * through the zod schemas exported from `@algolift/shared` — this file never redeclares an API
+ * Thin, typed HTTP client for the LeetMind API (docs/CONTRACTS.md §9). Every response is parsed
+ * through the zod schemas exported from `@leetmind/shared` — this file never redeclares an API
  * shape, it only calls fetch and hands the JSON to the shared schema.
  *
  * Talks to `/api/...` (and `/health`), which Vite proxies to `VITE_API_BASE` — the mock server in
@@ -30,7 +30,7 @@ import {
   StartWorkoutItemResponse,
   type TakeHintRequest,
   TakeHintResponse,
-} from "@algolift/shared";
+} from "@leetmind/shared";
 
 export class ApiError extends Error {
   status: number;

@@ -55,7 +55,7 @@ describe("ProblemVersionSchema", () => {
     expect(() => ProblemVersionSchema.parse(makeProblemVersion())).not.toThrow();
   });
 
-  // Mirrors content/algolift_content/models.py's ProblemVersion model_validators — previously
+  // Mirrors content/leetmind_content/models.py's ProblemVersion model_validators — previously
   // enforced ONLY on the Python side, so a row violating either invariant would be silently
   // accepted (and trusted) by every TS consumer once it reached the database (QA-PLAN.md §4).
   it("rejects concept weights that don't sum to ~1.0", () => {

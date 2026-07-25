@@ -1,11 +1,11 @@
 /**
  * A self-contained reimplementation of the docs/CONTRACTS.md §8 mastery formulas, used only by
- * the mock server. Deliberately does NOT depend on `@algolift/learner` (a concurrently-developed
+ * the mock server. Deliberately does NOT depend on `@leetmind/learner` (a concurrently-developed
  * package outside this agent's scope) — this keeps the mock stable regardless of that package's
  * state, while staying numerically faithful to the documented contract.
  */
-import type { Verdict } from "@algolift/shared";
-import { HINT_PENALTY_CAPS, type HintLevel } from "@algolift/shared";
+import type { Verdict } from "@leetmind/shared";
+import { HINT_PENALTY_CAPS, type HintLevel } from "@leetmind/shared";
 
 export interface ConceptRatingState {
   rating: number;

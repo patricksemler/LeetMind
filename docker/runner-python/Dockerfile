@@ -1,4 +1,4 @@
-# AlgoLift Python sandbox runner image — docs/CONTRACTS.md §6.
+# LeetMind Python sandbox runner image — docs/CONTRACTS.md §6.
 #
 # No network access at runtime: that is enforced entirely by the sandbox's `docker run
 # --network none` flag (see packages/sandbox/src/run.ts, buildDockerArgs), NOT by anything in
@@ -8,7 +8,7 @@
 # be pip-installed in this image.
 FROM python:3.12-slim
 
-LABEL algolift.runner=python
+LABEL leetmind.runner=python
 
 WORKDIR /work
 

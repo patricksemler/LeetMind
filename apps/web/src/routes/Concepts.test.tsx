@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { ProgressResponse } from "@algolift/shared";
+import type { ProgressResponse } from "@leetmind/shared";
 import { Providers } from "../test/testUtils";
 import { Concepts } from "./Concepts";
 

@@ -1,6 +1,6 @@
-# AlgoLift — Threat Model
+# LeetMind — Threat Model
 
-**Scope of this document.** AlgoLift executes untrusted code as a core function. This document
+**Scope of this document.** LeetMind executes untrusted code as a core function. This document
 states what that means, what the isolation boundary actually is, what it defends against, and —
 more importantly — what it does not. Nothing here is aspirational: every control listed is
 implemented and test-covered today, and every gap is a real gap.
@@ -24,7 +24,7 @@ Two sources, and the second is the one people forget:
 The second category is the reason the verification gate runs **inside the same sandbox** as user
 submissions rather than in the content worker's own process. A generated `input_generator_py` is
 executed hundreds of times during the differential stage; treating it as trusted because "we
-generated it" would be the single largest hole in the system. `content/algolift_content/sandbox.py`
+generated it" would be the single largest hole in the system. `content/leetmind_content/sandbox.py`
 deliberately cannot construct `docker run` arguments — it shells out to the one TypeScript
 implementation (CONTRACTS §6.1), so there is exactly one set of isolation flags, not two that can
 drift apart.

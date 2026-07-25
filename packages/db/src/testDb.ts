@@ -2,7 +2,7 @@
 //
 // A data-loss defect was found in this repo: several test suites ran `truncate table jobs,
 // model_runs, verification_reports, ...` against `DATABASE_URL`, which defaults to the
-// **development** database. Since AlgoLift is a tool its author uses daily, that silently
+// **development** database. Since LeetMind is a tool its author uses daily, that silently
 // destroyed real practice history.
 //
 // The fix is defence in depth: destructive test fixtures must never touch a database whose name
@@ -10,8 +10,8 @@
 // before any truncate/drop, and let it throw rather than continuing.
 
 /** Default `TEST_DATABASE_URL` per docs/CONTRACTS.md §13 — same instance as `DATABASE_URL`, but
- * the `algolift_test` database instead of `algolift`. */
-export const DEFAULT_TEST_DATABASE_URL = "postgres://algolift:algolift@localhost:5432/algolift_test";
+ * the `leetmind_test` database instead of `leetmind`. */
+export const DEFAULT_TEST_DATABASE_URL = "postgres://leetmind:leetmind@localhost:5432/leetmind_test";
 
 /** Returns `TEST_DATABASE_URL`, or the documented default. Tests should call this instead of
  * reading `DATABASE_URL` (which defaults to the development database) directly. */
@@ -46,7 +46,7 @@ export function assertTestDatabase(url: string): void {
     throw new Error(
       `assertTestDatabase: malformed database connection string ("${url}") — could not parse a ` +
         `database name out of it. Destructive test fixtures refuse to run without a connection ` +
-        `string that clearly names a test database (name ending in "_test", e.g. "algolift_test").`,
+        `string that clearly names a test database (name ending in "_test", e.g. "leetmind_test").`,
     );
   }
 
@@ -54,7 +54,7 @@ export function assertTestDatabase(url: string): void {
     throw new Error(
       `assertTestDatabase: connection string ("${url}") has no database name. Destructive test ` +
         `fixtures refuse to run without a database name ending in "_test" (or exactly "test"). ` +
-        `Set TEST_DATABASE_URL to e.g. "postgres://algolift:algolift@localhost:5432/algolift_test".`,
+        `Set TEST_DATABASE_URL to e.g. "postgres://leetmind:leetmind@localhost:5432/leetmind_test".`,
     );
   }
 
@@ -64,7 +64,7 @@ export function assertTestDatabase(url: string): void {
         `— its name does not end in "_test" (or equal "test"). This guard exists because a prior ` +
         `data-loss incident truncated real practice history when tests ran against the ` +
         `development database (docs/CONTRACTS.md §13). Point TEST_DATABASE_URL at a database ` +
-        `whose name ends in "_test", e.g. "postgres://algolift:algolift@localhost:5432/algolift_test".`,
+        `whose name ends in "_test", e.g. "postgres://leetmind:leetmind@localhost:5432/leetmind_test".`,
     );
   }
 }

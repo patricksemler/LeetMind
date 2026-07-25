@@ -10,8 +10,8 @@ import type {
   Verdict,
   Workout,
   WorkoutItem,
-} from "@algolift/shared";
-import { newId } from "@algolift/shared";
+} from "@leetmind/shared";
+import { newId } from "@leetmind/shared";
 import { CONCEPTS } from "./fixtures/concepts.js";
 import { PROBLEM_FIXTURES, type ProblemFixture } from "./fixtures/problems.js";
 import { fixedId, SINGLE_USER_ID } from "./ids.js";

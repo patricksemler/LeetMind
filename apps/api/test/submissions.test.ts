@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, afterAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { insertSubmission, notify, withTransaction, queryOne, type JobRow } from "@algolift/db";
-import { isId, judgeJobKey, loadApiConfig, newId } from "@algolift/shared";
+import { insertSubmission, notify, withTransaction, queryOne, type JobRow } from "@leetmind/db";
+import { isId, judgeJobKey, loadApiConfig, newId } from "@leetmind/shared";
 import { buildDeps, type Deps } from "../src/deps.js";
 import { buildServer } from "../src/server.js";
 import { cleanup, isDatabaseReachable, seedApprovedProblem, testPool } from "./helpers.js";

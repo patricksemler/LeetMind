@@ -82,7 +82,7 @@ export const ProblemVersionSchema = z
     }),
     state: z.enum(["candidate", "verifying", "approved", "rejected", "retired"]),
   })
-  // Mirrors content/algolift_content/models.py's `ProblemVersion` model_validators exactly —
+  // Mirrors content/leetmind_content/models.py's `ProblemVersion` model_validators exactly —
   // those two invariants were enforced ONLY on the Python (generation/verification) side; nothing
   // stopped a row that violated them from being read back and trusted by every TS consumer
   // (apps/api, apps/judge, the mock server) once it was in the database.

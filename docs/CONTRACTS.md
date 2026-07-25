@@ -1,4 +1,4 @@
-# AlgoLift — Implementation Contracts (normative)
+# LeetMind — Implementation Contracts (normative)
 
 This document is **normative for all implementation work**. `PLAN.md` says *what* and *why*;
 this document says *exactly which names, shapes, and files*. When implementing, do not invent
@@ -10,7 +10,7 @@ smallest thing consistent with the conventions below and note it in your report.
 ## 0. Repo layout
 
 ```
-AlgoLift/
+LeetMind/
   package.json                 # pnpm workspace root, scripts only
   pnpm-workspace.yaml
   tsconfig.base.json
@@ -23,14 +23,14 @@ AlgoLift/
     api/                       # Fastify HTTP + SSE
     judge/                     # judge coordinator + sandbox workers
   packages/
-    shared/                    # @algolift/shared  — types, zod schemas, logger, config, ids
-    db/                        # @algolift/db      — pg pool, migration runner, migrations/, seeds/
-    queue/                     # @algolift/queue   — Postgres job queue (TS side)
-    sandbox/                   # @algolift/sandbox — docker run wrapper
-    learner/                   # @algolift/learner — Glicko-lite engine, SM-2, outcome scoring (pure)
+    shared/                    # @leetmind/shared  — types, zod schemas, logger, config, ids
+    db/                        # @leetmind/db      — pg pool, migration runner, migrations/, seeds/
+    queue/                     # @leetmind/queue   — Postgres job queue (TS side)
+    sandbox/                   # @leetmind/sandbox — docker run wrapper
+    learner/                   # @leetmind/learner — Glicko-lite engine, SM-2, outcome scoring (pure)
   content/                     # Python (uv) content plane
     pyproject.toml
-    algolift_content/
+    leetmind_content/
       config.py logging.py db.py queue.py models.py
       harness/                 # harness codegen + runner bundles
       generation/              # claude -p invoker, prompts
@@ -47,7 +47,7 @@ AlgoLift/
 
 TypeScript packages are ESM (`"type": "module"`), target ES2022, `moduleResolution: "bundler"`
 for web and `"nodenext"`+`"module": "nodenext"` for node packages. Node packages import each other
-by package name (`@algolift/shared`), resolved through pnpm workspace links, and are consumed as
+by package name (`@leetmind/shared`), resolved through pnpm workspace links, and are consumed as
 **TypeScript source via `tsx` in dev**; each package also has a `build` script (`tsc -p .`) emitting
 to `dist/`. Package `exports` point at `./src/index.ts` under the `"development"` condition and
 `./dist/index.js` otherwise; keep it simple — a plain `"main": "src/index.ts"` plus `tsx`/`tsc`
@@ -69,7 +69,7 @@ exist and must keep working, but nothing at dev or test time may depend on their
 - **Time**: `timestamptz`, always UTC. Durations in **ms** as integers unless a column name says otherwise.
 - **Correlation IDs**: every inbound HTTP request gets `correlation_id` (from `x-correlation-id`
   header or a fresh ULID). It is propagated request → job row → execution → learning event, and
-  appears in **every** structured log line. TS: `AsyncLocalStorage` in `@algolift/shared`.
+  appears in **every** structured log line. TS: `AsyncLocalStorage` in `@leetmind/shared`.
   Python: `contextvars`.
 - **Logging**: single-line JSON to stdout. Required fields:
   `ts, level, service, msg, correlation_id?, job_id?, submission_id?, worker_id?`.
@@ -93,7 +93,7 @@ API resolves the current user from config, not from the request.
 
 | Var | Default | Used by |
 |---|---|---|
-| `DATABASE_URL` | `postgres://algolift:algolift@localhost:5432/algolift` | all |
+| `DATABASE_URL` | `postgres://leetmind:leetmind@localhost:5432/leetmind` | all |
 | `PGPOOL_MAX` | `10` | all |
 | `LOG_LEVEL` | `info` | all |
 | `NODE_ENV` | `development` | ts |
@@ -108,14 +108,14 @@ API resolves the current user from config, not from the request.
 | `QUEUE_HEARTBEAT_MS` | `10000` | queue |
 | `QUEUE_REAPER_INTERVAL_MS` | `5000` | queue |
 | `QUEUE_POLL_INTERVAL_MS` | `500` | queue |
-| `SANDBOX_PYTHON_IMAGE` | `algolift/runner-python:1` | judge, content |
-| `SANDBOX_CPP_IMAGE` | `algolift/runner-cpp:1` | judge |
+| `SANDBOX_PYTHON_IMAGE` | `leetmind/runner-python:1` | judge, content |
+| `SANDBOX_CPP_IMAGE` | `leetmind/runner-cpp:1` | judge |
 | `SANDBOX_MEMORY_MB` | `256` | sandbox |
 | `SANDBOX_CPUS` | `1.0` | sandbox |
 | `SANDBOX_PIDS_LIMIT` | `64` | sandbox |
 | `SANDBOX_WALL_TIMEOUT_MS` | `10000` | sandbox |
 | `SANDBOX_OUTPUT_LIMIT_BYTES` | `65536` | sandbox |
-| `SANDBOX_WORK_DIR` | `/tmp/algolift-sandbox` | sandbox |
+| `SANDBOX_WORK_DIR` | `/tmp/leetmind-sandbox` | sandbox |
 | `DOCKER_BIN` | `docker` | sandbox |
 | `CONTENT_WORKER_ID` | hostname+pid | content |
 | `GENERATOR_INVOKER` | `claude` | content (`claude` \| `codex` \| `stub`) |
@@ -217,11 +217,11 @@ Edges (parent → child) per PLAN §4:
 
 ---
 
-## 4. `@algolift/shared` — the type surface
+## 4. `@leetmind/shared` — the type surface
 
 Everything in this section is **exported from `packages/shared/src/index.ts`** and defined with
 **zod**; TypeScript types are `z.infer` of the schemas. Python mirrors these as pydantic models in
-`content/algolift_content/models.py` with **identical field names**.
+`content/leetmind_content/models.py` with **identical field names**.
 
 ### 4.1 Signature / type system
 
@@ -286,7 +286,7 @@ export const TestCaseSchema = z.object({
    examples, difficulty_rating, expected_active_minutes, comparator, starter_code: {python, cpp},
    hint_levels_available: string[], concepts_revealed: null | Concept[] }`
 `concepts_revealed` is `null` until the user solves or gives up. There is a single exported
-function `toPublicProblem(row)` in `@algolift/shared` and **nothing else may build this object.**
+function `toPublicProblem(row)` in `@leetmind/shared` and **nothing else may build this object.**
 
 ### 4.3 Verdicts and statuses
 
@@ -337,10 +337,10 @@ Endpoint `GET /api/submissions/:id/events` (text/event-stream). Named events:
 | `mastery` | `{ submission_id, changes: [{concept_id, before_rating, after_rating, before_uncertainty, after_uncertainty}], outcome, explanation }` |
 | `ping` | `{ at }` every 15s |
 
-Transport: Postgres `LISTEN/NOTIFY` on channel **`algolift_events`**. Notify payload must stay
+Transport: Postgres `LISTEN/NOTIFY` on channel **`leetmind_events`**. Notify payload must stay
 under 7900 bytes and has shape `{ type, submission_id?, user_id?, ...small fields }`. The API holds
 one dedicated `pg` client for `LISTEN` and fans out in-process. Judge/content workers emit via
-`select pg_notify('algolift_events', $1)` **inside the same transaction** as the state write.
+`select pg_notify('leetmind_events', $1)` **inside the same transaction** as the state write.
 
 **Post-solve reveal (added after M1 — the web build found no defined channel for it).** On an
 `accepted` submit, the client needs the editorial and target complexity, which until then were
@@ -375,7 +375,7 @@ where the `*_preview` fields are populated **only** for `run` mode and for examp
 
 ---
 
-## 5. `@algolift/queue` — Postgres job queue
+## 5. `@leetmind/queue` — Postgres job queue
 
 Exported API:
 
@@ -413,12 +413,12 @@ Rules:
 - Heartbeat returns false if the row is no longer leased by this worker — the handler must abort.
 - Every worker upserts `worker_heartbeats` every `QUEUE_HEARTBEAT_MS`.
 
-Python mirror: `content/algolift_content/queue.py` with the same semantics
+Python mirror: `content/leetmind_content/queue.py` with the same semantics
 (`enqueue`, `claim`, `heartbeat`, `ack`, `fail`, `reap_expired`) using `psycopg` 3.
 
 ---
 
-## 6. `@algolift/sandbox` — execution substrate
+## 6. `@leetmind/sandbox` — execution substrate
 
 ```ts
 export interface SandboxLimits { memoryMb, cpus, pidsLimit, wallTimeoutMs, outputLimitBytes }
@@ -451,7 +451,7 @@ export async function resolveImageDigest(image: string): Promise<string | null>
 --memory <memoryMb>m --memory-swap <memoryMb>m --cpus <cpus> --pids-limit <pidsLimit>
 --cap-drop ALL --security-opt no-new-privileges
 -u 65534:65534 -w /work
---label algolift.sandbox=1
+--label leetmind.sandbox=1
 ```
 Wall timeout is enforced by the **host** (kill the `docker run` child, then `docker kill` by label
 as a backstop). Stdout/stderr are capped by the host reader, not by the container.
@@ -463,7 +463,7 @@ back to `.Id`. Every `execution_attempts` row records the digest.
 single sentinel line, then one JSON object:
 
 ```
-<<<ALGOLIFT_RESULT>>>
+<<<LEETMIND_RESULT>>>
 {"ok":true,"tests":[...],"compile":{...}}
 ```
 
@@ -481,7 +481,7 @@ comes back.
 
 The Python content plane must execute reference/brute-force/mutant code under **exactly** the same
 sandbox as user submissions. To guarantee that without a second implementation of the flag list,
-`@algolift/sandbox` ships a CLI and Python shells out to it:
+`@leetmind/sandbox` ships a CLI and Python shells out to it:
 
 ```
 node --import tsx packages/sandbox/src/cli.ts exec       # reads SandboxRequest JSON on stdin
@@ -493,16 +493,16 @@ node --import tsx packages/sandbox/src/cli.ts exec-python # reads {signature,tes
 
 Rules: JSON in / JSON out on stdin/stdout only, all logs to **stderr**, exit 0 on a successful
 *execution attempt* (even when the verdict is `wrong_answer`), non-zero only on infrastructure
-failure. Python wraps this in `content/algolift_content/sandbox.py` as
+failure. Python wraps this in `content/leetmind_content/sandbox.py` as
 `run_python(signature, tests, comparator, source, limits) -> ExecuteResult`, resolving the repo
-root from `ALGOLIFT_REPO_ROOT` or by walking up for `pnpm-workspace.yaml`.
+root from `LEETMIND_REPO_ROOT` or by walking up for `pnpm-workspace.yaml`.
 **Python must never build `docker run` arguments itself.**
 
 Images:
 - `docker/runner-python/Dockerfile` — `python:3.12-slim`, no network at runtime, non-root, no pip
-  packages beyond stdlib. Tag `algolift/runner-python:1`.
+  packages beyond stdlib. Tag `leetmind/runner-python:1`.
 - `docker/runner-cpp/Dockerfile` — `gcc:14` or `debian:bookworm` + `g++`, compiles with
-  `g++ -std=c++20 -O2 -pipe -static-libstdc++`. Tag `algolift/runner-cpp:1`.
+  `g++ -std=c++20 -O2 -pipe -static-libstdc++`. Tag `leetmind/runner-cpp:1`.
   **Compilation needs its own, larger memory limit than execution** (`MIN_COMPILE_MEMORY_MB = 1024`;
   empirical floor ~768 MB). Measured during M4: `g++ -O2` against the vendored nlohmann/json header
   gets `cc1plus` SIGKILLed by the cgroup at the 256 MB execution limit, and because `--memory-swap`
@@ -516,7 +516,7 @@ Images:
   is itself indistinguishable from bare container startup (~143 ms, measured over 20 iterations
   with the production flag list). So C++ end-to-end latency is *header compilation*, not container
   or cgroup mechanics. Two obvious levers if C++ latency ever matters: bake a precompiled header
-  into `algolift/runner-cpp`, or swap to a lighter JSON parser for the harness. Neither is worth
+  into `leetmind/runner-cpp`, or swap to a lighter JSON parser for the harness. Neither is worth
   doing until someone is actually waiting on it — recorded here so the next person measures before
   optimizing the wrong thing.
 - `scripts/build-images.sh` builds both.
@@ -525,11 +525,11 @@ Images:
 
 ## 7. Harness codegen
 
-Lives in **Python**: `content/algolift_content/harness/`. It is used by the content plane directly,
+Lives in **Python**: `content/leetmind_content/harness/`. It is used by the content plane directly,
 and by the **judge** through a small CLI so there is exactly one implementation:
 
 ```
-python -m algolift_content.harness.cli emit --language python --signature-json <path> --out <dir>
+python -m leetmind_content.harness.cli emit --language python --signature-json <path> --out <dir>
 ```
 …but for judge-time simplicity the judge instead writes a **static runner** into the bundle and
 passes signature + tests as JSON data files. That is the required design:
@@ -560,7 +560,7 @@ maps to `compilation_error` with the g++ stderr surfaced (path-scrubbed).
 
 ---
 
-## 8. `@algolift/learner` — mastery engine (pure functions, no I/O)
+## 8. `@leetmind/learner` — mastery engine (pure functions, no I/O)
 
 ```ts
 export function expectedSuccess(userRating: number, problemRating: number): number
@@ -647,7 +647,7 @@ transaction, then returns. Never wait for the verdict.
 
 ---
 
-## 10. Verification gate (`content/algolift_content/verification/`)
+## 10. Verification gate (`content/leetmind_content/verification/`)
 
 Six blocking stages, run in order; first failure short-circuits and writes a
 `verification_reports` row with `passed=false, failed_stage=<name>`.
@@ -673,7 +673,7 @@ Banned-word list for hint stage 1 (L1/L2): `dynamic programming`, `dp`, `two poi
 
 ---
 
-## 11. Generation (`content/algolift_content/generation/`)
+## 11. Generation (`content/leetmind_content/generation/`)
 
 - `invoker.py`: `Invoker` protocol with `invoke(prompt: str, *, timeout_ms: int) -> InvokeResult`.
   Implementations: `ClaudeInvoker` (`claude -p <prompt> --output-format json`, subprocess, no
@@ -699,7 +699,7 @@ pile up duplicates. Bands are 200-wide, keyed by floor(rating/200)*200.
 React 19 + Vite + TypeScript + Tailwind v4 + `@monaco-editor/react`. Routes (react-router):
 `/` (today / workout), `/problem/:versionId`, `/progress`, `/system`, `/diagnostic`.
 State: TanStack Query for reads, plain `EventSource` for SSE.
-Shared types imported from `@algolift/shared` — the web app must never redeclare API shapes.
+Shared types imported from `@leetmind/shared` — the web app must never redeclare API shapes.
 
 Workspace requirements: statement/constraints/examples pane; Monaco with language select and
 starter code; Run (custom input) + Submit; live status + per-test progress from SSE; verdict panel
@@ -712,22 +712,22 @@ visually hidden while still measuring.
 ## 13. Test database isolation (MANDATORY — a data-loss defect was found here)
 
 Several test suites ran `truncate table jobs, model_runs, verification_reports, …` against
-`DATABASE_URL`, which defaults to the **development** database. Since AlgoLift's whole premise is a
+`DATABASE_URL`, which defaults to the **development** database. Since LeetMind's whole premise is a
 tool the author uses daily, running the test suite silently destroyed real practice history. That
 is a correctness bug in the tests, not an inconvenience.
 
 Rules:
 
 1. **Tests never read `DATABASE_URL`.** They read **`TEST_DATABASE_URL`**, defaulting to
-   `postgres://algolift:algolift@localhost:5432/algolift_test`. That database exists and is
-   migrated; recreate with `createdb algolift_test && DATABASE_URL=…/algolift_test pnpm db:migrate`.
+   `postgres://leetmind:leetmind@localhost:5432/leetmind_test`. That database exists and is
+   migrated; recreate with `createdb leetmind_test && DATABASE_URL=…/leetmind_test pnpm db:migrate`.
 2. **A guard makes misconfiguration impossible.** Before any destructive fixture runs, assert the
    target database name matches `/(^|_)test$/`. If it does not, **fail the test run loudly** with a
    message naming the database — never truncate, never silently continue. This is defence in depth:
    an operator who exports the wrong `TEST_DATABASE_URL` must get a failed test run, not a wiped
    database. Every language gets the same guard:
-   - TS: `assertTestDatabase(url)` exported from `@algolift/db`.
-   - Python: `assert_test_database(url)` in `content/algolift_content/db.py`.
+   - TS: `assertTestDatabase(url)` exported from `@leetmind/db`.
+   - Python: `assert_test_database(url)` in `content/leetmind_content/db.py`.
 3. **Prefer creating and cleaning up only your own rows** over truncating shared tables at all
    (`apps/judge/test/helpers.ts` already does this and is the model to copy). Truncation is a last
    resort, and only ever inside the guard.
@@ -737,7 +737,7 @@ Rules:
    dev database.
 
 **Known limitation, and the concrete fix (M4).** The Python fixtures assume *exclusive* ownership of
-the test database — two concurrent `pytest` processes against the same `algolift_test` deadlock on
+the test database — two concurrent `pytest` processes against the same `leetmind_test` deadlock on
 each other's truncates. That was tolerable pre-M4 (one suite at a time) but is incompatible with
 M4's chaos/concurrency suite (`apps/judge/test/chaos/`), which deliberately runs many real workers —
 including separate OS processes — in parallel against a live Postgres. `content/` is out of scope
@@ -747,8 +747,8 @@ than implementing it.
 
 *Chosen mechanism: schema-per-`pytest-xdist`-worker, not database-per-process.* Postgres schemas are
 namespaces within one database — cheap to create/drop, and every existing connection string /
-`TEST_DATABASE_URL` / CI secret keeps pointing at the same `algolift_test` database unchanged. A
-database-per-process design (`algolift_test_gw0`, `algolift_test_gw1`, ...) also works and trivially
+`TEST_DATABASE_URL` / CI secret keeps pointing at the same `leetmind_test` database unchanged. A
+database-per-process design (`leetmind_test_gw0`, `leetmind_test_gw1`, ...) also works and trivially
 satisfies the existing `assertTestDatabase`/`assert_test_database` name-pattern guard (any suffix
 still ends in `_test`), but needs `CREATE DATABASE` privilege, N times the connection pool
 bookkeeping, and a dynamic `DATABASE_URL` per worker — schema-per-worker gets the same isolation
@@ -768,7 +768,7 @@ Concrete mechanism:
    *in addition to* that guard, not a replacement for it — a worker-scoped schema inside the
    *development* database would still be a data-loss bug waiting to happen).
 4. `CREATE SCHEMA IF NOT EXISTS {schema}`, then run the **same** migrations
-   (`packages/db/migrations/*.sql`, via whatever runner `content/algolift_content/db.py` already
+   (`packages/db/migrations/*.sql`, via whatever runner `content/leetmind_content/db.py` already
    uses to reach Postgres) with `search_path` set to `{schema}, public` for that worker's
    connections — either via `SET search_path` on each new connection, or by encoding
    `options=-csearch_path%3D{schema}` in the DSN passed to `psycopg`. Every table, sequence, and
@@ -791,10 +791,10 @@ and added a guard, `assertNoStrayJobs()`
 (`apps/judge/test/chaos/chaos-helpers.ts`), that fails loudly rather than silently double-processing
 a row it doesn't own. That guard *did* fire during real verification runs of this milestone, when
 another agent's concurrently-running test process was enqueuing `'generate'`-kind jobs against the
-same `algolift_test` database at the same time. `packages/queue`'s own suite already avoids this
+same `leetmind_test` database at the same time. `packages/queue`'s own suite already avoids this
 entirely (it spins up a dedicated throwaway Postgres container on its own port, per `packages/queue/
 src/test-fixture.ts` — CONTRACTS §13 rule 4), but `apps/api` and `apps/judge` do not: every
-`pnpm --filter <pkg> test` invocation is a separate OS process sharing one `algolift_test` database
+`pnpm --filter <pkg> test` invocation is a separate OS process sharing one `leetmind_test` database
 with zero isolation between processes (vitest's own `fileParallelism: false` only serializes test
 *files* within one process, not across processes). The same schema-per-worker mechanism above
 applies directly: each TS suite's `testSetup.ts` should derive a schema name from an analogous
@@ -804,14 +804,14 @@ var CI sets per parallel job, or a fallback derived from `process.pid`), `CREATE
 EXISTS` + migrate + `SET search_path` before any test runs, exactly as above. This is scoped out of
 M4 (not requested, and `apps/api`/`apps/judge`'s vitest bootstrapping is arguably not this agent's
 file boundary either) but is recorded here since it's now a *confirmed*, not merely theoretical, gap
-— multi-agent / multi-process development sessions against one shared `algolift_test` database will
+— multi-agent / multi-process development sessions against one shared `leetmind_test` database will
 keep tripping over it until it's fixed the same way on both sides.
 
 ## 14. Definition of done, per agent
 
 Every implementation agent must, before reporting success:
 1. `pnpm -w typecheck` clean for TS work (`tsc --noEmit` across the workspace), or
-   `uv run ruff check . && uv run mypy algolift_content` clean-ish for Python work.
+   `uv run ruff check . && uv run mypy leetmind_content` clean-ish for Python work.
 2. Any tests it added actually run and pass (`pnpm -w test` / `uv run pytest`).
 3. Not modify files outside its stated scope. If a shared file needs a change, report it instead.
 4. Report: files created, deviations from this doc, and anything it could not verify.

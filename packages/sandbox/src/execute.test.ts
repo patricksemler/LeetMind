@@ -18,7 +18,7 @@ function makeSandboxResult(overrides: Partial<SandboxResult>): SandboxResult {
   };
 }
 
-const sentinel = "<<<ALGOLIFT_RESULT>>>";
+const sentinel = "<<<LEETMIND_RESULT>>>";
 const oneTest: BundleTestCase[] = [{ args: [1, 2], expected: 3 }];
 
 describe("buildExecutionResult — verdict mapping table", () => {

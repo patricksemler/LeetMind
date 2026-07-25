@@ -1,6 +1,6 @@
-# algolift-content
+# leetmind-content
 
-The AlgoLift content plane: problem generation (`claude -p`) and the six-stage verification
+The LeetMind content plane: problem generation (`claude -p`) and the six-stage verification
 gate. Python, managed by [`uv`](https://docs.astral.sh/uv/). See `docs/CONTRACTS.md` §10/§11 for
 the normative spec and `PLAN.md` §5 for the narrative overview.
 
@@ -14,7 +14,7 @@ uv sync
 ## Running
 
 ```sh
-uv run python -m algolift_content.workers.content_worker
+uv run python -m leetmind_content.workers.content_worker
 ```
 
 **Run this ON THE HOST, not in Docker, when `GENERATOR_INVOKER=claude`** (the default). The
@@ -38,18 +38,18 @@ automatically when those aren't available — see `tests/test_queue.py` and `tes
 
 ```sh
 uv run ruff check .
-uv run mypy algolift_content
+uv run mypy leetmind_content
 ```
 
 ## Layout
 
 ```
-algolift_content/
+leetmind_content/
   config.py       Settings (pydantic-settings), CONTRACTS.md §2
   logging.py      structlog JSON logging + correlation-id context, CONTRACTS.md §1
   db.py           psycopg 3 pool + query helpers
-  queue.py        Python mirror of @algolift/queue, CONTRACTS.md §5
-  models.py       pydantic mirror of @algolift/shared's zod schemas, CONTRACTS.md §4
+  queue.py        Python mirror of @leetmind/queue, CONTRACTS.md §5
+  models.py       pydantic mirror of @leetmind/shared's zod schemas, CONTRACTS.md §4
   sandbox.py      the sandbox CLI bridge, CONTRACTS.md §6.1
   codegen.py      solution/generator source normalization + seeded-input generation
   workers/        worker entrypoints (content_worker.py is the generate/verify worker)
@@ -73,15 +73,15 @@ Rules, load-bearing for verification and for the generation prompt alike:
   reseed or draw from Python's global `random` module. The seed is the whole point: the same
   seed must always reproduce the same case, so counterexamples found during differential/mutation
   testing can be recorded (`verification_reports.seeds`) and replayed later.
-- It returns the argument list for **one** case per call. `algolift_content.codegen.seeded_inputs`
+- It returns the argument list for **one** case per call. `leetmind_content.codegen.seeded_inputs`
   drives it inside a single sandbox invocation, calling it `count` times with
   `random.Random(seed_start)`, `random.Random(seed_start + 1)`, ... — batching matters, since one
   container per case would be far too slow for a `VERIFY_DIFFERENTIAL_CASES`-sized suite (default
   200).
-- `input_generator_py` is executed **only inside the sandbox** (`algolift_content.sandbox`),
+- `input_generator_py` is executed **only inside the sandbox** (`leetmind_content.sandbox`),
   never imported or exec'd in the worker process — generated code is untrusted (PLAN.md §3).
 
 This exact contract is also documented as a docstring on
-`algolift_content.codegen.render_generator_module` / `seeded_inputs` — the generation prompt
-(owned by a follow-up agent, `algolift_content/generation/prompts/v1.py`) must teach the model to
+`leetmind_content.codegen.render_generator_module` / `seeded_inputs` — the generation prompt
+(owned by a follow-up agent, `leetmind_content/generation/prompts/v1.py`) must teach the model to
 emit code matching this shape precisely.

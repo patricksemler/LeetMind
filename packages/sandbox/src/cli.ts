@@ -8,7 +8,7 @@
  *
  * The Python content plane must execute reference/brute-force/mutant code under EXACTLY the
  * same sandbox as user submissions. Rather than a second implementation of the `docker run`
- * flag list in Python, `content/algolift_content/sandbox.py` shells out to this CLI.
+ * flag list in Python, `content/leetmind_content/sandbox.py` shells out to this CLI.
  *
  * Contract:
  *  - JSON in / JSON out on stdin/stdout ONLY. Every log line goes to stderr, never stdout.
@@ -22,7 +22,7 @@
  *   node --import tsx packages/sandbox/src/cli.ts exec-python  < ExecPythonRequest.json
  *   node --import tsx packages/sandbox/src/cli.ts exec-cpp     < ExecCppRequest.json
  */
-import { createLogger } from "@algolift/shared";
+import { createLogger } from "@leetmind/shared";
 import type { ExecuteCppOptions } from "./cpp/execute.js";
 import type { ExecutePythonOptions } from "./execute.js";
 import type { SandboxRequest } from "./types.js";
@@ -39,7 +39,7 @@ import type { SandboxRequest } from "./types.js";
 // This all exists for one reason: CONTRACTS §6.1 requires "JSON in/out on stdin/stdout ONLY,
 // all logs to stderr" for this CLI specifically (every other service correctly logs JSON to
 // stdout per CONTRACTS §1 — it's only this bridge's dual use of stdout as both a data channel
-// and Node's conventional log stream that forces the redirect). @algolift/shared's
+// and Node's conventional log stream that forces the redirect). @leetmind/shared's
 // `createLogger` doesn't expose a way to point pino at an arbitrary stream, so redirecting
 // process.stdout.write is the only lever available from inside this package.
 const realStdoutWrite = process.stdout.write.bind(process.stdout);

@@ -4,8 +4,8 @@ import { buildDockerArgs } from "./run.js";
 describe("buildDockerArgs", () => {
   it("produces the exact mandatory flag list and order from CONTRACTS.md §6, plus --name", () => {
     const args = buildDockerArgs({
-      image: "algolift/runner-python:1",
-      bundleDir: "/tmp/algolift-sandbox/01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      image: "leetmind/runner-python:1",
+      bundleDir: "/tmp/leetmind-sandbox/01ARZ3NDEKTSV4RRFFQ69G5FAV",
       argv: ["python3", "/bundle/runner.py"],
       limits: {
         memoryMb: 256,
@@ -14,7 +14,7 @@ describe("buildDockerArgs", () => {
         wallTimeoutMs: 10000,
         outputLimitBytes: 65536,
       },
-      name: "algolift-sbx-01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      name: "leetmind-sbx-01ARZ3NDEKTSV4RRFFQ69G5FAV",
     });
 
     expect(args).toEqual([
@@ -26,7 +26,7 @@ describe("buildDockerArgs", () => {
       "--tmpfs",
       "/work:rw,size=64m,mode=1777,exec",
       "-v",
-      "/tmp/algolift-sandbox/01ARZ3NDEKTSV4RRFFQ69G5FAV:/bundle:ro",
+      "/tmp/leetmind-sandbox/01ARZ3NDEKTSV4RRFFQ69G5FAV:/bundle:ro",
       "--memory",
       "256m",
       "--memory-swap",
@@ -44,10 +44,10 @@ describe("buildDockerArgs", () => {
       "-w",
       "/work",
       "--label",
-      "algolift.sandbox=1",
+      "leetmind.sandbox=1",
       "--name",
-      "algolift-sbx-01ARZ3NDEKTSV4RRFFQ69G5FAV",
-      "algolift/runner-python:1",
+      "leetmind-sbx-01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "leetmind/runner-python:1",
       "python3",
       "/bundle/runner.py",
     ]);
@@ -55,28 +55,28 @@ describe("buildDockerArgs", () => {
 
   it("interpolates limits and bundle dir per-call, not a fixed template", () => {
     const args = buildDockerArgs({
-      image: "algolift/runner-cpp:1",
+      image: "leetmind/runner-cpp:1",
       bundleDir: "/work-dir/other",
       argv: ["/work/prog"],
       limits: { memoryMb: 512, cpus: 2, pidsLimit: 32, wallTimeoutMs: 5000, outputLimitBytes: 1024 },
-      name: "algolift-sbx-xyz",
+      name: "leetmind-sbx-xyz",
     });
 
     expect(args).toContain("512m");
     expect(args).toContain("2");
     expect(args).toContain("32");
     expect(args).toContain("/work-dir/other:/bundle:ro");
-    expect(args[args.length - 2]).toBe("algolift/runner-cpp:1");
+    expect(args[args.length - 2]).toBe("leetmind/runner-cpp:1");
     expect(args[args.length - 1]).toBe("/work/prog");
   });
 
   it("never builds argv as a single shell string", () => {
     const args = buildDockerArgs({
-      image: "algolift/runner-python:1",
+      image: "leetmind/runner-python:1",
       bundleDir: "/tmp/x",
       argv: ["python3", "/bundle/runner.py"],
       limits: { memoryMb: 256, cpus: 1, pidsLimit: 64, wallTimeoutMs: 10000, outputLimitBytes: 65536 },
-      name: "algolift-sbx-1",
+      name: "leetmind-sbx-1",
     });
     // every element is a discrete token; none contain embedded whitespace-joined flag pairs
     for (const arg of args) {

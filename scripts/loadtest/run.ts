@@ -7,10 +7,10 @@
 // lease-recovery-under-load scenario, computes p50/p95/p99 latency + throughput from Postgres,
 // writes docs/measurements.md, cleans up every row it created, and exits.
 //
-// Usage: pnpm --filter @algolift/scripts loadtest
-import { closePool, query } from "@algolift/db";
-import { assertTestDatabase, testDatabaseUrl } from "@algolift/db";
-import { newId } from "@algolift/shared";
+// Usage: pnpm --filter @leetmind/scripts loadtest
+import { closePool, query } from "@leetmind/db";
+import { assertTestDatabase, testDatabaseUrl } from "@leetmind/db";
+import { newId } from "@leetmind/shared";
 import { execSync } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -32,7 +32,7 @@ const API_BASE = `http://127.0.0.1:${API_PORT}`;
 
 function assertDockerAndImages(): void {
   execSync("docker info", { stdio: "ignore" });
-  for (const image of ["algolift/runner-python:1", "algolift/runner-cpp:1"]) {
+  for (const image of ["leetmind/runner-python:1", "leetmind/runner-cpp:1"]) {
     try {
       execSync(`docker image inspect ${image}`, { stdio: "ignore" });
     } catch {
@@ -47,9 +47,9 @@ async function main(): Promise<void> {
   const runId = newId();
   const databaseUrl = testDatabaseUrl();
   assertTestDatabase(databaseUrl); // docs/CONTRACTS.md §13 — refuse to run against anything else
-  process.env.DATABASE_URL = databaseUrl; // so THIS process's own @algolift/db calls (seed/cleanup/stats) target it too
+  process.env.DATABASE_URL = databaseUrl; // so THIS process's own @leetmind/db calls (seed/cleanup/stats) target it too
 
-  console.log(`AlgoLift M5 load test — run ${runId}`);
+  console.log(`LeetMind M5 load test — run ${runId}`);
   console.log(`Target database: ${databaseUrl}`);
 
   assertDockerAndImages();
@@ -121,7 +121,7 @@ async function main(): Promise<void> {
     const records = await loadSubmissionRecords(seeded.versionId, { excludeIds: [leaseRecovery.submissionId] });
 
     // docs/CONTRACTS.md §13 documents a known hazard: OTHER agents' test suites running
-    // concurrently against this same shared `algolift_test` database can (pre-M4-fix) truncate
+    // concurrently against this same shared `leetmind_test` database can (pre-M4-fix) truncate
     // shared tables mid-run. That is a data-loss event for THIS run's measurements, not a
     // legitimate "honest zero" — fail loudly rather than silently writing a bogus all-zero report
     // (the same "fail loudly, never silently continue" principle CONTRACTS §13 itself mandates for
@@ -131,9 +131,9 @@ async function main(): Promise<void> {
       throw new Error(
         `loadtest: expected ~${expected} submissions for problem_version_id=${seeded.versionId} but only found ` +
           `${records.length} in the database after the run completed. This almost certainly means a CONCURRENT ` +
-          `process truncated/deleted shared tables in algolift_test while this load test was running (a known ` +
+          `process truncated/deleted shared tables in leetmind_test while this load test was running (a known ` +
           `hazard documented in docs/CONTRACTS.md §13 — check for other agents' \`pnpm test\` / \`pytest\` runs ` +
-          `against the same database). Re-run the load test once no other suite is running against algolift_test.`,
+          `against the same database). Re-run the load test once no other suite is running against leetmind_test.`,
       );
     }
 

@@ -21,7 +21,7 @@ function parseEnv<S extends z.ZodTypeAny>(schema: S, source: NodeJS.ProcessEnv):
 
 /** Vars used by every TS service ("all" / "ts" in CONTRACTS §2). */
 const BaseEnvSchema = z.object({
-  DATABASE_URL: z.string().min(1).default("postgres://algolift:algolift@localhost:5432/algolift"),
+  DATABASE_URL: z.string().min(1).default("postgres://leetmind:leetmind@localhost:5432/leetmind"),
   PGPOOL_MAX: z.coerce.number().int().positive().default(10),
   LOG_LEVEL: z.string().min(1).default("info"),
   NODE_ENV: z.string().min(1).default("development"),
@@ -71,8 +71,8 @@ export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
 const JudgeEnvSchema = BaseEnvSchema.extend({
   JUDGE_WORKER_ID: z.string().min(1).optional(),
   JUDGE_CONCURRENCY: z.coerce.number().int().positive().default(2),
-  SANDBOX_PYTHON_IMAGE: z.string().min(1).default("algolift/runner-python:1"),
-  SANDBOX_CPP_IMAGE: z.string().min(1).default("algolift/runner-cpp:1"),
+  SANDBOX_PYTHON_IMAGE: z.string().min(1).default("leetmind/runner-python:1"),
+  SANDBOX_CPP_IMAGE: z.string().min(1).default("leetmind/runner-cpp:1"),
 });
 
 export interface JudgeConfig extends BaseConfig {
@@ -94,7 +94,7 @@ export function loadJudgeConfig(env: NodeJS.ProcessEnv = process.env): JudgeConf
 }
 
 /**
- * @algolift/sandbox — the execution substrate config. Standalone (no DB/base fields): it's a
+ * @leetmind/sandbox — the execution substrate config. Standalone (no DB/base fields): it's a
  * library consumed by judge (and, from Python, by the content worker), not a standalone service.
  */
 const SandboxEnvSchema = z.object({
@@ -103,7 +103,7 @@ const SandboxEnvSchema = z.object({
   SANDBOX_PIDS_LIMIT: z.coerce.number().int().positive().default(64),
   SANDBOX_WALL_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
   SANDBOX_OUTPUT_LIMIT_BYTES: z.coerce.number().int().positive().default(65536),
-  SANDBOX_WORK_DIR: z.string().min(1).default("/tmp/algolift-sandbox"),
+  SANDBOX_WORK_DIR: z.string().min(1).default("/tmp/leetmind-sandbox"),
   DOCKER_BIN: z.string().min(1).default("docker"),
 });
 

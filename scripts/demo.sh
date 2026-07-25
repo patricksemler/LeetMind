@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AlgoLift end-to-end demo (PLAN.md §10, M5).
+# LeetMind end-to-end demo (PLAN.md §10, M5).
 #
 # Walks the full loop: weakness -> objective -> generation -> verification (including a VISIBLE
 # rejection) -> sandboxed judging with streamed results -> hint -> explainable mastery update ->
@@ -26,7 +26,7 @@ for arg in "$@"; do
   esac
 done
 
-: "${DATABASE_URL:=postgres://algolift:algolift@localhost:5432/algolift}"
+: "${DATABASE_URL:=postgres://leetmind:leetmind@localhost:5432/leetmind}"
 : "${API_PORT:=8099}"
 export DATABASE_URL API_PORT
 
@@ -35,7 +35,7 @@ step()  { printf '\n%s━━━ %s ━━━%s\n' "$BOLD" "$1" "$RESET"; }
 note()  { printf '%s  %s%s\n' "$DIM" "$1" "$RESET"; }
 ok()    { printf '%s  ✓ %s%s\n' "$GREEN" "$1" "$RESET"; }
 warn()  { printf '%s  ! %s%s\n' "$YELLOW" "$1" "$RESET"; }
-psql_() { docker exec -i "$DB_CONTAINER" psql -U algolift -d algolift -tAc "$1"; }
+psql_() { docker exec -i "$DB_CONTAINER" psql -U leetmind -d leetmind -tAc "$1"; }
 
 cleanup() {
   [[ -n "${API_PID:-}"   ]] && kill "$API_PID"   2>/dev/null || true
@@ -81,13 +81,13 @@ command -v docker >/dev/null || { echo "docker not found"; exit 1; }
 docker info >/dev/null 2>&1 || { echo "Docker daemon is not running — start Docker Desktop"; exit 1; }
 ok "docker daemon up"
 
-# Pick the container that actually serves the `algolift` database. Matching on the image alone is
+# Pick the container that actually serves the `leetmind` database. Matching on the image alone is
 # not enough: throwaway test containers use the same postgres image, and grabbing one of those
-# yields a confusing "database algolift does not exist" several steps later.
+# yields a confusing "database leetmind does not exist" several steps later.
 find_db_container() {
   local name
   for name in $(docker ps --filter "ancestor=postgres:17-alpine" --format '{{.Names}}'); do
-    if docker exec "$name" psql -U algolift -d algolift -tAc 'select 1' >/dev/null 2>&1; then
+    if docker exec "$name" psql -U leetmind -d leetmind -tAc 'select 1' >/dev/null 2>&1; then
       echo "$name"; return 0
     fi
   done
@@ -96,7 +96,7 @@ find_db_container() {
 
 DB_CONTAINER="$(find_db_container || true)"
 if [[ -z "$DB_CONTAINER" ]]; then
-  note "no container serving the 'algolift' database — starting one via docker compose…"
+  note "no container serving the 'leetmind' database — starting one via docker compose…"
   docker compose up -d db >/dev/null
   for _ in $(seq 1 30); do
     DB_CONTAINER="$(find_db_container || true)"
@@ -104,15 +104,15 @@ if [[ -z "$DB_CONTAINER" ]]; then
     sleep 1
   done
 fi
-[[ -n "$DB_CONTAINER" ]] || { echo "could not find or start a postgres serving 'algolift'"; exit 1; }
+[[ -n "$DB_CONTAINER" ]] || { echo "could not find or start a postgres serving 'leetmind'"; exit 1; }
 ok "postgres: $DB_CONTAINER"
 
-for img in algolift/runner-python:1 algolift/runner-cpp:1; do
+for img in leetmind/runner-python:1 leetmind/runner-cpp:1; do
   docker image inspect "$img" >/dev/null 2>&1 || { note "building $img…"; ./scripts/build-images.sh >/dev/null; break; }
 done
 ok "sandbox runner images present"
 
-pnpm --filter @algolift/db migrate >/dev/null 2>&1
+pnpm --filter @leetmind/db migrate >/dev/null 2>&1
 ok "migrations applied ($(psql_ "select count(*) from pg_tables where schemaname='public';") tables, \
 $(psql_ "select count(*) from concepts;") concepts seeded)"
 
@@ -142,10 +142,10 @@ note "Output arrives as a delimited envelope, NOT one JSON object — multi-line
 note "never need escaping. The JSON format failed on a real call; the envelope did not."
 if [[ $LIVE -eq 1 ]]; then
   ( cd content && uv run python -c "
-from algolift_content.generation.prompts import v2
+from leetmind_content.generation.prompts import v2
 print('    prompt_version =', v2.PROMPT_VERSION)
 print('    envelope delimiters the model must emit:')
-print('      <<<ALGOLIFT_META>>> / <<<ALGOLIFT_FIELD:...>>> / <<<ALGOLIFT_END>>>')
+print('      <<<LEETMIND_META>>> / <<<LEETMIND_FIELD:...>>> / <<<LEETMIND_END>>>')
 " ) || true
   warn "live generation takes 2-4 min; see docs/measurements.md for recorded runs (3/3 first-try)"
 else
@@ -161,21 +161,21 @@ step "3. Verification — including a visible REJECTION"
 note "Six blocking stages: schema → compile → differential → boundary → examples → mutation."
 note "Generated code is untrusted, so every stage executes inside the SAME sandbox as user code."
 note "Below, a deliberately-broken candidate is rejected at the correct stage:"
-( cd content && uv run python -m algolift_content.verification.demo_reject 2>/dev/null ) \
+( cd content && uv run python -m leetmind_content.verification.demo_reject 2>/dev/null ) \
   || note "(see content/tests/test_verification_gate.py for the 9 rejection scenarios)"
 ok "failed candidates are discarded with a stored verification_reports row — no human approval step"
 
 # ─────────────────────────────────────────────────────────────────────────────
 step "4. Start API + judge"
-pnpm --filter @algolift/api dev >/tmp/algolift-demo-api.log 2>&1 &
+pnpm --filter @leetmind/api dev >/tmp/leetmind-demo-api.log 2>&1 &
 API_PID=$!
-pnpm --filter @algolift/judge dev >/tmp/algolift-demo-judge.log 2>&1 &
+pnpm --filter @leetmind/judge dev >/tmp/leetmind-demo-judge.log 2>&1 &
 JUDGE_PID=$!
 for _ in $(seq 1 40); do
   curl -sf "http://localhost:$API_PORT/health" >/dev/null 2>&1 && break
   sleep 0.5
 done
-curl -sf "http://localhost:$API_PORT/health" | sed 's/^/    /' || { warn "API did not come up; see /tmp/algolift-demo-api.log"; exit 1; }
+curl -sf "http://localhost:$API_PORT/health" | sed 's/^/    /' || { warn "API did not come up; see /tmp/leetmind-demo-api.log"; exit 1; }
 ok "api on :$API_PORT, judge worker claiming jobs"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -184,10 +184,10 @@ note "POST /api/submissions writes the submission row AND enqueues the judge job
 note "transaction, then returns immediately. The verdict arrives over SSE."
 note "Watch the lifecycle: queued → assigned → running → verdict → mastery"
 if [[ -n "${VERSION_ID:-}" ]]; then
-  node --import tsx scripts/demo-drive.ts judge "$VERSION_ID" || warn "judging failed — see /tmp/algolift-demo-judge.log"
+  node --import tsx scripts/demo-drive.ts judge "$VERSION_ID" || warn "judging failed — see /tmp/leetmind-demo-judge.log"
   ok "each verdict came from a real container: --network none, read-only rootfs, capped memory/pids"
 fi
-note "(full workspace UI: pnpm --filter @algolift/web dev)"
+note "(full workspace UI: pnpm --filter @leetmind/web dev)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 step "6. Hints, give-up, and the explainable mastery update"

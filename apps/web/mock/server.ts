@@ -4,7 +4,7 @@
  * `VITE_API_BASE` to point at the real API and nothing in `apps/web/src` needs to change.
  *
  * It is also a de-facto executable spec of §9: every response shape is built and validated
- * through the same `@algolift/shared` zod schemas the real API must satisfy, and `toPublicProblem`
+ * through the same `@leetmind/shared` zod schemas the real API must satisfy, and `toPublicProblem`
  * (the *only* legal constructor of a client-facing problem, per §4.2) is imported rather than
  * reimplemented.
  */
@@ -23,7 +23,7 @@ import {
   type Submission,
   TakeHintRequest,
   toPublicProblem,
-} from "@algolift/shared";
+} from "@leetmind/shared";
 import { CONCEPT_EDGES, CONCEPTS } from "./fixtures/concepts.js";
 import { runLifecycle } from "./lifecycle.js";
 import { outcomeScore, updateConcepts } from "./mastery.js";
@@ -480,7 +480,7 @@ app.get(
 // --- GET /api/system/stats -----------------------------------------------------------------
 
 // Mirrors the real `GET /api/system/stats` shape (apps/api/src/routes/system.ts /
-// @algolift/queue's `Queue.stats()`) — this used to be its own dialect entirely
+// @leetmind/queue's `Queue.stats()`) — this used to be its own dialect entirely
 // (`queue.depth`/`by_kind`/`wait_p50_ms`, flat `verdicts`/`buffer_depth`/`generation_pass_rate`
 // maps, a single `model_runs` object) and every one of those shapes rendered garbage against the
 // real API (QA-PLAN.md §1.5): "0 / 0 / 0 ms", literal "window × 0" badges, "0% / by_stage".

@@ -1,10 +1,10 @@
-"""Pure-Python tests for `algolift_content.verification.constraints` (bound extraction for
+"""Pure-Python tests for `leetmind_content.verification.constraints` (bound extraction for
 stage_boundary, CONTRACTS.md §10 stage 4). No sandbox / DB needed — always runs.
 """
 
 from __future__ import annotations
 
-from algolift_content.verification.constraints import coupled_scalars, parse_bounds
+from leetmind_content.verification.constraints import coupled_scalars, parse_bounds
 
 
 def test_sample_problem_constraints_parse_correctly() -> None:

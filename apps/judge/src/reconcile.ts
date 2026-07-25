@@ -10,7 +10,7 @@
 // idempotent — once a submission is completed, it no longer matches the sweep's own query, so
 // re-running it (on every tick, or after a crash mid-sweep) is always safe.
 import type { PoolClient } from "pg";
-import { completeSubmission, notify, query, withTransaction } from "@algolift/db";
+import { completeSubmission, notify, query, withTransaction } from "@leetmind/db";
 import type { JudgeDeps } from "./deps.js";
 
 interface StrandedRow {
@@ -76,7 +76,7 @@ export interface StrandedSweepHandle {
   stop: () => void;
 }
 
-/** setInterval-style loop, mirroring @algolift/queue's `startReaper`. */
+/** setInterval-style loop, mirroring @leetmind/queue's `startReaper`. */
 export function startStrandedSweep(deps: JudgeDeps, opts: { intervalMs?: number; signal?: AbortSignal } = {}): StrandedSweepHandle {
   const intervalMs = opts.intervalMs ?? 10_000;
   let running = false;

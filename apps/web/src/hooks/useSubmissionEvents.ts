@@ -35,7 +35,7 @@ import {
   StatusEventSchema,
   type VerdictEvent,
   VerdictEventSchema,
-} from "@algolift/shared";
+} from "@leetmind/shared";
 import { api, submissionEventsUrl } from "../lib/api";
 
 export type SSEConnectionState = "idle" | "connecting" | "open" | "reconnecting" | "closed";

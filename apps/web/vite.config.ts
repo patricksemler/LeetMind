@@ -12,8 +12,8 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        // CONTRACTS.md §0: web must consume @algolift/shared as TS source, never a redeclaration.
-        "@algolift/shared": fileURLToPath(new URL("../../packages/shared/src/index.ts", import.meta.url)),
+        // CONTRACTS.md §0: web must consume @leetmind/shared as TS source, never a redeclaration.
+        "@leetmind/shared": fileURLToPath(new URL("../../packages/shared/src/index.ts", import.meta.url)),
         // shared/src/logger.ts (pulled in by the barrel export) is Node-only and dead code from
         // the browser's perspective — see shims/node-async-hooks.ts for why this is needed.
         "node:async_hooks": fileURLToPath(new URL("./shims/node-async-hooks.ts", import.meta.url)),

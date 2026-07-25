@@ -10,7 +10,7 @@ import type {
 
 /**
  * Insert payload for a new problem_version row. Callers own id generation (`newId()` from
- * `@algolift/shared`) and must ensure the parent `problems` row already exists — this package does
+ * `@leetmind/shared`) and must ensure the parent `problems` row already exists — this package does
  * not create `problems` rows, since problem authorship lives entirely in the Python content plane.
  */
 export interface NewProblemVersionInput {

@@ -17,7 +17,7 @@ import {
   type ConceptRow,
   type LearningEventRow,
   type UserConceptStateRow,
-} from "@algolift/db";
+} from "@leetmind/db";
 import {
   badRequest,
   conflict,
@@ -30,8 +30,8 @@ import {
   ProblemVersionSchema,
   TakeHintRequest,
   type ConceptChange,
-} from "@algolift/shared";
-import { scheduleReview, updateConcepts } from "@algolift/learner";
+} from "@leetmind/shared";
+import { scheduleReview, updateConcepts } from "@leetmind/learner";
 import type { Deps } from "../deps.js";
 import { requireId } from "../server.js";
 
@@ -226,7 +226,7 @@ export function registerHintRoutes(fastify: FastifyInstance, deps: Deps): void {
           };
         }
 
-        // Row-locked (see getConceptStateForUpdate's doc comment, @algolift/db) and in a globally
+        // Row-locked (see getConceptStateForUpdate's doc comment, @leetmind/db) and in a globally
         // consistent sorted order — the same read-modify-write-without-a-lock shape that caused
         // the confirmed-live mastery lost-update race elsewhere (QA-PLAN.md §2.2).
         const stateMap: Record<string, UserConceptStateRow> = {};

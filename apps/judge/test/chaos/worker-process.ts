@@ -4,7 +4,7 @@
 // This deliberately does NOT touch apps/judge/src/index.ts (out of scope per this task's file
 // boundary — that file is owned by another agent working the C++ pipeline). It is a second,
 // test-only entrypoint that wires the SAME real handler (`createJudgeHandler`) and the SAME real
-// `runWorker`/`startReaper` from `@algolift/queue`, just with every timing knob overridable by env
+// `runWorker`/`startReaper` from `@leetmind/queue`, just with every timing knob overridable by env
 // var so the "worker killed mid-judge" chaos test can force a lease-recovery window well under the
 // default 30s lease without touching production config. It is spawned as a REAL, SEPARATE OS
 // process (`node --import tsx`, mirroring the CONTRACTS.md §6.1 CLI-bridge invocation style) so
@@ -23,9 +23,9 @@
 // Prints "CHAOS_WORKER_READY <workerId>" to stdout once the worker loop starts (best-effort
 // liveness signal for debugging only — the test suite itself synchronizes via the database, never
 // by parsing this process's stdout, since a killed process's buffered stdout is not reliable).
-import { assertTestDatabase, getPool } from "@algolift/db";
-import { Queue, runWorker, startReaper, installShutdownHandlers, type Logger as QueueLogger } from "@algolift/queue";
-import { createLogger, loadJudgeConfig, loadSandboxConfig } from "@algolift/shared";
+import { assertTestDatabase, getPool } from "@leetmind/db";
+import { Queue, runWorker, startReaper, installShutdownHandlers, type Logger as QueueLogger } from "@leetmind/queue";
+import { createLogger, loadJudgeConfig, loadSandboxConfig } from "@leetmind/shared";
 import { createJudgeHandler } from "../../src/handler.js";
 
 const url = process.env.DATABASE_URL;

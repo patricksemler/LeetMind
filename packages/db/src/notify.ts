@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { AppError } from "@algolift/shared";
+import { AppError } from "@leetmind/shared";
 import type { NotifyPayload } from "./types.js";
 
 /**
@@ -9,7 +9,7 @@ import type { NotifyPayload } from "./types.js";
 export const MAX_NOTIFY_PAYLOAD_BYTES = 7900;
 
 /**
- * Emits `select pg_notify('algolift_events', $1)` with `payload` JSON-encoded. Must be called
+ * Emits `select pg_notify('leetmind_events', $1)` with `payload` JSON-encoded. Must be called
  * inside the same transaction as the state write it announces (CONTRACTS.md §4.5) — callers pass
  * the transaction's `client`, never a pooled connection outside a transaction.
  */
@@ -26,5 +26,5 @@ export async function notify(client: PoolClient, payload: NotifyPayload): Promis
     );
   }
 
-  await client.query("select pg_notify('algolift_events', $1)", [serialized]);
+  await client.query("select pg_notify('leetmind_events', $1)", [serialized]);
 }

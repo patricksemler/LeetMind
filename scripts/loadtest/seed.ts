@@ -2,8 +2,8 @@
 // creates is tagged with `runId` (via `internal_name`) so cleanup can find exactly what it made —
 // docs/CONTRACTS.md §13 rule 3: prefer creating and cleaning up only your own rows over truncating
 // shared tables. This never touches a row it didn't create itself.
-import { insertProblemConcepts, insertProblemVersion, query, withTransaction } from "@algolift/db";
-import { newId, type ProblemVersion } from "@algolift/shared";
+import { insertProblemConcepts, insertProblemVersion, query, withTransaction } from "@leetmind/db";
+import { newId, type ProblemVersion } from "@leetmind/shared";
 import { HIDDEN_TESTS, SIGNATURE } from "./sources.js";
 
 // Matches the taxonomy seed (docs/CONTRACTS.md §3) — arrays_hashing is the root concept and

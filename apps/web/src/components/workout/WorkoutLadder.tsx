@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { MasteryChange, Workout, WorkoutItem, WorkoutItemRole, WorkoutItemState } from "@algolift/shared";
+import type { MasteryChange, Workout, WorkoutItem, WorkoutItemRole, WorkoutItemState } from "@leetmind/shared";
 import { api } from "../../lib/api";
 import { useConcepts } from "../../hooks/useConcepts";
 import { Badge, Button, Dialog, Panel } from "../ui";

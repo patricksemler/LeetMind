@@ -2,7 +2,7 @@
 //
 // `assertTestDatabase` (testDb.ts) stops destructive fixtures from ever touching the
 // *development* database. It does nothing, on its own, to stop two concurrently-running test
-// PROCESSES sharing that one `algolift_test` database from colliding with each other: two
+// PROCESSES sharing that one `leetmind_test` database from colliding with each other: two
 // `pnpm --filter <pkg> test` invocations are separate OS processes with no shared coordinator, so
 // `apps/judge`'s chaos suite enqueuing `'generate'`-kind jobs while another process's suite does
 // the same collides on the real, unnamespaced `jobs` table (this was observed directly —
@@ -25,7 +25,7 @@ import { up } from "./migrate.js";
  * separate process; `VITEST_POOL_ID` only distinguishes worker threads/processes *within one*
  * `vitest` invocation, which `fileParallelism: false` already serializes for these suites) — so
  * this combines it with `process.pid`, which is what actually varies between two concurrently
- * running `pnpm --filter @algolift/api test` / `pnpm --filter @algolift/judge test` processes,
+ * running `pnpm --filter @leetmind/api test` / `pnpm --filter @leetmind/judge test` processes,
  * the collision docs/CONTRACTS.md §13 documents. `TEST_WORKER_ID`, if set, wins outright — the
  * convention §13 anticipates CI setting per parallel job, so a CI run gets a stable,
  * human-readable schema name instead of a PID that's meaningless across machines/runs.
@@ -48,7 +48,7 @@ export function withSchemaSearchPath(url: string, schema: string): string {
 }
 
 /** Best-effort `DROP SCHEMA ... CASCADE`, e.g. from a `setupFiles` module's `afterAll`, so a
- * throwaway per-process/per-file schema doesn't linger in `algolift_test` forever. Never throws —
+ * throwaway per-process/per-file schema doesn't linger in `leetmind_test` forever. Never throws —
  * a teardown hiccup (Postgres already gone, connection refused) must never turn a green test run
  * red; a leftover schema is harmless (the next run's `CREATE SCHEMA IF NOT EXISTS` plus its
  * already-applied-versions check in `ensureTestSchemaIsolation` is self-healing, docs/

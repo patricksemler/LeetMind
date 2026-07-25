@@ -5,7 +5,7 @@ No sandbox / DB needed — always runs.
 
 from __future__ import annotations
 
-from algolift_content.verification.banned_words import find_banned_terms
+from leetmind_content.verification.banned_words import find_banned_terms
 
 
 def test_clean_text_has_no_hits() -> None:

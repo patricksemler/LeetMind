@@ -21,11 +21,11 @@ All six milestones (M0–M5) are implemented and test-covered. **549 tests** acr
 
 | Package | Tests | What it covers |
 |---|---:|---|
-| `@algolift/shared` | 35 | zod contracts, `toPublicProblem` leak-proofing, tree/list codecs |
-| `@algolift/db` | 26 | pool, migrations, bigint parsing, test-DB guard |
-| `@algolift/queue` | 14 | claim/lease/heartbeat/reaper, priority, idempotency, poison jobs |
-| `@algolift/sandbox` | 102 | isolation flags, harness protocol, C++ codegen, **cross-language parity** |
-| `@algolift/learner` | 87 | Glicko-lite, outcome scoring, SM-2, workout assembly, convergence |
+| `@leetmind/shared` | 35 | zod contracts, `toPublicProblem` leak-proofing, tree/list codecs |
+| `@leetmind/db` | 26 | pool, migrations, bigint parsing, test-DB guard |
+| `@leetmind/queue` | 14 | claim/lease/heartbeat/reaper, priority, idempotency, poison jobs |
+| `@leetmind/sandbox` | 102 | isolation flags, harness protocol, C++ codegen, **cross-language parity** |
+| `@leetmind/learner` | 87 | Glicko-lite, outcome scoring, SM-2, workout assembly, convergence |
 | `apps/web` | 24 | SSE lifecycle, active-time, hint penalties, verdict-leak safety |
 | `apps/api` | 46 | transactional enqueue, SSE races, give-up idempotency, sentinel leaks |
 | `apps/judge` | 21 | state machine, exactly-once mastery, **7 chaos scenarios** |
@@ -103,14 +103,14 @@ Four design decisions carry most of the weight:
 
 ## Running the tests
 
-Tests never touch the development database. They run against a separate `algolift_test` database,
+Tests never touch the development database. They run against a separate `leetmind_test` database,
 and a guard refuses any destructive fixture unless the target database name ends in `_test` — see
 [`docs/CONTRACTS.md` §13](docs/CONTRACTS.md). That guard exists because a prior data-loss incident
 truncated real practice history; it is defence in depth, not ceremony.
 
 ```bash
-createdb algolift_test
-DATABASE_URL=postgres://algolift:algolift@localhost:5432/algolift_test pnpm db:migrate
+createdb leetmind_test
+DATABASE_URL=postgres://leetmind:leetmind@localhost:5432/leetmind_test pnpm db:migrate
 ```
 
 ```bash
@@ -120,7 +120,7 @@ cd content && uv run pytest -n 4   # parallel (schema-per-worker isolation)
 ```
 
 Suites are isolated per process, so the TypeScript and Python suites can run simultaneously.
-`@algolift/queue` provisions its own throwaway Postgres automatically.
+`@leetmind/queue` provisions its own throwaway Postgres automatically.
 
 ## Operations
 

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from algolift_content.models import Signature, TestCase
-from algolift_content.sandbox import SANDBOX_AVAILABLE, SandboxLimits, run_python, sandbox_probe
+from leetmind_content.models import Signature, TestCase
+from leetmind_content.sandbox import SANDBOX_AVAILABLE, SandboxLimits, run_python, sandbox_probe
 
 
 def test_sandbox_probe_returns_reason_when_unavailable() -> None:

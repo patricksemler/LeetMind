@@ -1,4 +1,4 @@
-"""Tests for algolift_content.queue — a faithful Python mirror of @algolift/queue
+"""Tests for leetmind_content.queue — a faithful Python mirror of @leetmind/queue
 (CONTRACTS.md §5). Mirrors the same behaviours the TS queue's own test suite would check:
 priority order, skip-locked concurrency, transactional enqueue, idempotency, lease expiry +
 reap, and poison -> dead. Auto-skips the whole module when Postgres isn't reachable.
@@ -20,9 +20,9 @@ import pytest
 from conftest import postgres_reachable
 from psycopg_pool import ConnectionPool
 
-from algolift_content.config import get_settings
-from algolift_content.db import assert_test_database, configure_connection
-from algolift_content.queue import Executor, Job, Queue, backoff_ms
+from leetmind_content.config import get_settings
+from leetmind_content.db import assert_test_database, configure_connection
+from leetmind_content.queue import Executor, Job, Queue, backoff_ms
 
 pytestmark = pytest.mark.skipif(
     not postgres_reachable(), reason="Postgres not reachable on TEST_DATABASE_URL"
@@ -71,7 +71,7 @@ def pool() -> Iterator[ConnectionPool]:
     # conftest.py already redirected+guarded DATABASE_URL at import time, but this is the actual
     # DDL, so it re-checks its own target immediately beforehand.
     assert_test_database(settings.DATABASE_URL)
-    # This suite builds its own ConnectionPool (rather than algolift_content.db.get_pool()) per
+    # This suite builds its own ConnectionPool (rather than leetmind_content.db.get_pool()) per
     # its own module docstring, so it must also opt into docs/CONTRACTS.md §13's schema-per-worker
     # isolation itself — reusing db.py's `configure_connection` (the same `configure=` callback
     # get_pool() uses) rather than duplicating the SET search_path logic. Without this, two

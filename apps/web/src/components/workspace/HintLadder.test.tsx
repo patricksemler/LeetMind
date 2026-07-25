@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { HintLevel } from "@algolift/shared";
+import type { HintLevel } from "@leetmind/shared";
 import { Providers } from "../../test/testUtils";
 import { HintLadder } from "./HintLadder";
 

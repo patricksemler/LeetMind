@@ -1,5 +1,5 @@
 import { Pool, type PoolClient, type QueryResultRow, types as pgTypes } from "pg";
-import { createLogger, loadBaseConfig, logContext } from "@algolift/shared";
+import { createLogger, loadBaseConfig, logContext } from "@leetmind/shared";
 
 const logger = createLogger("db");
 

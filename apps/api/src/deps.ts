@@ -2,9 +2,9 @@
 // construction path (docs/CONTRACTS.md apps/api brief: "src/deps.ts").
 import type { Pool } from "pg";
 import type { Logger as PinoLogger } from "pino";
-import { getPool } from "@algolift/db";
-import { Queue, type Logger as QueueLogger } from "@algolift/queue";
-import { createLogger, loadApiConfig, type ApiConfig } from "@algolift/shared";
+import { getPool } from "@leetmind/db";
+import { Queue, type Logger as QueueLogger } from "@leetmind/queue";
+import { createLogger, loadApiConfig, type ApiConfig } from "@leetmind/shared";
 
 export interface Deps {
   config: ApiConfig;

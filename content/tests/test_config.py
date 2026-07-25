@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from algolift_content.config import Settings, get_settings
+from leetmind_content.config import Settings, get_settings
 
 # Every content-relevant var from CONTRACTS.md §2, since Settings.model_config picks up
 # whatever's actually in the process environment regardless of env_file.
@@ -32,7 +32,7 @@ _ALL_KEYS = [
     "QUEUE_HEARTBEAT_MS",
     "QUEUE_REAPER_INTERVAL_MS",
     "QUEUE_POLL_INTERVAL_MS",
-    "ALGOLIFT_REPO_ROOT",
+    "LEETMIND_REPO_ROOT",
 ]
 
 
@@ -54,7 +54,7 @@ def test_defaults_match_contracts(_clean_env: None) -> None:
     defaults must match exactly."""
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
 
-    assert settings.DATABASE_URL == "postgres://algolift:algolift@localhost:5432/algolift"
+    assert settings.DATABASE_URL == "postgres://leetmind:leetmind@localhost:5432/leetmind"
     assert settings.PGPOOL_MAX == 10
     assert settings.LOG_LEVEL == "info"
     assert settings.SINGLE_USER_ID == "00000000000000000000000001"
@@ -71,14 +71,14 @@ def test_defaults_match_contracts(_clean_env: None) -> None:
     assert settings.REPLENISH_INTERVAL_MS == 60_000
     assert settings.VERIFY_DIFFERENTIAL_CASES == 200
 
-    assert settings.SANDBOX_PYTHON_IMAGE == "algolift/runner-python:1"
-    assert settings.SANDBOX_CPP_IMAGE == "algolift/runner-cpp:1"
+    assert settings.SANDBOX_PYTHON_IMAGE == "leetmind/runner-python:1"
+    assert settings.SANDBOX_CPP_IMAGE == "leetmind/runner-cpp:1"
     assert settings.SANDBOX_MEMORY_MB == 256
     assert settings.SANDBOX_CPUS == 1.0
     assert settings.SANDBOX_PIDS_LIMIT == 64
     assert settings.SANDBOX_WALL_TIMEOUT_MS == 10_000
     assert settings.SANDBOX_OUTPUT_LIMIT_BYTES == 65_536
-    assert settings.SANDBOX_WORK_DIR == "/tmp/algolift-sandbox"
+    assert settings.SANDBOX_WORK_DIR == "/tmp/leetmind-sandbox"
     assert settings.DOCKER_BIN == "docker"
 
     assert settings.QUEUE_LEASE_SECONDS == 30
@@ -86,7 +86,7 @@ def test_defaults_match_contracts(_clean_env: None) -> None:
     assert settings.QUEUE_REAPER_INTERVAL_MS == 5_000
     assert settings.QUEUE_POLL_INTERVAL_MS == 500
 
-    assert settings.ALGOLIFT_REPO_ROOT is None
+    assert settings.LEETMIND_REPO_ROOT is None
 
 
 def test_missing_or_invalid_env_fails_loudly(monkeypatch: pytest.MonkeyPatch) -> None:

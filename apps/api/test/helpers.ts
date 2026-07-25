@@ -4,28 +4,28 @@
 // Test database isolation (docs/CONTRACTS.md §13 — MANDATORY, added after a data-loss defect:
 // tests were truncating shared tables against `DATABASE_URL`, the *development* database, and
 // silently destroyed real practice history). Tests here never read `DATABASE_URL` directly; they
-// read `TEST_DATABASE_URL` (defaulting to `postgres://algolift:algolift@localhost:5432/algolift_test`).
+// read `TEST_DATABASE_URL` (defaulting to `postgres://leetmind:leetmind@localhost:5432/leetmind_test`).
 // `assertTestDatabase` is the guard that makes misconfiguration impossible: it fails loudly,
 // naming the offending database, rather than ever truncating one.
 //
-// `testDatabaseUrl`/`assertTestDatabase` live in `@algolift/db` (docs/CONTRACTS.md §13: "TS:
-// `assertTestDatabase(url)` exported from `@algolift/db`") — imported and reused here rather than
+// `testDatabaseUrl`/`assertTestDatabase` live in `@leetmind/db` (docs/CONTRACTS.md §13: "TS:
+// `assertTestDatabase(url)` exported from `@leetmind/db`") — imported and reused here rather than
 // duplicated.
 //
 // `process.env.DATABASE_URL` itself is set once, by `test/testSetup.ts` (a vitest `setupFile`,
 // which runs — and completes — before this module or any test file is even imported), to a
 // schema-scoped URL: docs/CONTRACTS.md §13's schema-per-process isolation, so this process's
-// `algolift_test` usage never collides with another concurrently-running test process's. This
+// `leetmind_test` usage never collides with another concurrently-running test process's. This
 // module does NOT re-assign `process.env.DATABASE_URL` (a previous version of this file did,
 // unconditionally, to the *unscoped* `TEST_DATABASE_URL` — which would silently undo testSetup.ts's
-// schema scoping for every consumer of `@algolift/db` in this process, including the
+// schema scoping for every consumer of `@leetmind/db` in this process, including the
 // server-under-test's own `getPool()` singleton, the moment this module loaded). The assertion
 // below is defense in depth only: re-checking whatever `DATABASE_URL` actually ended up as, so a
 // future change that removes `testSetup.ts` from `vitest.config.ts`'s `setupFiles` fails loudly
 // here instead of silently reaching a destructive fixture.
 import { Client, Pool } from "pg";
-import { assertTestDatabase, testDatabaseUrl } from "@algolift/db";
-import { loadBaseConfig, newId, type ProblemVersion } from "@algolift/shared";
+import { assertTestDatabase, testDatabaseUrl } from "@leetmind/db";
+import { loadBaseConfig, newId, type ProblemVersion } from "@leetmind/shared";
 
 const TEST_DATABASE_URL = process.env.DATABASE_URL ?? testDatabaseUrl();
 assertTestDatabase(TEST_DATABASE_URL);

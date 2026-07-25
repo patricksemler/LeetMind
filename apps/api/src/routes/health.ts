@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { queryOne } from "@algolift/db";
+import { queryOne } from "@leetmind/db";
 import type { Deps } from "../deps.js";
 import { API_VERSION } from "../server.js";
 

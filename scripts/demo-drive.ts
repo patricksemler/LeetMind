@@ -14,8 +14,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { getPool, withTransaction } from "@algolift/db";
-import { newId } from "@algolift/shared";
+import { getPool, withTransaction } from "@leetmind/db";
+import { newId } from "@leetmind/shared";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");

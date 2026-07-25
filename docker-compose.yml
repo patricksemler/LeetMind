@@ -1,29 +1,29 @@
 networks:
-  algolift:
-    name: algolift
+  leetmind:
+    name: leetmind
 
 volumes:
-  algolift-pgdata:
+  leetmind-pgdata:
 
 services:
   db:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: algolift
-      POSTGRES_PASSWORD: algolift
-      POSTGRES_DB: algolift
+      POSTGRES_USER: leetmind
+      POSTGRES_PASSWORD: leetmind
+      POSTGRES_DB: leetmind
     ports:
       - "5432:5432"
     volumes:
-      - algolift-pgdata:/var/lib/postgresql/data
+      - leetmind-pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U algolift -d algolift"]
+      test: ["CMD-SHELL", "pg_isready -U leetmind -d leetmind"]
       interval: 5s
       timeout: 5s
       retries: 10
     networks:
-      - algolift
+      - leetmind
 
   api:
     build:
@@ -38,7 +38,7 @@ services:
     ports:
       - "8080:8080"
     networks:
-      - algolift
+      - leetmind
 
   judge:
     build:
@@ -58,9 +58,9 @@ services:
       # Bind the same path the host daemon will mount bundles from, so paths written by the judge
       # into SANDBOX_WORK_DIR resolve correctly when the sibling container is started against the
       # host daemon (bind-mount source paths are resolved by the host, not by this container).
-      - ${SANDBOX_WORK_DIR:-/tmp/algolift-sandbox}:${SANDBOX_WORK_DIR:-/tmp/algolift-sandbox}
+      - ${SANDBOX_WORK_DIR:-/tmp/leetmind-sandbox}:${SANDBOX_WORK_DIR:-/tmp/leetmind-sandbox}
     networks:
-      - algolift
+      - leetmind
 
   content:
     build:
@@ -74,15 +74,15 @@ services:
       - .env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${SANDBOX_WORK_DIR:-/tmp/algolift-sandbox}:${SANDBOX_WORK_DIR:-/tmp/algolift-sandbox}
+      - ${SANDBOX_WORK_DIR:-/tmp/leetmind-sandbox}:${SANDBOX_WORK_DIR:-/tmp/leetmind-sandbox}
       # Needed only when GENERATOR_INVOKER=claude and you want the containerized worker to shell
       # out to the `claude` CLI using your existing login. NOTE: the recommended default is to run
-      # the content worker on the *host* instead (`uv run -m algolift_content.workers.generate`),
+      # the content worker on the *host* instead (`uv run -m leetmind_content.workers.generate`),
       # so it uses your host `claude` install and credentials directly — this container path is a
       # secondary option kept for parity with the other services.
       - ~/.claude:/root/.claude:ro
     networks:
-      - algolift
+      - leetmind
 
   web:
     build:
@@ -94,4 +94,4 @@ services:
     ports:
       - "5173:5173"
     networks:
-      - algolift
+      - leetmind

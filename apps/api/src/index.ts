@@ -1,6 +1,6 @@
 // Entrypoint: load config, build the server, listen, graceful shutdown on SIGINT/SIGTERM.
-import { closePool } from "@algolift/db";
-import { createLogger, loadApiConfig } from "@algolift/shared";
+import { closePool } from "@leetmind/db";
+import { createLogger, loadApiConfig } from "@leetmind/shared";
 import { buildDeps } from "./deps.js";
 import { buildServer } from "./server.js";
 import { notifyBus } from "./sse.js";

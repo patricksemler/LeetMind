@@ -22,8 +22,8 @@ import type { BundleTestCase, ComparatorSpec, SandboxLimits, Signature, Verdict 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../..");
-const PY_IMAGE = process.env.SANDBOX_PYTHON_IMAGE ?? "algolift/runner-python:1";
-const CPP_IMAGE = process.env.SANDBOX_CPP_IMAGE ?? "algolift/runner-cpp:1";
+const PY_IMAGE = process.env.SANDBOX_PYTHON_IMAGE ?? "leetmind/runner-python:1";
+const CPP_IMAGE = process.env.SANDBOX_CPP_IMAGE ?? "leetmind/runner-cpp:1";
 
 function isDockerUp(): boolean {
   try {

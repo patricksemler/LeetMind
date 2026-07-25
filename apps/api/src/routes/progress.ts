@@ -1,10 +1,10 @@
 // GET /api/progress — "metrics as SQL over existing tables" (docs/CONTRACTS.md decision, PLAN.md
-// §8 "Progress"). Every figure here is computed with plain SQL against tables @algolift/db
-// already owns, plus `reviewsDue` from @algolift/learner reused as instructed rather than
+// §8 "Progress"). Every figure here is computed with plain SQL against tables @leetmind/db
+// already owns, plus `reviewsDue` from @leetmind/learner reused as instructed rather than
 // reimplemented.
 import type { FastifyInstance } from "fastify";
-import { listConceptStates, listLearningEvents, query, queryOne } from "@algolift/db";
-import { reviewsDue, type ConceptState } from "@algolift/learner";
+import { listConceptStates, listLearningEvents, query, queryOne } from "@leetmind/db";
+import { reviewsDue, type ConceptState } from "@leetmind/learner";
 import type { Deps } from "../deps.js";
 
 interface ConceptTrendRow {

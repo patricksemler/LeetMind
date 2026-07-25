@@ -2,7 +2,7 @@
 // that problem version, or has given up. Absent on every other GET /api/submissions/:id call.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { loadApiConfig, newId } from "@algolift/shared";
+import { loadApiConfig, newId } from "@leetmind/shared";
 import { buildDeps, type Deps } from "../src/deps.js";
 import { buildServer } from "../src/server.js";
 import { cleanup, isDatabaseReachable, seedApprovedProblem, testPool } from "./helpers.js";

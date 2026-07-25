@@ -1,5 +1,5 @@
 {
-  "name": "@algolift/api",
+  "name": "@leetmind/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -18,10 +18,10 @@
     "pg": "^8.13.0",
     "pino": "^9.0.0",
     "zod": "^3.24.0",
-    "@algolift/shared": "workspace:*",
-    "@algolift/db": "workspace:*",
-    "@algolift/queue": "workspace:*",
-    "@algolift/learner": "workspace:*"
+    "@leetmind/shared": "workspace:*",
+    "@leetmind/db": "workspace:*",
+    "@leetmind/queue": "workspace:*",
+    "@leetmind/learner": "workspace:*"
   },
   "devDependencies": {
     "@types/pg": "^8.11.0",

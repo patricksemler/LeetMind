@@ -2,12 +2,12 @@
 //
 // packages/queue/src/queue.test.ts already proves `FOR UPDATE SKIP LOCKED` under contention
 // against ITS OWN throwaway container/schema (test #2). This test proves the same property against
-// THIS app's real, migrated `jobs` table in algolift_test, with more workers and more jobs, and
+// THIS app's real, migrated `jobs` table in leetmind_test, with more workers and more jobs, and
 // racing real `ack()` completions in as well as `claim()`s — many concurrent claim-loops, many
 // queued jobs: total processed must equal total enqueued, and no id may be processed twice.
 import { describe, expect, it, afterEach } from "vitest";
-import { getPool } from "@algolift/db";
-import type { Queue } from "@algolift/queue";
+import { getPool } from "@leetmind/db";
+import type { Queue } from "@leetmind/queue";
 import { CHAOS_QUEUE_KIND, assertNoStrayJobs, deleteJobs, isDatabaseReachable, testQueue } from "./chaos-helpers.js";
 
 const dbReachable = await isDatabaseReachable();

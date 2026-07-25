@@ -1,5 +1,5 @@
 {
-  "name": "@algolift/queue",
+  "name": "@leetmind/queue",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "pg": "^8.13.0",
-    "@algolift/shared": "workspace:*",
-    "@algolift/db": "workspace:*"
+    "@leetmind/shared": "workspace:*",
+    "@leetmind/db": "workspace:*"
   },
   "devDependencies": {
     "@types/pg": "^8.11.0",

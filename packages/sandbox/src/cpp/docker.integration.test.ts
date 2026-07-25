@@ -7,7 +7,7 @@ import { executeCpp } from "./execute.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../../..");
-const IMAGE = process.env.SANDBOX_CPP_IMAGE ?? "algolift/runner-cpp:1";
+const IMAGE = process.env.SANDBOX_CPP_IMAGE ?? "leetmind/runner-cpp:1";
 
 function isDockerUp(): boolean {
   try {

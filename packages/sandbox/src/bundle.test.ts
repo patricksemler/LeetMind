@@ -65,7 +65,7 @@ describe("buildPythonBundle", () => {
       perTestTimeoutMs: 5000,
     });
     expect(bundle["runner.py"]).toBe(RUNNER_PY_ON_DISK);
-    expect(bundle["runner.py"]).toContain("<<<ALGOLIFT_RESULT>>>");
+    expect(bundle["runner.py"]).toContain("<<<LEETMIND_RESULT>>>");
   });
 
   it("round-trips signature/tests/comparator/config as JSON", () => {

@@ -1,5 +1,5 @@
 import { Client } from "pg";
-import { loadBaseConfig } from "@algolift/shared";
+import { loadBaseConfig } from "@leetmind/shared";
 import { describe, expect, it } from "vitest";
 import { up } from "./migrate.js";
 

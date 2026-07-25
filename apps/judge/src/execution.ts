@@ -1,10 +1,10 @@
 // Shared plumbing between src/handler.ts and src/rejudge.ts: picking which tests to run for a
 // given (mode, content, custom_input) combination, turning judge/sandbox config into the
-// @algolift/sandbox request shapes, and dispatching to the right language's executor. Kept
+// @leetmind/sandbox request shapes, and dispatching to the right language's executor. Kept
 // separate so rejudge.ts (which must reproduce the exact same test selection AND execution path
 // against a submission's ORIGINAL pinned content) never drifts from the judge's own logic.
-import { executeCpp, executePython, type BundleTestCase, type ComparatorSpec, type ExecutionResult, type SandboxLimits, type Signature } from "@algolift/sandbox";
-import type { Language, ProblemVersion, SandboxConfig, SubmissionMode } from "@algolift/shared";
+import { executeCpp, executePython, type BundleTestCase, type ComparatorSpec, type ExecutionResult, type SandboxLimits, type Signature } from "@leetmind/sandbox";
+import type { Language, ProblemVersion, SandboxConfig, SubmissionMode } from "@leetmind/shared";
 
 export interface SelectedTests {
   tests: BundleTestCase[];
@@ -122,7 +122,7 @@ export interface ExecuteSubmissionOutput {
 
 /**
  * The single dispatch point between the judge's language-agnostic submission flow and
- * `@algolift/sandbox`'s two per-language executors — `apps/judge/src/handler.ts` and
+ * `@leetmind/sandbox`'s two per-language executors — `apps/judge/src/handler.ts` and
  * `apps/judge/src/rejudge.ts` both call this instead of branching on `language` themselves, so the
  * two flows (live judge, historical rejudge) can never drift on which executor a language maps to.
  */

@@ -1,4 +1,4 @@
-"""Tests for algolift_content.generation.handler.handle_generate — the terminal-vs-retryable
+"""Tests for leetmind_content.generation.handler.handle_generate — the terminal-vs-retryable
 distinction is the whole point of this module (CONTRACTS.md §11), so it gets its own focused
 test file. `get_invoker` is monkeypatched at the generator module level so these tests are fully
 offline regardless of the real `GENERATOR_INVOKER` env setting."""
@@ -15,13 +15,13 @@ from conftest import postgres_reachable
 from pydantic import ValidationError
 from ulid import ULID
 
-from algolift_content.config import get_settings
-from algolift_content.db import assert_test_database, get_pool, query
-from algolift_content.generation.handler import handle_generate
-from algolift_content.generation.invoker import InvokeResult, StubInvoker
-from algolift_content.logging import get_logger
-from algolift_content.models import GenerationConceptWeight, GenerationRequest
-from algolift_content.queue import Job, WorkerContext
+from leetmind_content.config import get_settings
+from leetmind_content.db import assert_test_database, get_pool, query
+from leetmind_content.generation.handler import handle_generate
+from leetmind_content.generation.invoker import InvokeResult, StubInvoker
+from leetmind_content.logging import get_logger
+from leetmind_content.models import GenerationConceptWeight, GenerationRequest
+from leetmind_content.queue import Job, WorkerContext
 
 pytestmark = pytest.mark.skipif(
     not postgres_reachable(), reason="Postgres not reachable on TEST_DATABASE_URL"
@@ -86,7 +86,7 @@ def _request_payload(concept_id: str = "sliding_window") -> dict[str, Any]:
 
 def test_handle_generate_acks_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "algolift_content.generation.generator.get_invoker", lambda settings=None: StubInvoker()
+        "leetmind_content.generation.generator.get_invoker", lambda settings=None: StubInvoker()
     )
     job = _make_job(_request_payload(), correlation_id="handler-test-success")
 
@@ -119,7 +119,7 @@ def test_handle_generate_acks_on_terminal_schema_exhaustion(
             )
 
     monkeypatch.setattr(
-        "algolift_content.generation.generator.get_invoker",
+        "leetmind_content.generation.generator.get_invoker",
         lambda settings=None: _AlwaysGarbageInvoker(),
     )
     job = _make_job(_request_payload(), correlation_id="handler-test-exhausted")
@@ -144,7 +144,7 @@ def test_handle_generate_raises_on_infrastructure_failure(monkeypatch: pytest.Mo
             raise RuntimeError("claude binary crashed")
 
     monkeypatch.setattr(
-        "algolift_content.generation.generator.get_invoker", lambda settings=None: _DeadInvoker()
+        "leetmind_content.generation.generator.get_invoker", lambda settings=None: _DeadInvoker()
     )
     job = _make_job(_request_payload(), correlation_id="handler-test-infra-failure")
 
@@ -164,7 +164,7 @@ def test_handle_generate_rejects_malformed_payload_without_calling_generator(
     def _boom(*args: Any, **kwargs: Any) -> Any:
         raise AssertionError("generate_problem should never be reached with a bad payload")
 
-    monkeypatch.setattr("algolift_content.generation.handler.generate_problem", _boom)
+    monkeypatch.setattr("leetmind_content.generation.handler.generate_problem", _boom)
     job = _make_job({"not": "a valid GenerateJobPayload"})
 
     with pytest.raises(ValidationError):

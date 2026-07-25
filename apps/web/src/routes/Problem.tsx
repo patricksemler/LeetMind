@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { GiveUpResponse, Language, SubmissionMode } from "@algolift/shared";
+import type { GiveUpResponse, Language, SubmissionMode } from "@leetmind/shared";
 import { api } from "../lib/api";
 import { loadDraft, saveDraft } from "../lib/draft";
 import { useActiveTime } from "../hooks/useActiveTime";

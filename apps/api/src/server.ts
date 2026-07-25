@@ -9,7 +9,7 @@ import {
   newId,
   toErrorResponse,
   withContext,
-} from "@algolift/shared";
+} from "@leetmind/shared";
 import type { Deps } from "./deps.js";
 import { registerRoutes } from "./routes/index.js";
 
@@ -41,7 +41,7 @@ export function buildServer(deps: Deps): FastifyInstance {
   // — including ones emitted deep inside route handlers and the error handler — carries it. A
   // plain `runWithContext` wrapping just this hook would NOT persist across Fastify's later
   // hooks/handler (each is a separate promise continuation); `withContext`/`enterWith` is exactly
-  // what `@algolift/shared` exports for this situation, per its own doc comment.
+  // what `@leetmind/shared` exports for this situation, per its own doc comment.
   fastify.addHook("onRequest", async (request, reply) => {
     const incoming = request.headers["x-correlation-id"];
     const correlationId =

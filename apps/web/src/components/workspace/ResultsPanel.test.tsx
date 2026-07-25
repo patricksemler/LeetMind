@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { VerdictEvent } from "@algolift/shared";
+import type { VerdictEvent } from "@leetmind/shared";
 import { ResultsPanel } from "./ResultsPanel";
 
 // Distinctive sentinel values — the test asserts these exact strings never reach the DOM in

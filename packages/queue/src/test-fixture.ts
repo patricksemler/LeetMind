@@ -2,11 +2,11 @@
 // docs/CONTRACTS.md §3, kept independent of packages/db's migrations (owned
 // by another agent) per task instructions.
 import { Pool } from 'pg';
-import { assertTestDatabase } from '@algolift/db';
+import { assertTestDatabase } from '@leetmind/db';
 
 export const TEST_DATABASE_URL =
   process.env.QUEUE_TEST_DATABASE_URL ??
-  'postgres://algolift:algolift@localhost:55433/algolift_queue_test';
+  'postgres://leetmind:leetmind@localhost:55433/leetmind_queue_test';
 
 // docs/CONTRACTS.md §13 rule 4: this suite already spins up its own throwaway container and
 // never touches DATABASE_URL, so it's safe by construction — but the guard still applies (an

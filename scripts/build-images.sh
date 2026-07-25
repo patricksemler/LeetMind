@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Builds and tags the AlgoLift sandbox runner images — docs/CONTRACTS.md §6.
+# Builds and tags the LeetMind sandbox runner images — docs/CONTRACTS.md §6.
 #
 # Usage: bash scripts/build-images.sh
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-PYTHON_TAG="algolift/runner-python:1"
-CPP_TAG="algolift/runner-cpp:1"
+PYTHON_TAG="leetmind/runner-python:1"
+CPP_TAG="leetmind/runner-cpp:1"
 
 echo "==> Building ${PYTHON_TAG} from docker/runner-python/Dockerfile"
 docker build \

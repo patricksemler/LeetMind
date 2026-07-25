@@ -1,14 +1,14 @@
 // DB-integration glue for M3 workout assembly (docs/CONTRACTS.md §9, PLAN.md §8). Keeps
-// routes/workouts.ts focused on HTTP concerns; everything here bridges `@algolift/db` rows to the
-// pure `@algolift/learner` shapes and back, mirroring the pattern already established in
+// routes/workouts.ts focused on HTTP concerns; everything here bridges `@leetmind/db` rows to the
+// pure `@leetmind/learner` shapes and back, mirroring the pattern already established in
 // routes/problems.ts (`defaultConceptState`, the widen-band search).
 import {
   listApprovedUnattempted,
   listConceptStates,
   type ProblemVersionRow,
-} from "@algolift/db";
-import { ProblemVersionSchema } from "@algolift/shared";
-import type { ConceptState, WorkoutCandidateProblem } from "@algolift/learner";
+} from "@leetmind/db";
+import { ProblemVersionSchema } from "@leetmind/shared";
+import type { ConceptState, WorkoutCandidateProblem } from "@leetmind/learner";
 
 export const DEFAULT_RATING = 1200;
 export const DEFAULT_UNCERTAINTY = 350;

@@ -6,7 +6,7 @@ import { defineConfig, devices } from "@playwright/test";
  * kind of test crosses (a shape the mock got right and the real API didn't, or vice versa).
  *
  * This does NOT start the stack itself — QA-PLAN.md's "Reproducing the QA environment" section is
- * the canonical way to bring one up (an isolated `algolift_qa` database, api on :8081, its own
+ * the canonical way to bring one up (an isolated `leetmind_qa` database, api on :8081, its own
  * judge worker, web on :5174, so a full e2e run never touches your everyday dev database or dev
  * server). Point `E2E_BASE_URL` at whatever's already running; it defaults to that QA web port.
  */

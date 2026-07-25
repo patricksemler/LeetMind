@@ -2,7 +2,7 @@
 
 Product-wide QA sweep: four code-review agents (web, api+contracts, judge/queue/sandbox,
 learner/db/content) plus three live browser-testing agents driving a fully isolated stack
-(`algolift_qa` DB cloned from dev, api on :8081, its own judge worker, web on :5174 — see
+(`leetmind_qa` DB cloned from dev, api on :8081, its own judge worker, web on :5174 — see
 [Reproducing the QA environment](#reproducing-the-qa-environment)).
 
 **Baseline: every automated check is green** — `pnpm -w typecheck`, all 549 TS tests, all 194
@@ -194,7 +194,7 @@ TS zod schema doesn't mirror Python's concept-weight/primary invariants.
 ## Prevent recurrence
 
 1. **One source of truth for response shapes.** Define zod response schemas for every endpoint in
-   `@algolift/shared`; the web app parses responses through them (not blind casts), the mock
+   `@leetmind/shared`; the web app parses responses through them (not blind casts), the mock
    server's fixtures are validated against the *same* schemas in its tests, and API integration
    tests assert real responses parse. This retires the entire Phase-1 §1.4–1.6 class permanently.
    The catastrophic-drift trio (Progress/System/Concepts) all shipped green because nothing
@@ -218,10 +218,10 @@ problem-not-found error page, queue/judge chaos suite behavior under test.
 
 ```bash
 # QA database (clone of dev, disposable):
-docker exec algolift-db-1 bash -c "createdb -U algolift algolift_qa && pg_dump -U algolift algolift | psql -q -U algolift -d algolift_qa"
+docker exec leetmind-db-1 bash -c "createdb -U leetmind leetmind_qa && pg_dump -U leetmind leetmind | psql -q -U leetmind -d leetmind_qa"
 # Stack (dev DB untouched; ports avoid the user's 5173 vite and whatever holds 8080):
-DATABASE_URL=postgres://algolift:algolift@localhost:5432/algolift_qa API_PORT=8081 pnpm dev:api
-DATABASE_URL=postgres://algolift:algolift@localhost:5432/algolift_qa pnpm dev:judge
+DATABASE_URL=postgres://leetmind:leetmind@localhost:5432/leetmind_qa API_PORT=8081 pnpm dev:api
+DATABASE_URL=postgres://leetmind:leetmind@localhost:5432/leetmind_qa pnpm dev:judge
 WEB_PORT=5174 VITE_API_BASE=http://localhost:8081 pnpm dev:web   # or .claude/launch.json "web-qa"
 ```
 

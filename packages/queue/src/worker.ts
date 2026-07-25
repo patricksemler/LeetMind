@@ -1,5 +1,5 @@
-// @algolift/shared per docs/CONTRACTS.md: runWithContext(ctx, fn) using AsyncLocalStorage.
-import { runWithContext } from '@algolift/shared';
+// @leetmind/shared per docs/CONTRACTS.md: runWithContext(ctx, fn) using AsyncLocalStorage.
+import { runWithContext } from '@leetmind/shared';
 
 import type { Queue } from './queue.js';
 import type { Job, Logger } from './types.js';

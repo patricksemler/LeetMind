@@ -22,4 +22,4 @@ COPY content/ ./
 
 RUN uv sync
 
-CMD ["uv", "run", "-m", "algolift_content.workers.generate"]
+CMD ["uv", "run", "-m", "leetmind_content.workers.generate"]

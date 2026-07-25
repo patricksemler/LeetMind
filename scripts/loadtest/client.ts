@@ -8,7 +8,7 @@
 // verdict it saw. All PRECISE latency numbers (queue wait, end-to-end, judge execution time) are
 // computed after the run from Postgres directly (stats.ts) — server-authoritative `created_at` /
 // `completed_at` / `lease_expires_at` timestamps, not client-observed ones, and the same wait-time
-// approximation `@algolift/queue`'s `Queue.stats()` already uses (see stats.ts's doc comment) —
+// approximation `@leetmind/queue`'s `Queue.stats()` already uses (see stats.ts's doc comment) —
 // avoiding both clock-skew and the SSE catch-up race (a submission that completes between POST
 // returning and the SSE connection opening delivers its terminal event immediately with no
 // 'assigned' event in between, which would silently bias a client-side-timed sample).

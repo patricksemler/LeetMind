@@ -1,10 +1,10 @@
-// Types for @algolift/queue. Field names mirror the `jobs` / `worker_heartbeats`
+// Types for @leetmind/queue. Field names mirror the `jobs` / `worker_heartbeats`
 // table columns from docs/CONTRACTS.md §3 verbatim (snake_case), since these are
 // effectively row projections, not domain objects with a separate naming scheme.
 
-/** Structural logger type compatible with the pino instance @algolift/shared's
+/** Structural logger type compatible with the pino instance @leetmind/shared's
  * createLogger(service) returns (obj-first call signature). Kept local (rather
- * than importing a type from @algolift/shared) so this package only depends on
+ * than importing a type from @leetmind/shared) so this package only depends on
  * the documented value exports. */
 export interface Logger {
   debug: (obj: unknown, msg?: string) => void;

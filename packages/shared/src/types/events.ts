@@ -60,13 +60,13 @@ export type SSEEventName = keyof typeof SSE_EVENT_SCHEMAS;
 
 // --- Postgres LISTEN/NOTIFY transport ----------------------------------------------------------
 
-export const NOTIFY_CHANNEL = "algolift_events";
+export const NOTIFY_CHANNEL = "leetmind_events";
 
 /** Notify payloads must stay under this many bytes (Postgres NOTIFY payload limit headroom). */
 export const NOTIFY_PAYLOAD_MAX_BYTES = 7900;
 
 /**
- * Shape of the JSON string passed to `pg_notify('algolift_events', $1)`. Judge/content workers
+ * Shape of the JSON string passed to `pg_notify('leetmind_events', $1)`. Judge/content workers
  * emit this inside the same transaction as the state write it announces; the API's dedicated
  * LISTEN client fans it out to matching SSE subscribers as one of the named events above.
  */

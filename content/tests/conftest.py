@@ -14,7 +14,7 @@ import pytest
 from psycopg import sql
 from ulid import ULID
 
-from algolift_content.db import assert_test_database, set_test_schema, test_database_url
+from leetmind_content.db import assert_test_database, set_test_schema, test_database_url
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 # packages/db/migrations/*.sql (content/tests -> content -> repo root -> packages/db/migrations).
@@ -40,7 +40,7 @@ os.environ["DATABASE_URL"] = _TEST_DATABASE_URL
 # Schema-per-pytest-xdist-worker isolation (docs/CONTRACTS.md §13, "Concrete mechanism" 1-4).
 #
 # The guard above stops tests from ever touching the *development* database; it does nothing to
-# stop two concurrent processes sharing `algolift_test` from colliding with EACH OTHER (two
+# stop two concurrent processes sharing `leetmind_test` from colliding with EACH OTHER (two
 # `pytest` processes truncating the same tables deadlock — the concrete, observed defect this
 # section documents). The fix composes with the guard rather than replacing it: this block runs
 # strictly after the guard above, and only changes WHICH SCHEMA inside the already-guarded
@@ -49,7 +49,7 @@ os.environ["DATABASE_URL"] = _TEST_DATABASE_URL
 # `PYTEST_XDIST_WORKER` ("gw0", "gw1", ...) is set by pytest-xdist in each worker process's
 # environment once `-n` spawns it; unset for a plain single-process `pytest` run (`-n` omitted),
 # which keeps that case exactly as fast/simple as today — no schema created, no migrations
-# applied, straight onto `public`, matching every other repo convention (e.g. `algolift_test`
+# applied, straight onto `public`, matching every other repo convention (e.g. `leetmind_test`
 # itself is documented as "exists and is migrated" ahead of time).
 # ---------------------------------------------------------------------------
 
@@ -152,7 +152,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Verification-gate DB fixtures (content/algolift_content/verification/*).
+# Verification-gate DB fixtures (content/leetmind_content/verification/*).
 #
 # Uses the REAL migrated schema (packages/db/migrations/001_init.sql /
 # 002_seed_taxonomy.sql) rather than a local fixture schema, since the verification gate's own
@@ -178,7 +178,7 @@ def make_problem_version() -> Iterator[Any]:
     row, cascading) when the test finishes."""
     from psycopg.types.json import Json
 
-    from algolift_content.db import get_pool
+    from leetmind_content.db import get_pool
 
     pool = get_pool()
     created_problem_ids: list[str] = []
@@ -229,6 +229,6 @@ def fast_settings() -> Any:
     """A `Settings` instance identical to the real environment except
     `VERIFY_DIFFERENTIAL_CASES` is cut down, so the full six-stage gate runs against real Docker
     in a few seconds per test instead of the production default (200 cases)."""
-    from algolift_content.config import Settings
+    from leetmind_content.config import Settings
 
     return Settings(VERIFY_DIFFERENTIAL_CASES=25)

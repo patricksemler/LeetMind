@@ -1,11 +1,11 @@
 // LISTEN/NOTIFY fanout — the spine of the SSE UX (docs/CONTRACTS.md §4.5).
 //
 // ONE dedicated long-lived `pg.Client` (never a pooled connection — LISTEN state must live on a
-// single, stable backend connection) issues `LISTEN algolift_events`. Every notification is
+// single, stable backend connection) issues `LISTEN leetmind_events`. Every notification is
 // parsed + validated against `NotifyPayloadSchema` and dispatched only to the subscribers
 // registered for that `submission_id`. Reconnects with backoff if the connection drops.
 import { Client } from "pg";
-import { createLogger, loadBaseConfig, NOTIFY_CHANNEL, NotifyPayloadSchema, type NotifyPayload } from "@algolift/shared";
+import { createLogger, loadBaseConfig, NOTIFY_CHANNEL, NotifyPayloadSchema, type NotifyPayload } from "@leetmind/shared";
 
 const logger = createLogger("api-sse");
 

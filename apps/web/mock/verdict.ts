@@ -12,7 +12,7 @@
  *
  * See the final report for why this exists and what it leaves underspecified for the real judge.
  */
-import type { Language, SubmissionFailure, Verdict } from "@algolift/shared";
+import type { Language, SubmissionFailure, Verdict } from "@leetmind/shared";
 import type { ProblemFixture } from "./fixtures/problems.js";
 
 export interface GradeResult {

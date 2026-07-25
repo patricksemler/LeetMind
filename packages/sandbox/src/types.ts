@@ -1,9 +1,9 @@
 /**
- * Type surface for @algolift/sandbox. Shapes marked "CONTRACTS §6" are copied verbatim from
+ * Type surface for @leetmind/sandbox. Shapes marked "CONTRACTS §6" are copied verbatim from
  * docs/CONTRACTS.md and must not drift from it.
  */
 import type { z } from "zod";
-import type { SignatureSchema, Verdict } from "@algolift/shared";
+import type { SignatureSchema, Verdict } from "@leetmind/shared";
 
 /** The typed function signature a problem exposes, per CONTRACTS §4.1. */
 export type Signature = z.infer<typeof SignatureSchema>;
@@ -133,7 +133,7 @@ export interface BundleSpec {
 // ---------------------------------------------------------------------------
 // Normalized execution result (produced by execute.ts)
 // ---------------------------------------------------------------------------
-// `Verdict` (CONTRACTS §4.3) is imported from @algolift/shared above and re-exported. `cancelled`
+// `Verdict` (CONTRACTS §4.3) is imported from @leetmind/shared above and re-exported. `cancelled`
 // is part of that enum for completeness but is never produced by this package directly — the
 // caller sets it when a job is cancelled before/independent of execution.
 

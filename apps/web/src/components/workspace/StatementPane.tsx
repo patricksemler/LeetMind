@@ -1,4 +1,4 @@
-import type { PublicProblem } from "@algolift/shared";
+import type { PublicProblem } from "@leetmind/shared";
 import { Badge } from "../ui";
 import { Markdown } from "./Markdown";
 

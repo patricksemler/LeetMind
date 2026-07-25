@@ -11,8 +11,8 @@ import {
   withTransaction,
   type LearningEventRow,
   type SubmissionRow,
-} from "@algolift/db";
-import { badRequest, CreateSubmissionRequest, judgeJobKey, newId, notFound } from "@algolift/shared";
+} from "@leetmind/db";
+import { badRequest, CreateSubmissionRequest, judgeJobKey, newId, notFound } from "@leetmind/shared";
 import type { Deps } from "../deps.js";
 import { sha256Hex } from "../lib/hash.js";
 import { buildReveal, sanitizeFailure, toSafeSubmission } from "../mappers/submission.js";

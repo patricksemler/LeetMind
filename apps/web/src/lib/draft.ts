@@ -2,7 +2,7 @@
  * Per-problem draft persistence, keyed by `versionId+language` (CONTRACTS.md §12 workspace
  * requirements) so a reload never loses in-progress work.
  */
-const PREFIX = "algolift:draft:";
+const PREFIX = "leetmind:draft:";
 
 export function draftKey(versionId: string, language: string): string {
   return `${PREFIX}${versionId}:${language}`;

@@ -65,7 +65,7 @@ export interface ProblemVersionRow {
   problem_id: Uuid;
   version: number;
   state: ProblemVersionState;
-  content: Record<string, unknown>; // full ProblemVersion JSON (@algolift/shared)
+  content: Record<string, unknown>; // full ProblemVersion JSON (@leetmind/shared)
   title: string;
   difficulty_rating: number;
   difficulty_confidence: DifficultyConfidence;
@@ -287,7 +287,7 @@ export interface WorkerHeartbeatRow {
   meta: Record<string, unknown>;
 }
 
-/** Notify payload shape sent over `pg_notify('algolift_events', ...)` (CONTRACTS.md §4.5). */
+/** Notify payload shape sent over `pg_notify('leetmind_events', ...)` (CONTRACTS.md §4.5). */
 export interface NotifyPayload {
   type: string;
   submission_id?: string;

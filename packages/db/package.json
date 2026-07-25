@@ -1,5 +1,5 @@
 {
-  "name": "@algolift/db",
+  "name": "@leetmind/db",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
     "build": "tsc -p ."
   },
   "dependencies": {
-    "@algolift/shared": "workspace:*",
+    "@leetmind/shared": "workspace:*",
     "pg": "^8.13.0"
   },
   "devDependencies": {

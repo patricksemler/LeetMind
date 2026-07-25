@@ -1,6 +1,6 @@
 /**
- * Browser build shim for `node:async_hooks`. `@algolift/shared/src/logger.ts` (pulled in
- * transitively by the barrel `@algolift/shared` export web code imports for types) instantiates
+ * Browser build shim for `node:async_hooks`. `@leetmind/shared/src/logger.ts` (pulled in
+ * transitively by the barrel `@leetmind/shared` export web code imports for types) instantiates
  * an `AsyncLocalStorage` at module scope for server-side log correlation — dead weight in a
  * browser bundle, but a real top-level side effect Rollup can't tree-shake around, and Vite's
  * default `node:*` externalization for browser builds leaves no named export to satisfy the

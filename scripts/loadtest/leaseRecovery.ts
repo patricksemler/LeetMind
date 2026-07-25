@@ -8,7 +8,7 @@
 // heartbeat timings (see config.ts's doc comment) and a busy queue full of concurrent unrelated
 // traffic, which is the whole point: this number is meant to be more representative than the
 // idle chaos-suite one, not faster.
-import { query } from "@algolift/db";
+import { query } from "@leetmind/db";
 import { createSubmission, waitForTerminal } from "./client.js";
 import type { LoadProfile } from "./config.js";
 import type { ManagedProcess } from "./processes.js";
