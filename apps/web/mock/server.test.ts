@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   GetConceptsResponse,
   HealthResponse,
+  ListSubmissionsResponse,
   NextProblemResponse,
   ProgressResponse,
   SystemStatsResponse,
@@ -66,5 +67,12 @@ describe("mock server responses parse against the shared @leetmind/shared schema
   it("GET /api/system/stats — the exact endpoint whose mock/real drift caused QA-PLAN.md §1.5", async () => {
     const body = await getJson("/api/system/stats");
     expect(() => SystemStatsResponse.parse(body)).not.toThrow();
+  });
+
+  it("GET /api/problems/:versionId/submissions — backs the workspace's Submissions tab", async () => {
+    const next = NextProblemResponse.parse(await getJson("/api/problems/next"));
+    const versionId = next.problem!.problem_version_id;
+    const body = await getJson(`/api/problems/${versionId}/submissions`);
+    expect(() => ListSubmissionsResponse.parse(body)).not.toThrow();
   });
 });

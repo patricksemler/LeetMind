@@ -139,6 +139,45 @@ export function publicResults(
   return results;
 }
 
+/** The single test that ended the run, in the shape the workspace renders a case in. */
+export interface FailingTestDetail {
+  index: number;
+  origin: "public" | "hidden";
+  args: unknown[];
+  expected?: unknown;
+  actual?: unknown;
+  status?: string;
+}
+
+/**
+ * Detail for the ONE test named by `first_failing_test_index` — including a hidden one.
+ *
+ * This is the deliberate narrowing of CONTRACTS §4.5 described on `FailingTestSchema`
+ * (@leetmind/shared): the failing hidden case is served so the user has something to act on. Only
+ * this one test is ever built, never a scan of the suite, so a submission can surface at most a
+ * single hidden case. Returns `undefined` when the failure names no test (a compile error, say) or
+ * the index doesn't resolve to a graded case.
+ */
+export function failingTestDetail(
+  tests: BundleTestCase[],
+  perTest: readonly { index: number; passed: boolean; status: string; output?: unknown }[],
+  failingIndex: number | undefined,
+): FailingTestDetail | undefined {
+  if (typeof failingIndex !== "number") return undefined;
+  const test = tests[failingIndex];
+  if (!test) return undefined;
+  const run = perTest.find((t) => t.index === failingIndex);
+  const isPublic = test.origin === "public" || test.origin === "example";
+  return {
+    index: failingIndex,
+    origin: isPublic ? "public" : "hidden",
+    args: test.args,
+    ...("expected" in test ? { expected: test.expected } : {}),
+    ...(run && "output" in run ? { actual: run.output } : {}),
+    ...(run ? { status: run.status } : {}),
+  };
+}
+
 /** `content.comparator` is a bare enum (CONTRACTS §4.2) with no per-problem tolerance field;
  * `float_tol` uses a fixed default tolerance. */
 const FLOAT_TOL_DEFAULT = 1e-6;

@@ -17,6 +17,7 @@ export function buildMockReveal(problem: ProblemFixture, earned = hasSolvedOrGiv
   if (!earned) return undefined;
   return {
     editorial_md: problem.content.hints.editorial_md,
+    solutions: { python: problem.content.reference_solution_py, cpp: problem.content.reference_solution_cpp },
     target_complexity: problem.content.target_complexity,
     concepts: problem.content.concepts.map((c) => ({
       id: c.id,

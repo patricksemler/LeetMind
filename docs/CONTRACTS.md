@@ -633,6 +633,12 @@ Numbers (fixed, do not improvise):
   `reps++`; else `interval' = 1, reps = 0`
 - Compile-only failures never reach `updateConcepts`; they increment
   `error_counts.compilation` and only produce an event once ≥3 in a rolling problem.
+- A `submit` whose failing case is a **public example** never reaches `updateConcepts` either, and
+  never enters the attempt history (`listSubmissionsForVersion`): the case is printed in the
+  statement and `Run` executes it, so failing it is not evidence about a concept. Such an attempt
+  is treated as a run throughout. The predicate is `failedPublicCase` (@leetmind/shared) — keyed on
+  `failure.failing_test.origin`, so a failure with no case at all (a compile error) is unaffected
+  and keeps the rule above.
 
 **Target band (settled in M1, do not re-derive):** the 65–80% success band lies **below** the
 user's rating on both edges, because both targets are above the 50% coin-flip point. For a 1500
@@ -660,7 +666,7 @@ All routes are JSON, prefix `/api`, and every response carries `x-correlation-id
 | GET | `/api/submissions/:id` | | `{ submission }` (safe projection) |
 | GET | `/api/submissions/:id/events` | | SSE |
 | POST | `/api/hints` | `{ problem_version_id, level }` | `{ level, text, penalty_cap, next_level_penalty }` |
-| GET | `/api/hints/:versionId` | | `{ taken: [...], available: [...], penalties: {...} }` |
+| GET | `/api/hints/:versionId` | | `{ taken: [...], available: [...], penalties: {...}, texts: {...} }` |
 | POST | `/api/problems/:versionId/give-up` | `{ baseline_item_id?, active_ms? }` | `{ editorial_md, concepts, mastery_change }` |
 | GET | `/api/progress` | | concept mastery, reviews due, stats, records, history |
 | GET | `/api/system/stats` | | queue depth/waits, workers, verdicts, buffer depth, gen pass rate, dead jobs |

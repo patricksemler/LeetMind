@@ -12,6 +12,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import {
   ConceptSchema,
   CreateSubmissionRequest,
+  failedPublicCase,
   GenerateNowRequest,
   GiveUpRequest,
   HINT_PENALTY_CAPS,
@@ -50,7 +51,7 @@ for (const fixture of problemFixtures) {
   ProblemVersionSchema.parse(fixture.content);
 }
 
-const HINT_LADDER: HintLevel[] = ["l1_orientation", "l2_conceptual", "l3_structural", "outline"];
+const HINT_LADDER = ["l1_orientation", "l2_conceptual", "l3_structural", "outline"] as const satisfies readonly HintLevel[];
 
 const app: Express = express();
 app.use(express.json({ limit: "2mb" }));
@@ -300,6 +301,28 @@ app.get(
   }),
 );
 
+// --- GET /api/problems/:versionId/submissions ---------------------------------------------------
+
+// Mirrors the real route (apps/api/src/routes/submissions.ts): submit-mode only, newest first,
+// capped at the same `SUBMISSION_HISTORY_LIMIT` — the tab renders five judged attempts out of it,
+// so an uncapped mock would hide a paging bug behind a list that always happens to be short enough.
+const SUBMISSION_HISTORY_LIMIT = 10;
+
+app.get(
+  "/api/problems/:versionId/submissions",
+  handle((req, res) => {
+    const versionId = pparam(req.params.versionId);
+    const rows = [...submissions.values()]
+      // Same two exclusions as the real query: runs, and submits that died on a public example
+      // (those are treated as runs throughout — see `failedPublicCase` in @leetmind/shared).
+      .filter((s) => s.problemVersionId === versionId && s.row.mode === "submit" && !failedPublicCase(s.row.failure))
+      .sort((a, b) => new Date(b.row.created_at).getTime() - new Date(a.row.created_at).getTime())
+      .slice(0, SUBMISSION_HISTORY_LIMIT)
+      .map((s) => s.row);
+    res.json({ submissions: rows });
+  }),
+);
+
 // --- GET /api/submissions/:id/events -----------------------------------------------------------
 
 app.get("/api/submissions/:id/events", (req, res) => {
@@ -349,7 +372,12 @@ app.get(
     const userState = getProblemUserState(pparam(req.params.versionId));
     const taken: HintLevel[] = userState.gaveUp ? [...userState.hintsTaken, "editorial"] : [...userState.hintsTaken];
     const available = HINT_LADDER.filter((l) => !userState.hintsTaken.includes(l));
-    res.json({ taken, available, penalties: HINT_PENALTY_CAPS });
+    // Ladder rungs only, and only ones already taken — the editorial stays behind the give-up flow.
+    const texts: Record<string, string> = {};
+    for (const level of HINT_LADDER) {
+      if (userState.hintsTaken.includes(level)) texts[level] = fixture.content.hints[level];
+    }
+    res.json({ taken, available, penalties: HINT_PENALTY_CAPS, texts });
   }),
 );
 
@@ -443,6 +471,7 @@ app.post(
 
     res.json({
       editorial_md: fixture.content.hints.editorial_md,
+      solutions: { python: fixture.content.reference_solution_py, cpp: fixture.content.reference_solution_cpp },
       concepts,
       mastery_change: { changes, outcome, explanation },
     });

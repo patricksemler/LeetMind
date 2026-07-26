@@ -167,6 +167,17 @@ export interface SubmissionFailure {
   input_preview?: unknown;
   expected_preview?: unknown;
   actual_preview?: unknown;
+  /** The single test that ended the run, rendered as a case in the Submissions view. Written by the
+   * judge for public AND hidden failures — see `FailingTestSchema` in @leetmind/shared for why the
+   * hidden case is served, and why it is capped at one. */
+  failing_test?: {
+    index: number;
+    origin: "public" | "hidden";
+    args: unknown[];
+    expected?: unknown;
+    actual?: unknown;
+    status?: string;
+  };
 }
 
 /** One public test's outcome, as stored on `submissions.public_results` (migration 006). Safe to

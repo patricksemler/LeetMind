@@ -99,6 +99,13 @@ export function EditorPane({
         padding: { top: 14 },
         renderLineHighlight: "line",
         smoothScrolling: true,
+        // Monaco's decorations overview ruler is a permanently-painted strip down the right edge —
+        // with the minimap off and nothing decorating the file it's an empty grey channel that
+        // reads as a scrollbar stuck on screen. Off, along with the caret tick it draws. The real
+        // scrollbar underneath it stays on Monaco's default "only when it overflows".
+        overviewRulerLanes: 0,
+        overviewRulerBorder: false,
+        hideCursorInOverviewRuler: true,
       }}
     />
   );

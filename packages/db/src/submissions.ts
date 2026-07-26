@@ -77,6 +77,37 @@ export async function getLatestSubmission(userId: string, versionId: string): Pr
 }
 
 /**
+ * This user's `submit`-mode attempt history on one problem version, newest first.
+ *
+ * `submit` only, deliberately: a `run` is a scratch execution against the examples already printed
+ * on the page, and interleaving those into the history would bury the actual attempts. `limit` is
+ * caller-supplied and always applied — the history of a problem someone has ground on for an hour
+ * is unbounded otherwise.
+ *
+ * A submit that died on a PUBLIC example is excluded on the same reasoning, even though the user
+ * pressed Submit: the case is printed on the problem page and `Run` executes it, so the attempt is
+ * treated as a run throughout — no history row, and no mastery consequence either (apps/judge).
+ * The SQL condition is the `failedPublicCase` predicate from @leetmind/shared, expressed against
+ * the stored `failure` jsonb; keep the two in step. Rows with no `failing_test` at all (a compile
+ * error, or anything judged before that field existed) are NOT excluded — `->>` yields null there,
+ * and `is distinct from` keeps them.
+ */
+export async function listSubmissionsForVersion(
+  userId: string,
+  versionId: string,
+  limit: number,
+): Promise<SubmissionRow[]> {
+  return query<SubmissionRow>(
+    `select * from submissions
+      where user_id = $1 and problem_version_id = $2 and mode = 'submit'
+        and (failure -> 'failing_test' ->> 'origin') is distinct from 'public'
+      order by created_at desc
+      limit $3`,
+    [userId, versionId, limit],
+  );
+}
+
+/**
  * True if this user has a `submit`-mode submission on this problem version that hasn't reached a
  * terminal status yet. Used to reject a give-up while a judge job is in flight (409) — without
  * this, a give-up racing an in-flight accept applies mastery consequences in both directions for

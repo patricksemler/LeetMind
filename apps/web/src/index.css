@@ -127,19 +127,12 @@ body {
   outline-offset: 2px;
 }
 
-/* Thin, quiet scrollbars that still work on light/dark */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border-strong) transparent;
-}
-*::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
-}
-*::-webkit-scrollbar-thumb {
-  background: var(--color-border-strong);
-  border-radius: 6px;
-}
+/* Scrollbars are deliberately left unstyled. Setting `scrollbar-width`/`scrollbar-color` (or any
+ * `::-webkit-scrollbar` rule) opts the element OUT of the platform's overlay scrollbars, which is
+ * what pinned a permanent grey thumb down the side of the statement pane, the case list and every
+ * dialog. Untouched, the browser uses the OS overlay bar: invisible at rest, fading in while the
+ * user scrolls and out again after. If a scrollbar is showing at rest, that's the OS-level
+ * "Show scroll bars: Always" setting, which no page CSS can override. */
 
 .markdown-body :where(h1, h2, h3) {
   font-family: var(--font-display);

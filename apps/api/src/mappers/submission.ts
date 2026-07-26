@@ -20,6 +20,11 @@ import { hasEarnedReveal } from "./publicProblem.js";
  * a public case and keeps its previews; anything else is hidden and loses them. With no split
  * recorded (older rows, or a failure with no test index at all) this falls back to the old
  * strip-everything-on-submit behaviour, because guessing wrong in that direction leaks.
+ *
+ * `failing_test` is EXEMPT from that strip and passes through for hidden failures too. That is a
+ * deliberate narrowing of §4.5, not an oversight — see `FailingTestSchema` in @leetmind/shared for
+ * the reasoning and the bound (one case per submission, never the suite). The `*_preview` strip
+ * above still stands: those fields predate `failing_test` and have no such bound.
  */
 export function sanitizeFailure(failure: SubmissionFailure, mode: SubmissionMode): SubmissionFailure {
   if (mode !== "submit") return failure;
@@ -70,6 +75,7 @@ export function toSafeSubmission(row: SubmissionRow): Submission {
 /** The post-solve reveal shape, docs/CONTRACTS.md §4.5. */
 export interface Reveal {
   editorial_md: string;
+  solutions: { python: string; cpp?: string };
   target_complexity: { time: string; space: string };
   concepts: { id: string; name: string; role: string; weight: number }[];
 }
@@ -95,6 +101,9 @@ export async function buildReveal(userId: string, problemVersionId: string): Pro
 
   return {
     editorial_md: content.hints.editorial_md,
+    // Named fields, not a spread of `content` — the reference solutions sit next to `hidden_tests`
+    // and `mutants_py` in the same object, and only these two may cross the wire.
+    solutions: { python: content.reference_solution_py, cpp: content.reference_solution_cpp },
     target_complexity: content.target_complexity,
     concepts: content.concepts.map((c) => ({
       id: c.id,

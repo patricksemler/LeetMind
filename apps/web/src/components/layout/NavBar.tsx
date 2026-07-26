@@ -7,7 +7,10 @@ const LINKS = [
   { to: "/concepts", label: "Concepts" },
 ];
 
-export function NavBar({ onShowShortcuts }: { onShowShortcuts: () => void }) {
+/** No shortcuts button: the "?" key still opens the help dialog (wired in App), and the header is
+ * otherwise empty until a session exists — a lone punctuation badge floating top-right read as a
+ * stray avatar rather than as help. */
+export function NavBar() {
   const { session, authRequired, email, signOut } = useAuth();
   const navigate = useNavigate();
   // With auth off (single-user local stack) there is no session to have, and hiding the nav would
@@ -55,14 +58,6 @@ export function NavBar({ onShowShortcuts }: { onShowShortcuts: () => void }) {
             </button>
           </>
         )}
-        <button
-          onClick={onShowShortcuts}
-          className="rounded border border-border px-2 py-1 text-xs text-text-faint hover:border-border-strong hover:text-text-dim"
-          aria-label="Keyboard shortcuts"
-          title="Keyboard shortcuts (?)"
-        >
-          ?
-        </button>
       </div>
     </header>
   );

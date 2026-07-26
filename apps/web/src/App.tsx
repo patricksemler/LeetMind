@@ -31,7 +31,7 @@ export function App() {
   return (
     <AuthProvider>
       <div className="flex h-screen flex-col bg-bg text-text">
-        <NavBar onShowShortcuts={() => setShortcutsOpen(true)} />
+        <NavBar />
         <main className="min-h-0 min-w-0 flex-1">
           <Routes>
             {/* The only two routes reachable without a session. */}

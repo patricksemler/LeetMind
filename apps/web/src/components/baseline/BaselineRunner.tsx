@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { BaselineItem, BaselineItemState, BaselineSession, MasteryChange } from "@leetmind/shared";
+import type { BaselineItem, BaselineItemState, BaselineSession } from "@leetmind/shared";
 import { api } from "../../lib/api";
 import { useConcepts } from "../../hooks/useConcepts";
 import { Badge, Button, Dialog, Panel } from "../ui";
 import type { BadgeTone } from "../ui/Badge";
 import { buttonClassName } from "../ui/Button";
 import { Plate } from "../ui/Plate";
-import { MasteryDelta } from "../workspace/MasteryDelta";
 
 /**
  * The baseline as a running list of probes: what has been answered, and the one thing to do next.
@@ -62,14 +61,12 @@ export function BaselineRunner({ baseline }: { baseline: BaselineSession }) {
   const queryClient = useQueryClient();
   const { namesById } = useConcepts();
   const [confirmItem, setConfirmItem] = useState<BaselineItem | null>(null);
-  const [skipResult, setSkipResult] = useState<{ itemId: string; mastery: MasteryChange } | null>(null);
 
   const skipMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: "inability" | "preference" }) =>
       api.skipBaselineItem(id, { reason }),
-    onSuccess: (res, variables) => {
+    onSuccess: () => {
       setConfirmItem(null);
-      if (res.mastery_change) setSkipResult({ itemId: variables.id, mastery: res.mastery_change });
       // The next probe is appended server-side by the very next GET, so refetch rather than
       // patching the cache — the new item only exists after that round trip.
       void queryClient.invalidateQueries({ queryKey: ["baseline", "current"] });
@@ -172,17 +169,6 @@ export function BaselineRunner({ baseline }: { baseline: BaselineSession }) {
                   >
                     Review
                   </Link>
-                )}
-
-                {skipResult?.itemId === item.id && (
-                  <div className="mt-3">
-                    <MasteryDelta
-                      changes={skipResult.mastery.changes}
-                      outcome={skipResult.mastery.outcome}
-                      explanation={skipResult.mastery.explanation}
-                      conceptNames={namesById}
-                    />
-                  </div>
                 )}
               </Panel>
             </div>

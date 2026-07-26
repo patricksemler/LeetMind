@@ -1,5 +1,20 @@
 import { useState } from "react";
 import type { PublicTestResult, PublicProblem } from "@leetmind/shared";
+import { CaseDetail, StatusMark } from "./CaseDetail";
+
+/**
+ * What holds a case tab's width open before a run, in place of the ✓/✗.
+ *
+ * Not an empty copy of the mark's own slot: that slot sits to the LEFT of the label, so leaving it
+ * standing empty is 14px of nothing on one side of the label and nothing on the other — the label
+ * reads as pushed off centre, which is exactly what it is. Instead the same total width is put back
+ * split across both sides, so the label centres and the tab measures the same either way.
+ *
+ * The arithmetic, in the row's own `gap-1.5` (6px) units: a marked tab spends `slot(14) + gap(6)`
+ * = 20px beside the label, and an unmarked one spends `4 + gap(6)` on each side — also 20. Change
+ * either the slot or the row gap and this has to move with it.
+ */
+const BLANK_SLOT = "w-1 shrink-0";
 
 /**
  * The public test cases, one tab per case, each turning green or red once a run lands.
@@ -11,38 +26,9 @@ import type { PublicTestResult, PublicProblem } from "@leetmind/shared";
  * leaves you re-reading the statement to work out which case that even was.
  *
  * Public cases only. The hidden suite has no representation here at all, by construction: this
- * renders `problem.examples`, and `public_results` is built server-side from public tests only.
+ * renders `problem.examples`, and `public_results` is built server-side from public tests only. A
+ * failing hidden case is shown in the Submissions tab instead, where the whole attempt is in view.
  */
-
-function formatValue(value: unknown): string {
-  if (value === undefined) return "—";
-  return JSON.stringify(value);
-}
-
-/** Names each argument from the signature, so a case reads `nums = [2,7,11,15]` rather than a
- * bare positional list the reader has to map back onto the parameters themselves. */
-function argLines(problem: PublicProblem, args: unknown[]): { name: string; value: string }[] {
-  return args.map((arg, i) => ({
-    name: problem.signature.params[i]?.name ?? `arg${i + 1}`,
-    value: formatValue(arg),
-  }));
-}
-
-/** A checkmark or a cross, not a coloured dot: the mark reads at a glance and, unlike colour
- * alone, still carries the pass/fail distinction for anyone who can't separate red from green. */
-function StatusMark({ result }: { result: PublicTestResult | undefined }) {
-  if (!result) return null;
-  return (
-    <span
-      className={`shrink-0 text-[13px] leading-none ${result.passed ? "text-verdict-accepted" : "text-verdict-error"}`}
-      aria-label={result.passed ? "passed" : "failed"}
-      role="img"
-    >
-      {result.passed ? "✓" : "✗"}
-    </span>
-  );
-}
-
 export function TestCasePanel({
   problem,
   results,
@@ -55,9 +41,7 @@ export function TestCasePanel({
   const examples = problem.examples;
 
   if (examples.length === 0) {
-    return (
-      <div className="p-4 text-sm text-text-faint">This problem has no public example cases.</div>
-    );
+    return <div className="p-4 text-sm text-text-faint">This problem has no public example cases.</div>;
   }
 
   // The example's own prose explanation is deliberately NOT rendered here — it is already on the
@@ -79,58 +63,37 @@ export function TestCasePanel({
               role="tab"
               aria-selected={selected}
               onClick={() => setActive(i)}
-              className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
+              // Whatever is on the tab is centred: the ✓/✗ and the label as one group once a run has
+              // landed, the label alone before one has. The width never changes between those two
+              // states — see BLANK_SLOT — so the cases stay exactly where they are and the distance
+              // between them is the same before and after a run.
+              //
+              // `tabular-nums` alongside `StatusMark`'s fixed slot is what keeps every case tab the
+              // same width as its neighbours: the slot handles ✓ vs ✗ (different widths in this
+              // font), and this handles "Case 9" vs "Case 10" — proportional digits differ too, so
+              // the row still shifted by a pixel or two per tab without it.
+              className={`flex items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs tabular-nums transition-colors ${
                 selected ? "bg-bg-overlay text-text" : "text-text-dim hover:bg-bg-overlay hover:text-text"
               }`}
             >
-              <StatusMark result={r} />
+              {!r && <span className={BLANK_SLOT} aria-hidden="true" />}
+              <StatusMark passed={r ? r.passed : undefined} />
               <span>Case {i + 1}</span>
+              {!r && <span className={BLANK_SLOT} aria-hidden="true" />}
             </button>
           );
         })}
       </div>
 
-      <div className="space-y-2.5 font-mono text-xs">
-        <div>
-          <div className="mb-1 font-sans text-[11px] uppercase tracking-wide text-text-faint">Input</div>
-          <div className="space-y-1 rounded-md border border-border bg-bg-inset p-2.5">
-            {argLines(problem, example.args).map((line) => (
-              <div key={line.name}>
-                <span className="text-text-faint">{line.name} = </span>
-                <span className="text-text">{line.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <div className="mb-1 font-sans text-[11px] uppercase tracking-wide text-text-faint">Expected</div>
-          <div className="rounded-md border border-border bg-bg-inset p-2.5 text-text">
-            {formatValue(example.expected)}
-          </div>
-        </div>
-
-        {result && (
-          <div>
-            <div className="mb-1 font-sans text-[11px] uppercase tracking-wide text-text-faint">Your output</div>
-            <div
-              className={`rounded-md border p-2.5 ${
-                result.passed
-                  ? "border-verdict-accepted bg-verdict-accepted-dim text-text"
-                  : "border-verdict-error bg-verdict-error-dim text-text"
-              }`}
-            >
-              {/* A case that errored or timed out has no output to show — say which, rather than
-                  rendering an empty box that reads like "returned nothing". */}
-              {result.status === "passed" || result.status === "failed"
-                ? formatValue(result.actual)
-                : result.status === "not_run"
-                  ? "not run — an earlier case ended the run"
-                  : result.status}
-            </div>
-          </div>
-        )}
-      </div>
+      <CaseDetail
+        signature={problem.signature}
+        args={example.args}
+        expected={example.expected}
+        actual={result?.actual}
+        passed={result?.passed}
+        status={result?.status}
+        showOutput={!!result}
+      />
     </div>
   );
 }

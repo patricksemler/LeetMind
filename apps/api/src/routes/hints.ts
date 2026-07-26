@@ -142,15 +142,25 @@ export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void 
     const versionId = requireId(request.params.versionId, "versionId");
     const versionRow = await getApprovedProblemVersion(versionId);
     if (!versionRow) throw notFound("Problem version not found or not approved");
+    const content = ProblemVersionSchema.parse(versionRow.content);
 
     const hintEvents = await listHintEvents(userId, versionId);
     const taken = hintEvents.map((h) => h.level);
     const nextRung = HINT_RUNGS.find((l) => !taken.includes(l));
 
+    // Text for the rungs this user has already taken, so the client can redraw the ladder from one
+    // read instead of re-POSTing /api/hints per rung to reconstruct it. Strictly rungs already in
+    // `taken`, and never `editorial` — an un-taken hint still never leaves the server.
+    const texts: Record<string, string> = {};
+    for (const rung of HINT_RUNGS) {
+      if (taken.includes(rung)) texts[rung] = content.hints[rung];
+    }
+
     reply.send({
       taken,
       available: nextRung ? [nextRung] : [],
       penalties: penaltiesRecord(),
+      texts,
     });
   });
 
@@ -301,6 +311,7 @@ export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void 
 
       reply.send({
         editorial_md: content.hints.editorial_md,
+        solutions: { python: content.reference_solution_py, cpp: content.reference_solution_cpp },
         concepts: conceptRows,
         mastery_change: {
           changes: result.changes,

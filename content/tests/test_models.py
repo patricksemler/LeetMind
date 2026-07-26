@@ -114,6 +114,10 @@ _DENY_LIST = {
     "hidden_tests",
     "mutants_py",
     "reference_solution_py",
+    # Both reference solutions are stripped from `public_dict()` for the same reason: they are the
+    # answer. They reach the user only through the earned post-solve reveal the API builds from its
+    # own allowlist (apps/api/src/mappers/submission.ts), never as part of the public problem.
+    "reference_solution_cpp",
     "brute_force_py",
     "input_generator_py",
     "checker_py",

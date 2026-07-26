@@ -26,12 +26,7 @@ const pairSum: ProblemFixture = {
       "and a `target` amount, find the indices of the two items whose prices add up exactly to " +
       "`target`.\n\n" +
       "Return the two indices in any order. Assume exactly one valid pair exists, and you may not " +
-      "use the same item twice.\n\n" +
-      "```text\n" +
-      "nums:   [2, 7, 11, 15]\n" +
-      "target: 9\n" +
-      "output: [0, 1]   # nums[0] + nums[1] == 9\n" +
-      "```",
+      "use the same item twice.",
     constraints_md:
       "- `2 <= nums.length <= 10^4`\n" +
       "- `-10^9 <= nums[i] <= 10^9`\n" +
@@ -65,6 +60,17 @@ const pairSum: ProblemFixture = {
       "            return [seen[need], i]\n" +
       "        seen[x] = i\n" +
       "    raise ValueError('no pair found')\n",
+    reference_solution_cpp:
+      "std::vector<int> pairSumIndices(std::vector<int> nums, int target) {\n" +
+      "    std::unordered_map<int, int> seen;\n" +
+      "    for (int i = 0; i < (int)nums.size(); ++i) {\n" +
+      "        int need = target - nums[i];\n" +
+      "        auto it = seen.find(need);\n" +
+      "        if (it != seen.end()) return {it->second, i};\n" +
+      "        seen[nums[i]] = i;\n" +
+      "    }\n" +
+      "    throw std::runtime_error(\"no pair found\");\n" +
+      "}\n",
     brute_force_py:
       "def pairSumIndices(nums, target):\n" +
       "    for i in range(len(nums)):\n" +
@@ -104,7 +110,7 @@ const pairSum: ProblemFixture = {
         "1. Create an empty dict `seen`.\n2. For i, x in enumerate(nums): compute need = target - x.\n" +
         "3. If need in seen, return [seen[need], i].\n4. Otherwise seen[x] = i.\n5. Continue to the next index.",
       editorial_md:
-        "## Approach\n\nMaintain a hash map from **value seen so far → its index**. For each new " +
+        "Maintain a hash map from **value seen so far → its index**. For each new " +
         "value `x`, its required partner is `target - x`; if that partner is already in the map " +
         "we're done in O(1). This turns the naive O(n²) pair check into a single O(n) pass, at the " +
         "cost of O(n) extra space for the map.\n\n" +
@@ -155,6 +161,18 @@ const longestDistinctRun: ProblemFixture = {
       "        last[ch] = i\n" +
       "        best = max(best, i - start + 1)\n" +
       "    return best\n",
+    reference_solution_cpp:
+      "int longestDistinctRun(std::string s) {\n" +
+      "    std::unordered_map<char, int> last;\n" +
+      "    int start = 0, best = 0;\n" +
+      "    for (int i = 0; i < (int)s.size(); ++i) {\n" +
+      "        auto it = last.find(s[i]);\n" +
+      "        if (it != last.end() && it->second >= start) start = it->second + 1;\n" +
+      "        last[s[i]] = i;\n" +
+      "        best = std::max(best, i - start + 1);\n" +
+      "    }\n" +
+      "    return best;\n" +
+      "}\n",
     brute_force_py:
       "def longestDistinctRun(s):\n" +
       "    best = 0\n" +
@@ -198,7 +216,7 @@ const longestDistinctRun: ProblemFixture = {
         "3. For i, ch in enumerate(s):\n   a. if ch in last and last[ch] >= start: start = last[ch] + 1\n" +
         "   b. last[ch] = i\n   c. best = max(best, i - start + 1)\n4. return best",
       editorial_md:
-        "## Approach\n\nA moving window `[start, i]` that always holds repeat-free letters. A hash " +
+        "A moving window `[start, i]` that always holds repeat-free letters. A hash " +
         "map records the last index each letter was seen at. When the current letter's last " +
         "occurrence falls inside the window, `start` jumps to just past it — never backward — so " +
         "each pointer only moves forward, giving O(n) total work instead of re-scanning.\n\n" +
@@ -249,6 +267,16 @@ const findInsertionBand: ProblemFixture = {
       "        if nums[mid] < target:\n            lo = mid + 1\n" +
       "        else:\n            hi = mid\n" +
       "    return lo\n",
+    reference_solution_cpp:
+      "int findInsertionBand(std::vector<int> nums, int target) {\n" +
+      "    int lo = 0, hi = (int)nums.size();\n" +
+      "    while (lo < hi) {\n" +
+      "        int mid = lo + (hi - lo) / 2;\n" +
+      "        if (nums[mid] < target) lo = mid + 1;\n" +
+      "        else hi = mid;\n" +
+      "    }\n" +
+      "    return lo;\n" +
+      "}\n",
     brute_force_py:
       "def findInsertionBand(nums, target):\n" +
       "    for i, x in enumerate(nums):\n        if x >= target:\n            return i\n" +
@@ -284,7 +312,7 @@ const findInsertionBand: ProblemFixture = {
         "1. lo, hi = 0, len(nums)\n2. while lo < hi:\n   a. mid = (lo + hi) // 2\n" +
         "   b. if nums[mid] < target: lo = mid + 1\n   c. else: hi = mid\n3. return lo",
       editorial_md:
-        "## Approach\n\nHalve the search space every step. Keep an invariant: the answer always " +
+        "Halve the search space every step. Keep an invariant: the answer always " +
         "lies in `[lo, hi)`. If the midpoint value is too small, the answer must be to its right; " +
         "otherwise the midpoint is a valid candidate and the answer is at or before it. The loop " +
         "ends when the window collapses to a single index, which is the answer.\n\n" +
@@ -325,6 +353,11 @@ const treeHeight: ProblemFixture = {
       "def treeHeight(root):\n" +
       "    if root is None:\n        return 0\n" +
       "    return 1 + max(treeHeight(root.left), treeHeight(root.right))\n",
+    reference_solution_cpp:
+      "int treeHeight(TreeNode* root) {\n" +
+      "    if (root == nullptr) return 0;\n" +
+      "    return 1 + std::max(treeHeight(root->left), treeHeight(root->right));\n" +
+      "}\n",
     brute_force_py:
       "def treeHeight(root):\n" +
       "    if root is None:\n        return 0\n" +
@@ -362,7 +395,7 @@ const treeHeight: ProblemFixture = {
         "1. If root is None: return 0.\n2. left = treeHeight(root.left)\n3. right = treeHeight(root.right)\n" +
         "4. return 1 + max(left, right)",
       editorial_md:
-        "## Approach\n\nThe height of a tree rooted at `root` is `0` for an empty tree, otherwise " +
+        "The height of a tree rooted at `root` is `0` for an empty tree, otherwise " +
         "`1 + max(height(left), height(right))` — each subtree answers the exact same question at " +
         "a smaller scale. Every node is visited once.\n\n" +
         "**Complexity:** O(n) time, O(h) space for the call stack (h = height).",

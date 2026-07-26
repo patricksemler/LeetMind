@@ -85,7 +85,7 @@ describe("BaselineRunner", () => {
     expect(screen.getByRole("button", { name: "Let me try" })).toBeInTheDocument();
   });
 
-  it("sends reason=inability when the skip is confirmed, and shows the resulting mastery change", async () => {
+  it("sends reason=inability when the skip is confirmed", async () => {
     vi.mocked(api.skipBaselineItem).mockResolvedValue({
       item: item({ state: "skipped_inability" }),
       mastery_change: {
@@ -104,7 +104,8 @@ describe("BaselineRunner", () => {
     await waitFor(() => {
       expect(api.skipBaselineItem).toHaveBeenCalledWith("item-1", { reason: "inability" });
     });
-    expect(await screen.findByText(/tightened the uncertainty/)).toBeInTheDocument();
+    // No mastery-change panel: the skip is recorded server-side, the UI just moves on.
+    expect(screen.queryByTestId("mastery-delta")).not.toBeInTheDocument();
   });
 
   it("reports progress against the planned count, not just the items materialised so far", async () => {

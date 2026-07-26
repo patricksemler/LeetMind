@@ -110,4 +110,32 @@ describe.skipIf(!dbReachable)("hint ladder", () => {
     expect(body.penalties.l1_orientation).toBe(0.9);
     expect(body.penalties.editorial).toBe(0);
   });
+
+  it("GET /api/hints/:versionId returns the text of taken rungs, and only those", async () => {
+    const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
+    problemVersionIds.push(seeded.problemVersionId);
+    problemIds.push(seeded.problemId);
+
+    const before = await server.inject({ method: "GET", url: `/api/hints/${seeded.problemVersionId}` });
+    expect(JSON.parse(before.body).texts).toEqual({});
+
+    for (const level of ["l1_orientation", "l2_conceptual"]) {
+      await server.inject({
+        method: "POST",
+        url: "/api/hints",
+        payload: { problem_version_id: seeded.problemVersionId, level },
+      });
+    }
+
+    const res = await server.inject({ method: "GET", url: `/api/hints/${seeded.problemVersionId}` });
+    const body = JSON.parse(res.body);
+    // The read is enough to redraw the ladder — the client never has to re-POST to get text back.
+    expect(Object.keys(body.texts).sort()).toEqual(["l1_orientation", "l2_conceptual"]);
+    expect(body.texts.l1_orientation).toBe(seeded.content.hints.l1_orientation);
+    expect(body.texts.l2_conceptual).toBe(seeded.content.hints.l2_conceptual);
+    // Un-taken rungs stay server-side, and the editorial is never served here at all.
+    expect(res.body).not.toContain(seeded.sentinels.l3Text);
+    expect(res.body).not.toContain(seeded.sentinels.outlineText);
+    expect(res.body).not.toContain(seeded.sentinels.editorialText);
+  });
 });

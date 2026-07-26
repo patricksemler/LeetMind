@@ -20,12 +20,13 @@ import {
   type SubmissionRow,
 } from "@leetmind/db";
 import type { JobHandler, WorkerContext } from "@leetmind/queue";
-import { newId, ProblemVersionSchema, type JudgeJobPayload, type SubmissionStatus } from "@leetmind/shared";
+import { failedPublicCase, newId, ProblemVersionSchema, type JudgeJobPayload, type SubmissionStatus } from "@leetmind/shared";
 import type { JudgeDeps } from "./deps.js";
 import {
   buildComparatorSpec,
   buildLimits,
   executeSubmission,
+  failingTestDetail,
   publicResults,
   selectTests,
   summarizeTestOrigins,
@@ -153,8 +154,18 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
     // The public/hidden split rides along on `failure` rather than in its own column: it is only
     // ever needed when something failed, and `submissions.failure` is already a jsonb the API
     // projects (and sanitizes) on the way out.
+    // `failing_test` rides along for the same reason as the origin split: it is only meaningful
+    // when something failed. It carries the one case that ended the run — public or hidden — so the
+    // Submissions view can render it exactly like a public case instead of naming a bare index.
     const failure = executionResult.failure
-      ? { ...executionResult.failure, tests: summarizeTestOrigins(tests, perTest) }
+      ? {
+          ...executionResult.failure,
+          tests: summarizeTestOrigins(tests, perTest),
+          ...(() => {
+            const detail = failingTestDetail(tests, perTest, executionResult.failure.first_failing_test_index);
+            return detail ? { failing_test: detail } : {};
+          })(),
+        }
       : executionResult.failure;
 
     // Every public test's outcome, so the workspace can colour the whole case list rather than
@@ -250,7 +261,13 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
       // does, and it happens in this SAME transaction so a verdict is never observably applied
       // without its mastery consequence (or vice versa) — except when `gaveUpAlready`, which is
       // gated out entirely rather than merely floored/penalized.
-      if (mode === "submit" && !gaveUpAlready) {
+      //
+      // A submit that died on a PUBLIC example is gated out for the same reason: the case is
+      // printed on the problem page and `Run` executes it for free, so failing it says nothing
+      // about the user's grasp of a concept — it's the same class of non-evidence as the
+      // compile-only failures §8 already exempts. Such an attempt is treated as a run throughout
+      // (it stays out of the attempt history too — see `listSubmissionsForVersion`).
+      if (mode === "submit" && !gaveUpAlready && !failedPublicCase(failure)) {
         await applyMastery({ client, submission, content, verdict, now: new Date() });
       }
 

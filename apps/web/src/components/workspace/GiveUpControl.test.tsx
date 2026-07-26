@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GiveUpResponse } from "@leetmind/shared";
@@ -12,7 +12,8 @@ vi.mock("../../lib/api", () => ({
 import { api } from "../../lib/api";
 
 const RESPONSE: GiveUpResponse = {
-  editorial_md: "## Approach\nMaintain a hash map of values seen so far.",
+  editorial_md: "Maintain a hash map of values seen so far.",
+  solutions: { python: "def pairSumIndices(nums, target):\n    ...\n", cpp: "int pairSumIndices() { return 0; }\n" },
   concepts: [
     { id: "arrays_hashing", name: "Arrays & Hashing", description: "", misconceptions: [], min_rating: 800, max_rating: 2400, sort_order: 0 },
   ],
@@ -45,7 +46,7 @@ beforeEach(() => {
 });
 
 describe("GiveUpControl", () => {
-  it("requires an explicit confirm and only then reveals the editorial and concepts", async () => {
+  it("requires an explicit confirm and only then reveals the solution and concepts", async () => {
     const user = userEvent.setup();
     render(
       <Providers>
@@ -55,11 +56,11 @@ describe("GiveUpControl", () => {
 
     expect(screen.queryByTestId("reveal")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /give up & show editorial/i }));
+    await user.click(screen.getByRole("button", { name: /^see solution$/i }));
     expect(api.giveUp).not.toHaveBeenCalled(); // confirm dialog, not taken yet
 
-    const dialog = screen.getByRole("dialog", { name: /give up on this problem/i });
-    await user.click(screen.getByRole("button", { name: /^give up$/i }));
+    const dialog = screen.getByRole("dialog", { name: /see the solution/i });
+    await user.click(within(dialog).getByRole("button", { name: /^see solution$/i }));
 
     expect(api.giveUp).toHaveBeenCalledWith("v1", { baseline_item_id: undefined, active_ms: 12345 });
     expect(await screen.findByTestId("reveal")).toBeInTheDocument();

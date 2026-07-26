@@ -6,7 +6,9 @@
  *   contains "CRASH"   -> runtime_error
  *   contains "SYNTAX"  -> compilation_error
  *   contains "SLOW"    -> time_limit
- *   contains "BUG"     -> wrong_answer
+ *   contains "BUG"     -> wrong_answer, failing a HIDDEN case
+ *   contains "PUBFAIL" -> wrong_answer, failing a PUBLIC example — the case a submit is treated
+ *                         as a run for (`failedPublicCase`, @leetmind/shared)
  *   unmodified starter (bare `pass` / empty C++ body) -> wrong_answer
  *   otherwise          -> accepted
  *
@@ -34,6 +36,7 @@ function isUnmodifiedStarter(source: string, language: Language): boolean {
 
 function pickVerdict(source: string, language: Language): Verdict {
   const upper = source.toUpperCase();
+  if (upper.includes("PUBFAIL")) return "wrong_answer";
   if (upper.includes("CRASH")) return "runtime_error";
   if (upper.includes("SYNTAX")) return "compilation_error";
   if (upper.includes("SLOW")) return "time_limit";
@@ -49,6 +52,29 @@ export function submitTestSplit(problem: ProblemFixture): { publicTotal: number;
   const publicTotal = publicArgs.size;
   const hiddenTotal = problem.content.hidden_tests.filter((t) => !publicArgs.has(JSON.stringify(t.args))).length;
   return { publicTotal, hiddenTotal, total: publicTotal + hiddenTotal };
+}
+
+/**
+ * The one failing case, mirroring `failingTestDetail` in apps/judge/src/execution.ts — including a
+ * hidden one, which is what the Submissions view renders. Public tests come first (see
+ * `submitTestSplit`), so an index at or past `publicTotal` addresses the deduped hidden suite.
+ */
+export function failingTestFor(
+  problem: ProblemFixture,
+  failIndex: number,
+  publicTotal: number,
+  actual: unknown = null,
+): { index: number; origin: "public" | "hidden"; args: unknown[]; expected?: unknown; actual?: unknown; status?: string } | undefined {
+  if (failIndex < publicTotal) {
+    const example = problem.content.examples[failIndex];
+    if (!example) return undefined;
+    return { index: failIndex, origin: "public", args: example.args, expected: example.expected, actual, status: "failed" };
+  }
+  const publicArgs = new Set(problem.content.examples.map((e) => JSON.stringify(e.args)));
+  const hidden = problem.content.hidden_tests.filter((t) => !publicArgs.has(JSON.stringify(t.args)));
+  const test = hidden[failIndex - publicTotal];
+  if (!test) return undefined;
+  return { index: failIndex, origin: "hidden", args: test.args, expected: test.expected, actual, status: "failed" };
 }
 
 /** Per-public-test outcomes, aligned to `examples`, mirroring the judge's `publicResults`. */
@@ -98,8 +124,11 @@ export function gradeSubmit(problem: ProblemFixture, language: Language, source:
     case "wrong_answer": {
       // Fail the LAST test so the mock exercises the interesting case: every public example
       // passing and a hidden one failing, which is the state the results panel has to explain
-      // without leaking the hidden input.
-      const failIndex = Math.max(0, total - 1);
+      // without leaking the hidden input. "PUBFAIL" picks a public example instead — the failure
+      // a submit is treated as a run for, which has no history row and no mastery consequence.
+      const failIndex = source.toUpperCase().includes("PUBFAIL")
+        ? Math.min(1, Math.max(0, publicTotal - 1))
+        : Math.max(0, total - 1);
       return {
         verdict,
         passedTests: failIndex,
@@ -111,6 +140,7 @@ export function gradeSubmit(problem: ProblemFixture, language: Language, source:
           message: "Output did not match the expected result.",
           first_failing_test_index: failIndex,
           tests: splitAt(failIndex),
+          failing_test: failingTestFor(problem, failIndex, publicTotal),
         },
         publicResults: publicResultsFor(problem, Math.min(failIndex, publicTotal)),
       };
@@ -127,6 +157,7 @@ export function gradeSubmit(problem: ProblemFixture, language: Language, source:
           message: "Execution exceeded the per-test wall-clock budget.",
           first_failing_test_index: Math.max(0, total - 2),
           tests: splitAt(Math.max(0, total - 2)),
+          failing_test: failingTestFor(problem, Math.max(0, total - 2), publicTotal, undefined),
         },
         publicResults: publicResultsFor(problem, Math.min(Math.max(0, total - 2), publicTotal)),
       };
@@ -215,6 +246,7 @@ export function gradeRun(problem: ProblemFixture, language: Language, source: st
           expected_preview: example?.expected,
           actual_preview: null,
           tests: publicSummary(failIndex),
+          failing_test: failingTestFor(problem, failIndex, total),
         },
         publicResults: publicResultsFor(problem, failIndex),
       };

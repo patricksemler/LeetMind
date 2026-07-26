@@ -55,6 +55,14 @@ export const ProblemVersionSchema = z
     expected_active_minutes: z.tuple([z.number().int(), z.number().int()]),
     target_complexity: z.object({ time: z.string(), space: z.string() }),
     reference_solution_py: z.string(),
+    // The C++ counterpart shown alongside Python in the post-reveal solution view. Optional and
+    // nullish for the same reason as `checker_py` below: Python emits `null` for an unset optional,
+    // and every problem version generated before this field existed simply has no C++ reference.
+    // Consumers must degrade to Python-only rather than assume both languages are present.
+    reference_solution_cpp: z
+      .string()
+      .nullish()
+      .transform((v) => v ?? undefined),
     brute_force_py: z.string(),
     input_generator_py: z.string(),
     comparator: z.enum(["exact", "float_tol", "unordered", "checker_py"]),

@@ -92,15 +92,24 @@ describe.skipIf(!dbReachable)("security: server-only fields never leak", () => {
     await capture("GET", "/api/baseline/current"); // no active baseline, must stay clean
     await capture("GET", "/api/practice/next"); // the practice loop serves a full public problem
 
-    // Every sentinel except `editorialText` must NEVER appear anywhere, on any route: l3/outline
-    // hint text, hidden-test expected values, reference/brute-force/generator/checker/mutant code.
-    // `editorialText` is the one exception: this fixture's submission is `verdict: 'accepted'`,
-    // which legitimately EARNS the post-solve `reveal` field (docs/CONTRACTS.md §4.5) on the
-    // submission routes — so its presence there is correct behaviour, not a leak. It must still
-    // never appear on any OTHER route (which never exposes hint text at all), and even on the
-    // submission routes it must appear ONLY inside `reveal.editorial_md`, built through the single
-    // allowlisted constructor (`buildReveal` in mappers/submission.ts) — never spread loose.
-    const { editorialText, ...neverRevealedSentinels } = seeded.sentinels;
+    // Most sentinels must NEVER appear anywhere, on any route: l3/outline hint text, hidden-test
+    // expected values, brute-force/generator/checker/mutant code.
+    //
+    // `editorialText` and `referenceSolution` are the two exceptions: this fixture's submission is
+    // `verdict: 'accepted'`, which legitimately EARNS the post-solve `reveal` (docs/CONTRACTS.md
+    // §4.5) on the submission routes — the solution write-up AND the reference implementation the
+    // user is shown are both part of that reveal, so their presence there is correct behaviour, not
+    // a leak. Both must still never appear on any OTHER route, and even on the submission routes
+    // only inside `reveal.editorial_md` / `reveal.solutions`, built through the single allowlisted
+    // constructor (`buildReveal` in mappers/submission.ts) — never spread loose. Note the
+    // FORBIDDEN_KEYS check above still applies unchanged: the reveal exposes the code under
+    // `solutions.python`, never under a `reference_solution_py` key.
+    const { editorialText, referenceSolution, referenceSolutionCpp, ...neverRevealedSentinels } = seeded.sentinels;
+    const earnedSentinels = {
+      editorial_md: editorialText,
+      "solutions.python": referenceSolution,
+      "solutions.cpp": referenceSolutionCpp,
+    };
     const REVEAL_EARNED_ROUTES = new Set([
       `GET /api/submissions/${submissionId}`,
       `GET /api/submissions/${submissionId}/events`,
@@ -140,30 +149,34 @@ describe.skipIf(!dbReachable)("security: server-only fields never leak", () => {
       }
 
       if (!REVEAL_EARNED_ROUTES.has(route)) {
-        expect(body.includes(editorialText), `${route}: leaked editorial sentinel outside an earned reveal`).toBe(false);
+        for (const [field, sentinel] of Object.entries(earnedSentinels)) {
+          expect(body.includes(sentinel), `${route}: leaked ${field} sentinel outside an earned reveal`).toBe(false);
+        }
         continue;
       }
 
-      // On the reveal-earned routes, `editorial_md` legitimately appears — but ONLY inside
-      // `reveal.editorial_md`. Strip that one field out and confirm the sentinel is gone from
-      // everything else in the response (guards against `buildReveal` — or anything else —
-      // accidentally spreading raw content instead of the explicit allowlist).
-      const withoutReveal = body.split(editorialText).join("").length === body.length ? body : stripRevealEditorial(body);
-      expect(withoutReveal.includes(editorialText), `${route}: editorial sentinel leaked outside reveal.editorial_md`).toBe(false);
+      // On the reveal-earned routes, `editorial_md` and `solutions` legitimately appear — but ONLY
+      // there. Blank those fields out and confirm both sentinels are gone from everything else in
+      // the response (guards against `buildReveal` — or anything else — accidentally spreading raw
+      // content instead of the explicit allowlist).
+      const withoutReveal = stripRevealFields(body);
+      for (const [field, sentinel] of Object.entries(earnedSentinels)) {
+        expect(withoutReveal.includes(sentinel), `${route}: ${field} sentinel leaked outside reveal.${field}`).toBe(false);
+      }
     }
   });
 });
 
-/** Removes exactly the `reveal.editorial_md` value from a raw JSON/SSE response body (handles
- * both the plain-JSON `GET /api/submissions/:id` shape and the `data: {...}` SSE line), so the
- * remainder can be checked for the editorial sentinel leaking anywhere else. */
-function stripRevealEditorial(body: string): string {
+/** Blanks exactly `reveal.editorial_md` and `reveal.solutions` in a raw JSON/SSE response body
+ * (handles both the plain-JSON `GET /api/submissions/:id` shape and the `data: {...}` SSE line), so
+ * the remainder can be checked for those sentinels leaking anywhere else. */
+function stripRevealFields(body: string): string {
   const replaceIn = (obj: unknown): unknown => {
     if (Array.isArray(obj)) return obj.map(replaceIn);
     if (obj && typeof obj === "object") {
       const rec = obj as Record<string, unknown>;
       if ("reveal" in rec && rec.reveal && typeof rec.reveal === "object") {
-        return { ...rec, reveal: { ...(rec.reveal as Record<string, unknown>), editorial_md: "" } };
+        return { ...rec, reveal: { ...(rec.reveal as Record<string, unknown>), editorial_md: "", solutions: {} } };
       }
       return Object.fromEntries(Object.entries(rec).map(([k, v]) => [k, replaceIn(v)]));
     }

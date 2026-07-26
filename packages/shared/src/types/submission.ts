@@ -53,6 +53,31 @@ export const TestOriginSummarySchema = z
   .passthrough();
 export type TestOriginSummary = z.infer<typeof TestOriginSummarySchema>;
 
+/**
+ * The one test that ended the run, in the same shape the workspace renders a public case in:
+ * named arguments, expected value, the user's own output.
+ *
+ * NOTE — this deliberately narrows docs/CONTRACTS.md §4.5's original "hidden inputs are never
+ * served" rule. The rule existed so a solution couldn't be hard-coded against the hidden suite,
+ * and that cost is real: a user who submits repeatedly can now enumerate failing hidden cases one
+ * at a time. It is exposed anyway because a "a hidden case failed, good luck" verdict gave the user
+ * nothing actionable. Only the SINGLE first failing test is ever included — never the rest of the
+ * suite — so the leak is bounded to one case per submission rather than the whole hidden set.
+ */
+export const FailingTestSchema = z
+  .object({
+    /** Index within the executed suite (public tests first — see `selectTests` in apps/judge). */
+    index: z.number().int().nonnegative(),
+    origin: z.enum(["public", "hidden"]),
+    args: z.array(z.unknown()),
+    expected: z.unknown().optional(),
+    actual: z.unknown().optional(),
+    /** `failed`, `error`, `timeout`… — a case that crashed has no meaningful `actual`. */
+    status: z.string().optional(),
+  })
+  .passthrough();
+export type FailingTest = z.infer<typeof FailingTestSchema>;
+
 export const SubmissionFailureSchema = z
   .object({
     kind: z.string(),
@@ -62,19 +87,55 @@ export const SubmissionFailureSchema = z
     input_preview: z.unknown().optional(),
     expected_preview: z.unknown().optional(),
     actual_preview: z.unknown().optional(),
+    failing_test: FailingTestSchema.optional(),
     tests: TestOriginSummarySchema.optional(),
   })
   .passthrough();
 export type SubmissionFailure = z.infer<typeof SubmissionFailureSchema>;
 
 /**
+ * True when the case that ended the attempt was a PUBLIC one — an example printed on the problem
+ * page, which `Run` executes.
+ *
+ * A `submit` that dies on one of those is treated as a run everywhere it matters: it doesn't enter
+ * the attempt history (`listSubmissionsForVersion`, @leetmind/db), it applies no mastery
+ * consequence (apps/judge), and it doesn't send the workspace to the Submissions tab (apps/web).
+ * The reasoning is the same one that already exempts compile-only failures from `updateConcepts`
+ * (docs/CONTRACTS.md §8): an example failing in front of you is not evidence about a concept, it's
+ * a mistake Run would have shown for free, and recording it as an attempt only pads the history.
+ *
+ * Deliberately keyed on `failing_test.origin` rather than comparing `first_failing_test_index`
+ * against the public/hidden split: the origin is what the judge actually resolved the case from,
+ * and a failure with no case at all (a compile error) must NOT match — that keeps its own
+ * behaviour and its own place in the history.
+ */
+// Typed structurally, not as `SubmissionFailure`: the same failure travels as three shapes that
+// differ only in an index signature — this zod-`.passthrough()` type, the plain @leetmind/db
+// interface the judge writes, and the SSE event's. One predicate has to accept all three.
+export function failedPublicCase(failure: { failing_test?: { origin?: string } | null } | null | undefined): boolean {
+  return failure?.failing_test?.origin === "public";
+}
+
+/**
  * Post-solve reveal, docs/CONTRACTS.md §4.5 — present only when the user has earned it (an
  * accepted submit, or a recorded give-up) on `GET /api/submissions/:id` and the SSE `verdict`
  * event. Never smuggled through `failure` (a verdict is not a failure).
  */
+/**
+ * Reference solutions handed over at reveal time, keyed by language so the UI can offer a switch.
+ * `cpp` is optional — a problem version generated before the C++ reference existed has Python only,
+ * and the solution view shows just the languages actually present.
+ */
+export const SolutionsSchema = z.object({
+  python: z.string(),
+  cpp: z.string().optional(),
+});
+export type Solutions = z.infer<typeof SolutionsSchema>;
+
 export const RevealSchema = z
   .object({
     editorial_md: z.string(),
+    solutions: SolutionsSchema,
     target_complexity: z.object({ time: z.string(), space: z.string() }),
     concepts: z.array(
       z.object({
@@ -225,6 +286,15 @@ export const GetLatestSubmissionResponse = z.object({
 });
 export type GetLatestSubmissionResponse = z.infer<typeof GetLatestSubmissionResponse>;
 
+// --- GET /api/problems/:versionId/submissions ----------------------------------------------
+
+/** Attempt history for one problem version, newest first. `submit` mode only: a run is a scratch
+ * execution against the printed examples, not an attempt worth keeping a record of. */
+export const ListSubmissionsResponse = z.object({
+  submissions: z.array(SubmissionSchema),
+});
+export type ListSubmissionsResponse = z.infer<typeof ListSubmissionsResponse>;
+
 // --- POST /api/hints -----------------------------------------------------------------------
 
 export const TakeHintRequest = z.object({
@@ -243,11 +313,22 @@ export type TakeHintResponse = z.infer<typeof TakeHintResponse>;
 
 // --- GET /api/hints/:versionId ---------------------------------------------------------------
 
+/**
+ * `texts` carries the text of the ladder rungs already in `taken`, so a client that is only
+ * re-displaying hints it has already paid for doesn't have to re-POST `/api/hints` once per rung to
+ * get it back. That reconstruction was what made a revisited problem render its taken hints a beat
+ * after everything else, and it put N writes on the wire for a read.
+ *
+ * Only the four ladder rungs ever appear here — never `editorial`, which stays reachable solely
+ * through the give-up flow (docs/CONTRACTS.md §8). An un-taken rung is absent, not empty: the hard
+ * rule that un-taken hint text never appears in a payload is unchanged.
+ */
 export const GetHintsResponse = z
   .object({
     taken: z.array(HintLevel),
     available: z.array(HintLevel),
     penalties: z.record(z.string(), z.number()).default({}),
+    texts: z.record(z.string(), z.string()).default({}),
   })
   .passthrough();
 export type GetHintsResponse = z.infer<typeof GetHintsResponse>;
@@ -263,6 +344,7 @@ export type GiveUpRequest = z.infer<typeof GiveUpRequest>;
 export const GiveUpResponse = z
   .object({
     editorial_md: z.string(),
+    solutions: SolutionsSchema,
     concepts: z.array(ConceptSchema),
     mastery_change: MasteryChangeSchema.optional(),
   })

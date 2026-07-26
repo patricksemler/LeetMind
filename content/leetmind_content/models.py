@@ -186,6 +186,7 @@ SERVER_ONLY_FIELDS: tuple[str, ...] = (
     "hidden_tests",
     "mutants_py",
     "reference_solution_py",
+    "reference_solution_cpp",
     "brute_force_py",
     "input_generator_py",
     "checker_py",
@@ -206,6 +207,10 @@ class ProblemVersion(BaseModel):
     expected_active_minutes: tuple[int, int]
     target_complexity: TargetComplexity
     reference_solution_py: str
+    #: C++ counterpart of the reference solution, shown beside the Python one in the post-reveal
+    #: solution view. Optional: problem versions generated before this field existed have Python
+    #: only, and consumers degrade to a single-language view rather than assuming both.
+    reference_solution_cpp: str | None = None
     brute_force_py: str
     input_generator_py: str
     comparator: Literal["exact", "float_tol", "unordered", "checker_py"]

@@ -15,6 +15,7 @@ import {
   GetProblemResponse,
   GetSubmissionResponse,
   GenerateNowResponse,
+  ListSubmissionsResponse,
   HealthResponse,
   MeResponse,
   NextPracticeProblemResponse,
@@ -135,6 +136,9 @@ export const api = {
 
   latestSubmission: (versionId: string) =>
     request(`/api/problems/${versionId}/submissions/latest`, GetLatestSubmissionResponse),
+
+  listSubmissions: (versionId: string) =>
+    request(`/api/problems/${versionId}/submissions`, ListSubmissionsResponse),
 
   takeHint: (body: TakeHintRequest) => postJson("/api/hints", body, TakeHintResponse),
 

@@ -93,7 +93,7 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     expect(after.rating).toBeGreaterThan(before.rating);
   });
 
-  it("2. wrong answer on the public example: rating moves down, and the preview shows the PUBLIC values only", async () => {
+  it("2. wrong answer on the public example: NO mastery consequence, and the preview shows the PUBLIC values only", async () => {
     const SECRET_EXPECTED = 918273645;
     const problem = await seed({
       // None of these are origin:"example" — this test is specifically about a GENUINELY hidden
@@ -137,16 +137,22 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     expect(reloaded.failure?.expected_preview).toBe(3);
     expect(JSON.stringify(reloaded.failure ?? {})).not.toContain(String(SECRET_EXPECTED));
 
+    // …and because the case that broke is one the statement prints and `Run` executes, this
+    // attempt carries no mastery consequence at all — the same exemption compile-only failures
+    // get (CONTRACTS §8). It doesn't reach the attempt history either, which is asserted where
+    // that query lives (`listSubmissionsForVersion`, apps/api submissions.test.ts).
+    expect(await countLearningEvents(submission.id)).toBe(0);
     const after = await snapshotConceptState();
-    expect(after.rating).toBeLessThan(before.rating);
+    expect(after.rating).toBe(before.rating);
   });
 
-  it("2a. a solution that hard-codes the examples fails a hidden test, and its values stay hidden", async () => {
+  it("2a. a solution that hard-codes the examples fails a hidden test, and only THAT case is disclosed", async () => {
     const SECRET_EXPECTED = 918273645;
+    const OTHER_SECRET_EXPECTED = 111222333;
     const problem = await seed({
       hiddenTests: [
         { args: [500000, 500000], expected: SECRET_EXPECTED, origin: "random" },
-        { args: [0, 0], expected: 0, origin: "adversarial" },
+        { args: [777, 777], expected: OTHER_SECRET_EXPECTED, origin: "adversarial" },
       ],
     });
     const submission = await insertTestSubmission({
@@ -157,6 +163,8 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
       source: "def solve(a, b):\n    if a == 1 and b == 2:\n        return 3\n    return a - b\n",
       mode: "submit",
     });
+
+    const before = await snapshotConceptState();
 
     await handler(
       await makeLeasedJudgeJob(deps, {
@@ -176,11 +184,29 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     expect(reloaded.failure?.tests).toMatchObject({ public_passed: 1, public_total: 1 });
     expect(reloaded.failure!.first_failing_test_index!).toBeGreaterThanOrEqual(1);
 
-    // No preview fields, and the secret never appears however it might have been represented.
+    // The legacy `*_preview` fields stay empty for a hidden failure — they are unbounded and were
+    // never brought back (see `sanitizeFailure` in apps/api).
     expect(reloaded.failure?.expected_preview).toBeUndefined();
     expect(reloaded.failure?.input_preview).toBeUndefined();
     expect(reloaded.failure?.actual_preview).toBeUndefined();
-    expect(JSON.stringify(reloaded.failure ?? {})).not.toContain(String(SECRET_EXPECTED));
+
+    // `failing_test` DOES disclose the one case that broke, hidden or not (see `FailingTestSchema`
+    // in @leetmind/shared): a bare "some hidden test failed" left the user nothing to act on.
+    const failing = reloaded.failure?.failing_test;
+    expect(failing).toBeDefined();
+    expect(failing).toMatchObject({ origin: "hidden", args: [500000, 500000], expected: SECRET_EXPECTED });
+
+    // ...and ONLY that case. The bound is what makes the disclosure acceptable: the rest of the
+    // hidden suite must not ride along, so a single submission can never enumerate it.
+    expect(JSON.stringify(reloaded.failure ?? {})).not.toContain(String(OTHER_SECRET_EXPECTED));
+    expect(JSON.stringify(reloaded.public_results ?? [])).not.toContain(String(SECRET_EXPECTED));
+
+    // The other side of test 2's rule: a HIDDEN case failing is real evidence — the examples all
+    // passed, so nothing on the page told the user this was coming — and it scores like any other
+    // attempt. Only public-example failures are exempt.
+    expect(await countLearningEvents(submission.id)).toBe(1);
+    const after = await snapshotConceptState();
+    expect(after.rating).toBeLessThan(before.rating);
   });
 
   it("2b. wrong answer on an origin:'example' hidden test DOES reveal its preview, even in submit mode (CONTRACTS §4.5)", async () => {

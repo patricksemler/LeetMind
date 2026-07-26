@@ -1,33 +1,44 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { GiveUpResponse, Language, SubmissionMode } from "@leetmind/shared";
+import { failedPublicCase, type GiveUpResponse, type Language, type SubmissionMode, type VerdictEvent } from "@leetmind/shared";
 import { api } from "../lib/api";
 import { loadDraft, saveDraft } from "../lib/draft";
+import { loadPref, savePref } from "../lib/prefs";
 import { useActiveTime } from "../hooks/useActiveTime";
-import { useConcepts } from "../hooks/useConcepts";
+import { useHints } from "../hooks/useHints";
 import { useHotkeys } from "../hooks/useHotkeys";
 import { useSubmissionEvents } from "../hooks/useSubmissionEvents";
-import { Badge, Panel, Tabs, tabPanelProps } from "../components/ui";
+import { Panel, Tabs, tabPanelProps } from "../components/ui";
 import { buttonClassName } from "../components/ui/Button";
 import { ActionBar } from "../components/workspace/ActionBar";
-import { ConceptTags } from "../components/workspace/ConceptTags";
 import { EditorPane } from "../components/workspace/EditorPane";
 import { GiveUpControl } from "../components/workspace/GiveUpControl";
 import { HintLadder } from "../components/workspace/HintLadder";
-import { Markdown } from "../components/workspace/Markdown";
-import { MasteryDelta } from "../components/workspace/MasteryDelta";
-import { ResultsPanel } from "../components/workspace/ResultsPanel";
+import { SolutionPane } from "../components/workspace/SolutionPane";
+import { SubmissionsPanel } from "../components/workspace/SubmissionsPanel";
 import { SplitPane } from "../components/workspace/SplitPane";
 import { StatementPane } from "../components/workspace/StatementPane";
 import { TestCasePanel } from "../components/workspace/TestCasePanel";
+
+/** No "hints" tab: the ladder and the give-up/solution flow live under the statement in "problem",
+ * where they're read against the thing they're hints about. */
+type LeftTab = "problem" | "submissions";
+
+const LANGUAGE_PREF = "workspace-language";
+
+/** The language the user last worked in. A choice of language is about the person, not the problem,
+ * so it's remembered app-wide rather than per version — picking C++ and then having the next
+ * problem open in Python meant re-picking it on every single problem. */
+function initialLanguage(): Language {
+  return loadPref(LANGUAGE_PREF) === "cpp" ? "cpp" : "python";
+}
 
 export function Problem() {
   const { versionId } = useParams<{ versionId: string }>();
   const [searchParams] = useSearchParams();
   const baselineItemId = searchParams.get("item") ?? undefined;
   const queryClient = useQueryClient();
-  const { namesById } = useConcepts();
 
   const problemQuery = useQuery({
     queryKey: ["problem", versionId],
@@ -36,14 +47,25 @@ export function Problem() {
   });
   const problem = problemQuery.data?.problem;
 
-  const [leftTab, setLeftTab] = useState<"problem" | "hints">("problem");
-  const [language, setLanguage] = useState<Language>("python");
+  // Fired here, alongside the problem, rather than only from inside `HintLadder`: the ladder mounts
+  // after the problem has landed, so a fetch started there is a round trip that begins once the page
+  // is already on screen — the taken hints then dropped in visibly late on every visit. Same query
+  // key as the ladder's own `useHints`, so this is one shared request, not a second one.
+  useHints(versionId);
+
+  const [leftTab, setLeftTab] = useState<LeftTab>("problem");
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
+  const [language, setLanguage] = useState<Language>(initialLanguage);
   const [source, setSource] = useState("");
-  const [timerHidden, setTimerHidden] = useState(false);
   const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(null);
+  /** The submission id this session created, as opposed to one hydrated from the server on mount.
+   * State, not a ref, because `judging` below is derived from it during render. */
+  const [createdSubmissionId, setCreatedSubmissionId] = useState<string | null>(null);
   const [activeMode, setActiveMode] = useState<SubmissionMode | null>(null);
   const [gaveUpResult, setGaveUpResult] = useState<GiveUpResponse | null>(null);
 
+  // Measurement only — nothing displays it any more. `active_ms` still rides along on every
+  // submission and on a give-up, where it's what the difficulty model reads, so the hook stays.
   const activeTime = useActiveTime();
 
   // Flips true the instant a submission is created locally (submitMutation.onSuccess, before the
@@ -58,9 +80,13 @@ export function Problem() {
   useEffect(() => {
     activeTime.reset();
     setActiveSubmissionId(null);
+    setCreatedSubmissionId(null);
     setActiveMode(null);
     setGaveUpResult(null);
     setLeftTab("problem");
+    setSelectedSubmissionId(null);
+    setShownResults(undefined);
+    shownVerdictRef.current = null;
     hasLocalSubmissionRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [versionId]);
@@ -108,6 +134,11 @@ export function Problem() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem?.problem_version_id, language]);
 
+  function handleLanguageChange(next: Language) {
+    setLanguage(next);
+    savePref(LANGUAGE_PREF, next);
+  }
+
   function handleSourceChange(next: string) {
     setSource(next);
     if (versionId) saveDraft(versionId, language, next);
@@ -115,12 +146,47 @@ export function Problem() {
 
   const events = useSubmissionEvents(activeSubmissionId, { enabled: !!activeSubmissionId });
 
+  // The verdict, but only when it belongs to the submission currently on screen. `useSubmissionEvents`
+  // clears its state from an EFFECT when the id changes, which commits one render after the id
+  // itself — so for that one render `events.verdict` still holds the PREVIOUS submission's outcome.
+  // Everything keyed on "there is a verdict" has to ignore it, or a fresh submit reads for a frame
+  // as already judged: buttons back, tab yanked to Submissions, "Next problem" flashing up.
+  const verdict = events.verdict?.submission_id === activeSubmissionId ? events.verdict : null;
+
+  // A submit that died on a public example is treated as a run: no history row (the API drops it),
+  // no mastery consequence (the judge skips it), and no trip to the Submissions tab — the failing
+  // case is a case, and the case list below the editor is where cases live.
+  const publicFailure = failedPublicCase(verdict?.failure);
+
+  // The case list holds the LAST completed results until the next ones land, instead of emptying
+  // the moment a run/submit starts. `verdict` goes null as soon as a new submission exists, and
+  // rendering straight off it blanked the panel — the cases the user was reading vanished, then
+  // came back a second later. Updated on any verdict, including one with no public results at all
+  // (a compile error), so the panel is never stale in the other direction.
+  const [shownResults, setShownResults] = useState<VerdictEvent["public_results"]>(undefined);
+  useEffect(() => {
+    if (!verdict) return;
+    setShownResults(verdict.public_results);
+  }, [verdict]);
+
+  // The attempt history behind the Submissions tab. Refetched when a submit lands (below) rather
+  // than polled: nothing else changes it, and a poll would fight the SSE stream for the same news.
+  const submissionsQuery = useQuery({
+    queryKey: ["submissions", versionId],
+    queryFn: () => api.listSubmissions(versionId!),
+    enabled: !!versionId,
+  });
+
   // A plain ref, not `submitMutation.isPending` — React batches the re-render that would flip
   // `isPending`, so two synchronous triggers in the same tick (a rapid double-click, or a click
   // racing the Cmd+Enter hotkey) both read `isPending: false` and both fire. Two 201s, confirmed
   // live. A ref updates immediately, before either handler returns, so the second trigger in the
   // same tick sees the gate already closed.
   const submitInFlightRef = useRef(false);
+
+  /** The submission id whose verdict has already been surfaced, so the auto-switch to Submissions
+   * fires once per submission instead of yanking the tab back on every re-render. */
+  const shownVerdictRef = useRef<string | null>(null);
 
   const submitMutation = useMutation({
     mutationFn: (input: { mode: SubmissionMode }) =>
@@ -135,6 +201,7 @@ export function Problem() {
     onSuccess: (res, variables) => {
       hasLocalSubmissionRef.current = true;
       setActiveSubmissionId(res.submission_id);
+      setCreatedSubmissionId(res.submission_id);
       setActiveMode(variables.mode);
     },
     onSettled: () => {
@@ -148,6 +215,30 @@ export function Problem() {
   // button only ever reflects its own request.
   const submitPending = submitMutation.isPending && submitMutation.variables?.mode === "submit";
   const runPending = submitMutation.isPending && submitMutation.variables?.mode === "run";
+
+  // "In flight" spans creating the submission AND judging it. `submitMutation.isPending` only covers
+  // the POST, which returns in milliseconds — the wait the user actually sits through is the judge's,
+  // and with no lifecycle text on screen any more the spinner is the only thing left to show it.
+  //
+  // Two sources, because neither covers the whole wait on its own:
+  //
+  //  - A submission WE created is in flight from the moment it exists, stream or no stream. This is
+  //    what closes the gap that made the controls blink: once the POST resolves the mutation is no
+  //    longer pending, but the SSE stream isn't open yet (it awaits an auth token before it even
+  //    connects), so `events.status` is still null. Keyed on the stream alone, that window read as
+  //    idle — Run and Submit came back for a beat and were then replaced by the spinner again.
+  //  - A submission this session DIDN'T create (a reload mid-judging, hydrated from
+  //    `latestSubmission`) has no `createdSubmissionId`, so the stream is the only thing that can
+  //    say it's still running.
+  //
+  // `verdict` rather than `events.verdict` on purpose: the previous submission's verdict must not
+  // end the new one's wait. `status` is only consulted for `cancelled`, which has no verdict to
+  // arrive and would otherwise spin forever.
+  const createdHere = !!createdSubmissionId && createdSubmissionId === activeSubmissionId;
+  const streamRunning = events.status !== null && events.status !== "completed" && events.status !== "cancelled";
+  const judging = !verdict && events.status !== "cancelled" && (createdHere || streamRunning);
+  const submitBusy = submitPending || (activeMode === "submit" && judging);
+  const runBusy = runPending || (activeMode === "run" && judging);
 
   function triggerSubmit(input: { mode: SubmissionMode }) {
     if (submitInFlightRef.current) return;
@@ -166,7 +257,31 @@ export function Problem() {
     [versionId, language, source],
   );
 
-  const solved = activeMode === "submit" && events.verdict?.verdict === "accepted";
+  const solved = activeMode === "submit" && verdict?.verdict === "accepted";
+
+  // The judged row is what the Submissions tab shows — an in-flight attempt isn't listed at all —
+  // so the verdict is also the moment the list has something new in it. Unconditional, unlike the
+  // tab switch below: the switch happens once per submission, but the list has to be refreshed for
+  // every verdict, including one for a submission the user is already looking at.
+  useEffect(() => {
+    if (activeMode !== "submit" || !verdict) return;
+    void queryClient.invalidateQueries({ queryKey: ["submissions", versionId] });
+  }, [activeMode, verdict, versionId, queryClient]);
+
+  // A landed submit takes the user to Submissions — success or failure, that screen is where the
+  // outcome is, and the verdict is the first moment there is one to show. Keyed on the submission
+  // id so it fires once per submission and never fights a manual tab change afterwards.
+  //
+  // Except when it died on a public example: that attempt never becomes a history row, so sending
+  // the user to a tab that won't list it would strand them on someone else's result. It stays on
+  // the workspace with the failing case marked in the list below the editor, exactly like a run.
+  useEffect(() => {
+    if (activeMode !== "submit" || !verdict || !activeSubmissionId || publicFailure) return;
+    if (shownVerdictRef.current === activeSubmissionId) return;
+    shownVerdictRef.current = activeSubmissionId;
+    setSelectedSubmissionId(activeSubmissionId);
+    setLeftTab("submissions");
+  }, [activeMode, verdict, activeSubmissionId, publicFailure]);
 
   // Once a submit-mode submission is accepted, the problem becomes "solved" server-side —
   // refetch so `concepts_revealed` (and the taken hint ladder) reflect that. The practice and
@@ -206,71 +321,77 @@ export function Problem() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-1.5">
-        <Link to={baselineItemId ? "/baseline" : "/"} className="text-xs text-text-faint underline hover:text-text-dim">
-          {baselineItemId ? "← Back to baseline" : "← Back to practice"}
-        </Link>
-        {finished && (
+      {/* No standing "← Back to practice" strip: the nav bar's own Practice link already goes back,
+          and a second one spent a full row of vertical space above the workspace on every problem.
+          The bar exists only once the attempt is finished, to carry the onward step. */}
+      {finished && (
+        <div className="flex shrink-0 items-center justify-end gap-3 border-b border-border px-4 py-1.5">
           <Link
             to={baselineItemId ? "/baseline" : "/"}
             className={buttonClassName({ variant: "primary", size: "sm" })}
           >
             {baselineItemId ? "Next baseline question" : "Next problem"}
           </Link>
-        )}
-      </div>
+        </div>
+      )}
       <div className="min-h-0 flex-1">
         <SplitPane
+          storageKey="workspace-split"
           left={
             <div className="flex h-full min-h-0 flex-col">
               <Tabs
                 id="problem-left"
                 tabs={[
                   { id: "problem", label: "Problem" },
-                  { id: "hints", label: "Hints" },
+                  { id: "submissions", label: "Submissions" },
                 ]}
                 active={leftTab}
-                onChange={(id) => setLeftTab(id as "problem" | "hints")}
+                onChange={(id) => setLeftTab(id as LeftTab)}
                 className="sticky top-0 z-10 bg-bg px-2"
               />
               {leftTab === "problem" ? (
                 <div {...tabPanelProps("problem-left", "problem")}>
-                  <div className="px-5 pt-4">
-                    <ConceptTags revealed={revealed} concepts={problem.concepts_revealed} />
-                  </div>
                   <StatementPane problem={problem} />
+                  {/* Hints and the solution sit UNDER the statement rather than behind their own
+                      tab: they're read against the problem, and a tab put them somewhere you had to
+                      remember to go — while taking the statement off screen once you got there. The
+                      rule out of docs/CONTRACTS.md §8/§12 that matters is unchanged by the move:
+                      every rung still needs an explicit confirm, and the solution is still only
+                      reachable through the give-up flow. */}
+                  <div className="space-y-5 p-5">
+                    {/* Inset rather than a border on the padded box itself, so it lines up with the
+                        give-up divider below it — the two rules bracket the hints, and one running
+                        edge-to-edge while the other stopped at the cards read as a mistake. */}
+                    <div className="border-t border-border" />
+                    <HintLadder versionId={versionId} disabled={revealed} />
+                    <GiveUpControl
+                      versionId={versionId}
+                      activeMs={activeTime.activeMs}
+                      baselineItemId={baselineItemId}
+                      disabled={revealed}
+                      onGaveUp={(result) => {
+                        setGaveUpResult(result);
+                        void queryClient.invalidateQueries({ queryKey: ["problem", versionId] });
+                        void queryClient.invalidateQueries({ queryKey: ["hints", versionId] });
+                      }}
+                    />
+                    {gaveUpResult && (
+                      <Panel className="space-y-3 p-4">
+                        <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">Solution</h3>
+                        <SolutionPane editorialMd={gaveUpResult.editorial_md} solutions={gaveUpResult.solutions} />
+                      </Panel>
+                    )}
+                  </div>
                 </div>
               ) : (
-                <div {...tabPanelProps("problem-left", "hints")} className="space-y-5 p-5">
-                  <HintLadder versionId={versionId} disabled={revealed} />
-                  <GiveUpControl
-                    versionId={versionId}
-                    activeMs={activeTime.activeMs}
-                    baselineItemId={baselineItemId}
-                    disabled={revealed}
-                    onGaveUp={(result) => {
-                      setGaveUpResult(result);
-                      void queryClient.invalidateQueries({ queryKey: ["problem", versionId] });
-                      void queryClient.invalidateQueries({ queryKey: ["hints", versionId] });
-                    }}
+                <div {...tabPanelProps("problem-left", "submissions")}>
+                  <SubmissionsPanel
+                    problem={problem}
+                    submissions={submissionsQuery.data?.submissions ?? []}
+                    selectedId={selectedSubmissionId}
+                    onSelect={setSelectedSubmissionId}
+                    loading={submissionsQuery.isLoading}
                   />
-                  {gaveUpResult && (
-                    <Panel className="space-y-3 p-4">
-                      <div className="flex items-center gap-2">
-                        <Badge tone="error">gave up</Badge>
-                        <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">Editorial</h3>
-                      </div>
-                      <Markdown>{gaveUpResult.editorial_md}</Markdown>
-                      {gaveUpResult.mastery_change && (
-                        <MasteryDelta
-                          changes={gaveUpResult.mastery_change.changes}
-                          outcome={gaveUpResult.mastery_change.outcome}
-                          explanation={gaveUpResult.mastery_change.explanation}
-                          conceptNames={namesById}
-                        />
-                      )}
-                    </Panel>
-                  )}
                 </div>
               )}
             </div>
@@ -279,14 +400,11 @@ export function Problem() {
             <div className="flex h-full min-h-0 flex-col">
               <ActionBar
                 language={language}
-                onLanguageChange={setLanguage}
+                onLanguageChange={handleLanguageChange}
                 onRun={() => triggerSubmit({ mode: "run" })}
                 onSubmit={() => triggerSubmit({ mode: "submit" })}
-                running={runPending}
-                submitting={submitPending}
-                activeMs={activeTime.activeMs}
-                timerHidden={timerHidden}
-                onToggleTimer={() => setTimerHidden((h) => !h)}
+                running={runBusy}
+                submitting={submitBusy}
               />
               {submitMutation.isError && (
                 <div className="flex items-center justify-between gap-3 border-b border-verdict-error bg-verdict-error-dim px-4 py-1.5 text-xs text-text">
@@ -298,32 +416,20 @@ export function Problem() {
                   </button>
                 </div>
               )}
+              {events.connectionState === "reconnecting" && (
+                <div className="border-b border-verdict-warn bg-verdict-warn-dim px-4 py-1.5 text-xs text-text">
+                  Lost the connection to the judge — reconnecting. Your submission is still running.
+                </div>
+              )}
               <div className="min-h-0 flex-1">
                 <EditorPane language={language} value={source} onChange={handleSourceChange} />
               </div>
-              {/* One panel, not a Result tab beside a Testcase tab: the cases ARE the result.
-                  Each one carries its own mark once a run lands, and the summary above it only
-                  adds what a per-case mark cannot say — the verdict, the timings, and how the
-                  hidden suite went. */}
+              {/* Just the cases — the cases ARE the result. No lifecycle narration (queued,
+                  assigned to a worker, compiling, N/M passed): the Run/Submit button carries the
+                  in-flight state, and everything a finished submit has to say lives in the
+                  Submissions tab, which the user is taken to as soon as one lands. */}
               <div className="max-h-[45%] min-h-[180px] overflow-y-auto border-t border-border">
-                <ResultsPanel
-                  mode={activeMode}
-                  status={events.status}
-                  progress={events.progress}
-                  verdict={events.verdict}
-                  connectionState={events.connectionState}
-                />
-                <TestCasePanel problem={problem} results={events.verdict?.public_results} />
-                {events.mastery && (
-                  <div className="px-4 pb-4">
-                    <MasteryDelta
-                      changes={events.mastery.changes}
-                      outcome={events.mastery.outcome}
-                      explanation={events.mastery.explanation}
-                      conceptNames={namesById}
-                    />
-                  </div>
-                )}
+                <TestCasePanel problem={problem} results={shownResults} />
               </div>
             </div>
           }

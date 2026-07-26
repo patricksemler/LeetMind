@@ -6,6 +6,7 @@ import {
   getBaselineItem,
   insertSubmission,
   listHintEvents,
+  listSubmissionsForVersion,
   notify,
   queryOne,
   withTransaction,
@@ -18,6 +19,12 @@ import { sha256Hex } from "../lib/hash.js";
 import { buildReveal, sanitizeFailure, toSafeSubmission } from "../mappers/submission.js";
 import { requireId } from "../server.js";
 import { notifyBus } from "../sse.js";
+
+/** How many past attempts this route returns. The tab renders the newest five JUDGED ones
+ * (`HISTORY_SHOWN`, apps/web) — this is deliberately a few more, so in-flight attempts, which the
+ * tab filters out, can't push judged ones out of those five. Rows carry the full submitted source,
+ * so fetching a long tail nobody renders is pure weight on every tab open. */
+const SUBMISSION_HISTORY_LIMIT = 10;
 
 /** `practice` labels submit-mode submissions created AFTER a recorded give-up on the version.
  * The ordering check matters: a give-up must not retroactively relabel earlier submissions that
@@ -201,6 +208,33 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
       const versionId = requireId(request.params.versionId, "versionId");
       const row = await getLatestSubmission(userId, versionId);
       reply.send({ submission: row ? await enrichSubmission(userId, row) : null });
+    },
+  );
+
+  // GET /api/problems/:versionId/submissions — the attempt history behind the workspace's
+  // Submissions tab. Submit-mode only (see `listSubmissionsForVersion`), newest first, capped:
+  // the tab shows a history, not an audit log, and an unbounded list is a slow query waiting to
+  // happen on a problem someone has hammered.
+  fastify.get<{ Params: { versionId: string } }>(
+    "/api/problems/:versionId/submissions",
+    async (request, reply) => {
+      const userId = request.userId;
+      const versionId = requireId(request.params.versionId, "versionId");
+      const rows = await listSubmissionsForVersion(userId, versionId, SUBMISSION_HISTORY_LIMIT);
+      // `enrichSubmission` per row would re-run the reveal lookup once per submission; the reveal
+      // is a property of the PROBLEM VERSION, not of an individual attempt, so it is resolved once
+      // and attached to whichever rows earned it.
+      const [reveal, practice] = await Promise.all([
+        buildReveal(userId, versionId),
+        Promise.all(rows.map((row) => isPracticeSubmission(userId, row))),
+      ]);
+      reply.send({
+        submissions: rows.map((row, i) => ({
+          ...toSafeSubmission(row),
+          ...(reveal && row.verdict === "accepted" ? { reveal } : {}),
+          ...(practice[i] ? { practice: true } : {}),
+        })),
+      });
     },
   );
 

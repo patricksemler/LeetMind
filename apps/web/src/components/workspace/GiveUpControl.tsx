@@ -1,8 +1,11 @@
 /**
  * Give-up is deliberately separated from the hint ladder, visually and behaviorally: it's a
- * single irreversible action (score floors at 0%, docs/CONTRACTS.md §8) that reveals the
- * editorial and the concept tags. Confirm-gated like every hint rung, but styled as a distinct,
+ * single irreversible action (score floors at 0% server-side, docs/CONTRACTS.md §8) that reveals
+ * the solution and the concept tags. Confirm-gated like every hint rung, but styled as a distinct,
  * quieter "last resort" rather than another rung on the ladder.
+ *
+ * The button says what the user gets ("See Solution"), not what the system records. The scoring
+ * consequence still happens — it just isn't narrated in this UI.
  */
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -35,17 +38,17 @@ export function GiveUpControl({
 
   return (
     <div className="border-t border-border pt-4">
-      <p className="mb-2 text-xs text-text-faint">Completely stuck? This ends the attempt and shows the solution.</p>
-      <Button variant="danger" size="sm" onClick={() => setOpen(true)} disabled={disabled}>
-        Give up &amp; show editorial
+      {/* Full-width and red: the button itself is the warning, so it needs no explanatory line
+          above it. The confirm dialog is still where the consequence gets spelled out. */}
+      <Button variant="danger" className="w-full" onClick={() => setOpen(true)} disabled={disabled}>
+        See Solution
       </Button>
 
-      <Dialog open={open} onClose={() => setOpen(false)} title="Give up on this problem?">
+      <Dialog open={open} onClose={() => setOpen(false)} title="See the solution?">
         <div className="space-y-3 text-sm text-text-dim">
           <p>
-            This reveals the <strong className="text-text">editorial</strong> and the{" "}
-            <strong className="text-text">concept tags</strong>, and permanently scores this attempt at{" "}
-            <strong className="text-verdict-error">0%</strong>. There's no undo.
+            This ends the attempt and reveals the <strong className="text-text">solution</strong> and the{" "}
+            <strong className="text-text">concept tags</strong>. There's no undo.
           </p>
         </div>
         {mutation.isError && (
@@ -58,7 +61,7 @@ export function GiveUpControl({
             Keep trying
           </Button>
           <Button variant="danger" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending ? "Giving up…" : "Give up"}
+            {mutation.isPending ? "Revealing…" : "See Solution"}
           </Button>
         </div>
       </Dialog>

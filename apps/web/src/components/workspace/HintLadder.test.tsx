@@ -22,14 +22,16 @@ const HINT_TEXT: Record<HintLevel, string> = {
   editorial: "## Approach\n...",
 };
 
-function makeStatefulApi() {
-  let taken: HintLevel[] = [];
+function makeStatefulApi(initialTaken: HintLevel[] = []) {
+  let taken: HintLevel[] = [...initialTaken];
   const LADDER: HintLevel[] = ["l1_orientation", "l2_conceptual", "l3_structural", "outline"];
 
   vi.mocked(api.getHints).mockImplementation(async () => ({
     taken: [...taken],
     available: LADDER.filter((l) => !taken.includes(l)),
     penalties: { l1_orientation: 0.9, l2_conceptual: 0.75, l3_structural: 0.6, outline: 0.4, editorial: 0 },
+    // The server hands back the text of rungs already paid for, so the ladder redraws from one read.
+    texts: Object.fromEntries(taken.map((l) => [l, HINT_TEXT[l]])),
   }));
 
   vi.mocked(api.takeHint).mockImplementation(async ({ level }) => {
@@ -49,7 +51,97 @@ beforeEach(() => {
 });
 
 describe("HintLadder", () => {
-  it("shows the penalty cap before a hint is taken, and does not take it without explicit confirm", async () => {
+  it("numbers the rungs and never surfaces the scoring penalty the server applies", async () => {
+    render(
+      <Providers>
+        <HintLadder versionId="v1" />
+      </Providers>,
+    );
+
+    expect(await screen.findByText("Hint #1")).toBeInTheDocument();
+    expect(screen.getByText("Hint #4")).toBeInTheDocument();
+    expect(screen.queryByText(/L1 —|Orientation|Outline/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/caps score/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/90%/)).not.toBeInTheDocument();
+  });
+
+  it("renders hints taken in an earlier session straight from the read, taking nothing again", async () => {
+    makeStatefulApi(["l1_orientation", "l2_conceptual"]);
+    render(
+      <Providers>
+        <HintLadder versionId="v1" />
+      </Providers>,
+    );
+
+    expect(await screen.findByText(HINT_TEXT.l1_orientation)).toBeInTheDocument();
+    expect(screen.getByText(HINT_TEXT.l2_conceptual)).toBeInTheDocument();
+    // No "Loading…" pass, and above all no re-POST per rung: revisiting a problem is a read.
+    expect(screen.queryByText(/loading…/i)).not.toBeInTheDocument();
+    expect(api.takeHint).not.toHaveBeenCalled();
+  });
+
+  it("recovers the text when the server reports a rung as taken but sends none", async () => {
+    // What an API older than the `texts` field returns. Without a fallback the rung is stuck on
+    // "Loading…" with nothing on the way to replace it.
+    vi.mocked(api.getHints).mockResolvedValue({
+      taken: ["l1_orientation", "l2_conceptual"],
+      available: ["l3_structural"],
+      penalties: { l1_orientation: 0.9, l2_conceptual: 0.75, l3_structural: 0.6, outline: 0.4, editorial: 0 },
+      texts: {},
+    });
+
+    render(
+      <Providers>
+        <HintLadder versionId="v1" />
+      </Providers>,
+    );
+
+    expect(await screen.findByText(HINT_TEXT.l1_orientation)).toBeInTheDocument();
+    expect(screen.getByText(HINT_TEXT.l2_conceptual)).toBeInTheDocument();
+    expect(screen.queryByText(/loading…/i)).not.toBeInTheDocument();
+  });
+
+  it("never draws one problem's revealed hint against another problem's ladder", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <Providers>
+        <HintLadder versionId="v1" />
+      </Providers>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: /^reveal$/i }));
+    const dialog = screen.getByRole("dialog", { name: /take this hint/i });
+    await user.click(within(dialog).getByRole("button", { name: /^take hint$/i }));
+    expect(await screen.findByText(HINT_TEXT.l1_orientation)).toBeInTheDocument();
+
+    // Moving to the next problem re-renders this same component rather than remounting it, so the
+    // text revealed a moment ago is still in state — it must not be shown against the new ladder.
+    makeStatefulApi();
+    rerender(
+      <Providers>
+        <HintLadder versionId="v2" />
+      </Providers>,
+    );
+
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /^reveal$/i })).toHaveLength(1));
+    expect(screen.queryByText(HINT_TEXT.l1_orientation)).not.toBeInTheDocument();
+  });
+
+  it("offers no Reveal until the server has said which rungs are taken", async () => {
+    // A ladder that assumes "nothing taken" while the fetch is in flight shows a live Reveal on a
+    // rung the user already paid for, then swaps it for hint text — the flicker, held still here.
+    vi.mocked(api.getHints).mockReturnValue(new Promise(() => {}));
+    render(
+      <Providers>
+        <HintLadder versionId="v1" />
+      </Providers>,
+    );
+
+    expect(await screen.findByText("Hint #1")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^reveal$/i })).not.toBeInTheDocument();
+  });
+
+  it("does not take a hint without an explicit confirm", async () => {
     const user = userEvent.setup();
     render(
       <Providers>
@@ -57,13 +149,12 @@ describe("HintLadder", () => {
       </Providers>,
     );
 
-    const revealButton = await screen.findByRole("button", { name: /reveal this hint/i });
-    expect(screen.getByText(/caps score at 90%/i)).toBeInTheDocument();
+    const revealButton = await screen.findByRole("button", { name: /^reveal$/i });
     expect(api.takeHint).not.toHaveBeenCalled();
 
     await user.click(revealButton);
     const dialog = screen.getByRole("dialog", { name: /take this hint/i });
-    expect(within(dialog).getByText(/90%/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Hint #1/)).toBeInTheDocument();
     expect(api.takeHint).not.toHaveBeenCalled(); // still not taken — confirm hasn't happened yet
 
     await user.click(within(dialog).getByRole("button", { name: /^take hint$/i }));
@@ -80,16 +171,16 @@ describe("HintLadder", () => {
       </Providers>,
     );
 
-    await user.click(await screen.findByRole("button", { name: /reveal this hint/i }));
+    await user.click(await screen.findByRole("button", { name: /^reveal$/i }));
     const dialog1 = screen.getByRole("dialog", { name: /take this hint/i });
     await user.click(within(dialog1).getByRole("button", { name: /^take hint$/i }));
     await screen.findByText(HINT_TEXT.l1_orientation);
 
     // L2 is now the available rung
-    const l2Reveal = await screen.findByRole("button", { name: /reveal this hint/i });
+    const l2Reveal = await screen.findByRole("button", { name: /^reveal$/i });
     await user.click(l2Reveal);
     const dialog2 = screen.getByRole("dialog", { name: /take this hint/i });
-    expect(within(dialog2).getByText(/75%/)).toBeInTheDocument();
+    expect(within(dialog2).getByText(/Hint #2/)).toBeInTheDocument();
     await user.click(within(dialog2).getByRole("button", { name: /^take hint$/i }));
 
     expect(await screen.findByText(HINT_TEXT.l2_conceptual)).toBeInTheDocument();
@@ -98,7 +189,30 @@ describe("HintLadder", () => {
     expect(api.takeHint).toHaveBeenCalledTimes(2);
   });
 
-  it("shows a pending label on the reveal button while the take is in flight, not just a disabled 'Reveal this hint'", async () => {
+  it("shows the revealed hint without waiting on the hints refetch", async () => {
+    const user = userEvent.setup();
+    render(
+      <Providers>
+        <HintLadder versionId="v1" />
+      </Providers>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: /^reveal$/i }));
+    // From here the refetch that `onSuccess` kicks off never lands, so anything keyed on the
+    // server's `taken` stays stale for the rest of the test — the flicker, held still. The rung
+    // used to drop back to an un-taken "Reveal" for exactly this window.
+    vi.mocked(api.getHints).mockReturnValue(new Promise(() => {}));
+    const dialog = screen.getByRole("dialog", { name: /take this hint/i });
+    await user.click(within(dialog).getByRole("button", { name: /^take hint$/i }));
+
+    expect(await screen.findByText(HINT_TEXT.l1_orientation)).toBeInTheDocument();
+    // …and the ladder has moved on: the only "Reveal" left belongs to rung 2, not to the one just
+    // taken. Asserted through the dialog because that's what names the rung.
+    await user.click(screen.getByRole("button", { name: /^reveal$/i }));
+    expect(within(screen.getByRole("dialog", { name: /take this hint/i })).getByText(/Hint #2/)).toBeInTheDocument();
+  });
+
+  it("shows a pending label on the reveal button while the take is in flight, not just a disabled 'Reveal'", async () => {
     const user = userEvent.setup();
     // One-time override (not the stateful mock from makeStatefulApi) so this take never resolves
     // until the test says so — enough to observe the pending label without needing the mocked
@@ -112,13 +226,13 @@ describe("HintLadder", () => {
       </Providers>,
     );
 
-    await user.click(await screen.findByRole("button", { name: /reveal this hint/i }));
+    await user.click(await screen.findByRole("button", { name: /^reveal$/i }));
     const dialog = screen.getByRole("dialog", { name: /take this hint/i });
     await user.click(within(dialog).getByRole("button", { name: /^take hint$/i }));
 
     const pendingButton = await screen.findByRole("button", { name: /revealing…/i });
     expect(pendingButton).toBeDisabled();
-    expect(screen.queryByRole("button", { name: /^reveal this hint$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^reveal$/i })).not.toBeInTheDocument();
 
     resolveTake({ level: "l1_orientation", text: HINT_TEXT.l1_orientation, penalty_cap: 0.9, next_level_penalty: 0.75 });
     await waitFor(() => expect(screen.queryByRole("button", { name: /revealing…/i })).not.toBeInTheDocument());
