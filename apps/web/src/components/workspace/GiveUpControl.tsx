@@ -1,70 +1,56 @@
 /**
  * Give-up is deliberately separated from the hint ladder, visually and behaviorally: it's a
  * single irreversible action (score floors at 0% server-side, docs/CONTRACTS.md §8) that reveals
- * the solution and the concept tags. Confirm-gated like every hint rung, but styled as a distinct,
- * quieter "last resort" rather than another rung on the ladder.
+ * the solution and the concept tags. Styled as a distinct, quieter "last resort" rather than
+ * another rung on the ladder.
+ *
+ * One click reveals — no confirm dialog. The separation, the red, and the label carry the weight
+ * instead: nobody clicks a full-width red "See Solution" by accident, and the dialog's text said
+ * nothing the button didn't. It IS irreversible, so this trades a safety net for directness.
+ *
+ * The caller unmounts this entirely once the solution is up: a permanently disabled button offering
+ * something the user is already looking at is just clutter under the thing it would have produced.
  *
  * The button says what the user gets ("See Solution"), not what the system records. The scoring
  * consequence still happens — it just isn't narrated in this UI.
  */
-import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { GiveUpResponse } from "@leetmind/shared";
 import { api } from "../../lib/api";
-import { Button, Dialog } from "../ui";
+import { Button } from "../ui";
 
 export function GiveUpControl({
   versionId,
   activeMs,
   baselineItemId,
-  disabled,
   onGaveUp,
 }: {
   versionId: string;
   activeMs: number;
   baselineItemId?: string;
-  disabled?: boolean;
   onGaveUp: (result: GiveUpResponse) => void;
 }) {
-  const [open, setOpen] = useState(false);
-
   const mutation = useMutation({
     mutationFn: () => api.giveUp(versionId, { baseline_item_id: baselineItemId, active_ms: activeMs }),
-    onSuccess: (res) => {
-      setOpen(false);
-      onGaveUp(res);
-    },
+    onSuccess: onGaveUp,
   });
 
   return (
-    <div className="border-t border-border pt-4">
+    <div>
       {/* Full-width and red: the button itself is the warning, so it needs no explanatory line
-          above it. The confirm dialog is still where the consequence gets spelled out. */}
-      <Button variant="danger" className="w-full" onClick={() => setOpen(true)} disabled={disabled}>
-        See Solution
+          above it. The rule that separates it from the hints belongs to the column, not to this
+          component — once the solution is up, the button is gone and the rule stays. */}
+      <Button variant="danger" className="w-full" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+        {mutation.isPending ? "Revealing…" : "See Solution"}
       </Button>
 
-      <Dialog open={open} onClose={() => setOpen(false)} title="See the solution?">
-        <div className="space-y-3 text-sm text-text-dim">
-          <p>
-            This ends the attempt and reveals the <strong className="text-text">solution</strong> and the{" "}
-            <strong className="text-text">concept tags</strong>. There's no undo.
-          </p>
-        </div>
-        {mutation.isError && (
-          <p className="mt-3 text-sm text-verdict-error">
-            {mutation.error instanceof Error ? mutation.error.message : "Couldn't give up on this problem."}
-          </p>
-        )}
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setOpen(false)}>
-            Keep trying
-          </Button>
-          <Button variant="danger" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending ? "Revealing…" : "See Solution"}
-          </Button>
-        </div>
-      </Dialog>
+      {/* The failure has to land here now that there's no dialog to hold it — otherwise a give-up
+          that errored out would look like a click that simply did nothing. */}
+      {mutation.isError && (
+        <p className="mt-2 text-sm text-verdict-error">
+          {mutation.error instanceof Error ? mutation.error.message : "Couldn't give up on this problem."}
+        </p>
+      )}
     </div>
   );
 }

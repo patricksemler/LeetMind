@@ -51,7 +51,10 @@ export function Problem() {
   // after the problem has landed, so a fetch started there is a round trip that begins once the page
   // is already on screen — the taken hints then dropped in visibly late on every visit. Same query
   // key as the ladder's own `useHints`, so this is one shared request, not a second one.
-  useHints(versionId);
+  const hintsQuery = useHints(versionId);
+
+  /** Whether a give-up is already on record for this version — what survives a reload. */
+  const gaveUpEarlier = hintsQuery.data?.taken.includes("editorial") ?? false;
 
   const [leftTab, setLeftTab] = useState<LeftTab>("problem");
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
@@ -63,6 +66,24 @@ export function Problem() {
   const [createdSubmissionId, setCreatedSubmissionId] = useState<string | null>(null);
   const [activeMode, setActiveMode] = useState<SubmissionMode | null>(null);
   const [gaveUpResult, setGaveUpResult] = useState<GiveUpResponse | null>(null);
+
+  // A give-up is recorded server-side, but `POST .../give-up` hands the editorial and solutions over
+  // exactly once — so a reload came back with the give-up still in force (controls disabled,
+  // concepts revealed) and no solution anywhere on screen. Read it back instead.
+  //
+  // Gated on the editorial rung being taken, which is what a give-up records: an accepted SOLVE also
+  // earns the reveal server-side, and fetching on that would drop the solution under the statement
+  // of a problem the user just solved themselves — that reveal belongs to the verdict panel.
+  // `!gaveUpResult` because a give-up in THIS session already returned this exact payload.
+  const revealQuery = useQuery({
+    queryKey: ["reveal", versionId],
+    queryFn: () => api.getReveal(versionId!),
+    enabled: !!versionId && gaveUpEarlier && !gaveUpResult,
+    staleTime: Infinity, // Immutable once earned — nothing about it can change while the page is open.
+    // A 404 here means "not earned", which no amount of retrying will change; the default 3 retries
+    // just fired the same rejected request four times over.
+    retry: false,
+  });
 
   // Measurement only — nothing displays it any more. `active_ms` still rides along on every
   // submission and on a give-up, where it's what the difficulty model reads, so the hook stays.
@@ -314,30 +335,21 @@ export function Problem() {
   }
 
   const revealed = problem.concepts_revealed !== null || !!gaveUpResult;
+  // The solution to show under the statement: this session's give-up response, or — after a reload —
+  // the same payload read back from the reveal endpoint.
+  const solution = gaveUpResult ?? revealQuery.data ?? null;
   // A verdict (or a give-up) turns this page into a dead end otherwise: the workspace has nothing
   // left to do and nothing on it routes onward. In the baseline that means back to the remaining
-  // probes; in practice it means straight to the next problem, which is the loop.
-  const finished = solved || !!gaveUpResult;
+  // probes; in practice it means straight to the next problem, which is the loop. `gaveUpEarlier`
+  // covers the reload: the attempt is just as over as it was before the refresh.
+  const finished = solved || !!gaveUpResult || gaveUpEarlier;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* No standing "← Back to practice" strip: the nav bar's own Practice link already goes back,
-          and a second one spent a full row of vertical space above the workspace on every problem.
-          The bar exists only once the attempt is finished, to carry the onward step. */}
-      {finished && (
-        <div className="flex shrink-0 items-center justify-end gap-3 border-b border-border px-4 py-1.5">
-          <Link
-            to={baselineItemId ? "/baseline" : "/"}
-            className={buttonClassName({ variant: "primary", size: "sm" })}
-          >
-            {baselineItemId ? "Next baseline question" : "Next problem"}
-          </Link>
-        </div>
-      )}
       <div className="min-h-0 flex-1">
         <SplitPane
           storageKey="workspace-split"
-          left={
+          first={
             <div className="flex h-full min-h-0 flex-col">
               <Tabs
                 id="problem-left"
@@ -348,37 +360,68 @@ export function Problem() {
                 active={leftTab}
                 onChange={(id) => setLeftTab(id as LeftTab)}
                 className="sticky top-0 z-10 bg-bg px-2"
+                // The onward step rides in the tab row rather than in a strip of its own above the
+                // workspace. Two reasons, and the second is why it moved: a standing strip cost a
+                // full row on every problem, and a strip that appears only when the attempt ends
+                // shoved the entire workspace — statement, editor, test panel — down 41px at the
+                // exact moment the solution arrived. The row is already there and doesn't grow.
+                trailing={
+                  finished ? (
+                    <Link
+                      to={baselineItemId ? "/baseline" : "/"}
+                      className={buttonClassName({ variant: "primary", size: "sm" })}
+                    >
+                      {baselineItemId ? "Next baseline question" : "Next problem"}
+                    </Link>
+                  ) : null
+                }
               />
               {leftTab === "problem" ? (
                 <div {...tabPanelProps("problem-left", "problem")}>
-                  <StatementPane problem={problem} />
                   {/* Hints and the solution sit UNDER the statement rather than behind their own
                       tab: they're read against the problem, and a tab put them somewhere you had to
                       remember to go — while taking the statement off screen once you got there. The
                       rule out of docs/CONTRACTS.md §8/§12 that matters is unchanged by the move:
-                      every rung still needs an explicit confirm, and the solution is still only
-                      reachable through the give-up flow. */}
-                  <div className="space-y-5 p-5">
-                    {/* Inset rather than a border on the padded box itself, so it lines up with the
-                        give-up divider below it — the two rules bracket the hints, and one running
-                        edge-to-edge while the other stopped at the cards read as a mistake. */}
-                    <div className="border-t border-border" />
-                    <HintLadder versionId={versionId} disabled={revealed} />
-                    <GiveUpControl
-                      versionId={versionId}
-                      activeMs={activeTime.activeMs}
-                      baselineItemId={baselineItemId}
-                      disabled={revealed}
-                      onGaveUp={(result) => {
-                        setGaveUpResult(result);
-                        void queryClient.invalidateQueries({ queryKey: ["problem", versionId] });
-                        void queryClient.invalidateQueries({ queryKey: ["hints", versionId] });
-                      }}
-                    />
-                    {gaveUpResult && (
+                      the solution is still reachable only through the give-up flow, which still
+                      records the give-up and floors the score server-side.
+
+                      One padded, evenly-spaced column holding the statement's sections AND these —
+                      hence `StatementPane` contributing no padding of its own. As two padded
+                      siblings, the seam between them was a section gap plus both paddings, and
+                      "Hints" read as further from the statement than any section was from the
+                      next. */}
+                  <div className="space-y-6 p-5">
+                    <StatementPane problem={problem} />
+                    {/* A named section rather than the bare rule that used to sit here: the rule
+                        said "something else starts below" without saying what, so the ladder read
+                        as an unlabeled appendix to the statement. The heading matches the
+                        statement's own section headings, which is what makes the two read as one
+                        continuous document. */}
+                    <section className="space-y-3">
+                      <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">Hints</h3>
+                      <HintLadder versionId={versionId} disabled={revealed} />
+                    </section>
+                    {/* The rule between the hints and what follows them lives here rather than on
+                        the give-up button, so it sits in the column's own even rhythm — the same
+                        gap above it as below — and stays put when the button is replaced by the
+                        solution it produced. Drawn only when something actually follows it. */}
+                    {(!revealed || solution) && <div className="border-t border-border" />}
+                    {!revealed && (
+                      <GiveUpControl
+                        versionId={versionId}
+                        activeMs={activeTime.activeMs}
+                        baselineItemId={baselineItemId}
+                        onGaveUp={(result) => {
+                          setGaveUpResult(result);
+                          void queryClient.invalidateQueries({ queryKey: ["problem", versionId] });
+                          void queryClient.invalidateQueries({ queryKey: ["hints", versionId] });
+                        }}
+                      />
+                    )}
+                    {solution && (
                       <Panel className="space-y-3 p-4">
                         <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">Solution</h3>
-                        <SolutionPane editorialMd={gaveUpResult.editorial_md} solutions={gaveUpResult.solutions} />
+                        <SolutionPane editorialMd={solution.editorial_md} solutions={solution.solutions} />
                       </Panel>
                     )}
                   </div>
@@ -396,7 +439,7 @@ export function Problem() {
               )}
             </div>
           }
-          right={
+          second={
             <div className="flex h-full min-h-0 flex-col">
               <ActionBar
                 language={language}
@@ -421,15 +464,23 @@ export function Problem() {
                   Lost the connection to the judge — reconnecting. Your submission is still running.
                 </div>
               )}
-              <div className="min-h-0 flex-1">
-                <EditorPane language={language} value={source} onChange={handleSourceChange} />
-              </div>
-              {/* Just the cases — the cases ARE the result. No lifecycle narration (queued,
+              {/* Editor over cases, on the same kind of divider as the one between the columns —
+                  how much room the cases get is as personal as how wide the statement is, and it was
+                  the one edge in the workspace that couldn't be moved.
+                  Just the cases — the cases ARE the result. No lifecycle narration (queued,
                   assigned to a worker, compiling, N/M passed): the Run/Submit button carries the
                   in-flight state, and everything a finished submit has to say lives in the
                   Submissions tab, which the user is taken to as soon as one lands. */}
-              <div className="max-h-[45%] min-h-[180px] overflow-y-auto border-t border-border">
-                <TestCasePanel problem={problem} results={shownResults} />
+              <div className="min-h-0 flex-1">
+                <SplitPane
+                  orientation="vertical"
+                  storageKey="workspace-split-cases"
+                  initialFirstPct={62}
+                  minFirstPct={25}
+                  maxFirstPct={85}
+                  first={<EditorPane language={language} value={source} onChange={handleSourceChange} />}
+                  second={<TestCasePanel problem={problem} results={shownResults} />}
+                />
               </div>
             </div>
           }

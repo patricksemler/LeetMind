@@ -286,8 +286,11 @@ export const TestCaseSchema = z.object({
 
 **`PublicProblem`** is the ONLY problem shape the API may serialize to a client:
 `{ problem_version_id, problem_id, version, title, statement_md, constraints_md, signature,
-   examples, difficulty_rating, expected_active_minutes, comparator, starter_code: {python, cpp},
+   examples, difficulty_rating, expected_active_minutes, target_complexity: {time, space},
+   comparator, starter_code: {python, cpp},
    hint_levels_available: string[], concepts_revealed: null | Concept[] }`
+`target_complexity` is public **before** the solve — it's shown in the statement as the bar to aim
+for, and states how good a solution must be without hinting at what achieves it.
 `concepts_revealed` is `null` until the user solves or gives up. There is a single exported
 function `toPublicProblem(row)` in `@leetmind/shared` and **nothing else may build this object.**
 
@@ -662,6 +665,7 @@ All routes are JSON, prefix `/api`, and every response carries `x-correlation-id
 | GET | `/health` | | `{ ok, version, db: 'up'|'down' }` |
 | GET | `/api/problems/next` | `?concept=&rating=` | `{ problem: PublicProblem, rationale: string, evidence: object }` |
 | GET | `/api/problems/:versionId` | | `{ problem: PublicProblem }` |
+| GET | `/api/problems/:versionId/reveal` | | `Reveal` (§4.5) once earned — 404 until then |
 | POST | `/api/submissions` | `{ problem_version_id, language, source, mode, baseline_item_id?, active_ms? }` | `{ submission_id, status }` |
 | GET | `/api/submissions/:id` | | `{ submission }` (safe projection) |
 | GET | `/api/submissions/:id/events` | | SSE |

@@ -21,6 +21,7 @@ import {
   NextPracticeProblemResponse,
   NextProblemResponse,
   ProgressResponse,
+  RevealSchema,
   SkipBaselineItemResponse,
   StartBaselineItemResponse,
   StartBaselineResponse,
@@ -146,6 +147,10 @@ export const api = {
 
   giveUp: (versionId: string, body: GiveUpRequest) =>
     postJson(`/api/problems/${versionId}/give-up`, body, GiveUpResponse),
+
+  /** The reveal already earned on this version. 404s when it hasn't been — callers must only ask
+   * once they know it has (a recorded give-up, or an accepted solve). */
+  getReveal: (versionId: string) => request(`/api/problems/${versionId}/reveal`, RevealSchema),
 
   progress: () => request("/api/progress", ProgressResponse),
 

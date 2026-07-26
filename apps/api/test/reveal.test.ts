@@ -125,6 +125,29 @@ describe.skipIf(!dbReachable)("post-solve reveal", () => {
     expect(JSON.parse(res.body).submission.reveal).toBeDefined();
   });
 
+  // GET /api/problems/:versionId/reveal — the same payload, addressable on its own so the workspace
+  // can restore the solution after a reload (the give-up POST hands it over exactly once).
+  it("is a 404 on GET /api/problems/:versionId/reveal until it has been earned, then the full payload", async () => {
+    const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
+    problemVersionIds.push(seeded.problemVersionId);
+    problemIds.push(seeded.problemId);
+
+    const before = await server.inject({ method: "GET", url: `/api/problems/${seeded.problemVersionId}/reveal` });
+    expect(before.statusCode).toBe(404);
+    // Nothing of the reveal may ride along on the refusal.
+    expect(before.body).not.toContain(seeded.sentinels.editorialText);
+
+    await server.inject({ method: "POST", url: `/api/problems/${seeded.problemVersionId}/give-up`, payload: {} });
+
+    const after = await server.inject({ method: "GET", url: `/api/problems/${seeded.problemVersionId}/reveal` });
+    expect(after.statusCode).toBe(200);
+    const reveal = JSON.parse(after.body);
+    expect(reveal.editorial_md).toContain(seeded.sentinels.editorialText);
+    expect(reveal.solutions.python).toBe(seeded.content.reference_solution_py);
+    expect(reveal.target_complexity).toEqual(seeded.content.target_complexity);
+    expect(reveal.concepts[0].name).toBe("Arrays & Hashing");
+  });
+
   it("appears on the SSE catch-up verdict event for an already-terminal accepted submission", async () => {
     const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
     problemVersionIds.push(seeded.problemVersionId);

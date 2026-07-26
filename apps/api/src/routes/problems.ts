@@ -10,6 +10,7 @@ import { NextProblemQuery, notFound } from "@leetmind/shared";
 import { selectNext, targetBand, type CandidateProblem, type ConceptState } from "@leetmind/learner";
 import type { Deps } from "../deps.js";
 import { buildPublicProblem, type PublicProblemWithNames } from "../mappers/publicProblem.js";
+import { buildReveal } from "../mappers/submission.js";
 import { requireId } from "../server.js";
 
 const DEFAULT_RATING = 1200;
@@ -149,5 +150,21 @@ export function registerProblemRoutes(fastify: FastifyInstance, _deps: Deps): vo
 
     const problem: PublicProblemWithNames = await buildPublicProblem(versionRow, userId);
     reply.send({ problem });
+  });
+
+  /**
+   * The reveal this user has ALREADY earned on this version — same allowlisted payload, same
+   * earned-ness rule (`buildReveal`), just addressable on its own. `POST .../give-up` hands the
+   * editorial and solutions over exactly once, so they lived only in the page's React state: a
+   * reload after giving up came back with the give-up recorded server-side (controls disabled,
+   * concepts revealed) and no solution anywhere on screen. Nothing here is reachable that the
+   * verdict/give-up payloads didn't already carry — un-earned is a 404.
+   */
+  fastify.get<{ Params: { versionId: string } }>("/api/problems/:versionId/reveal", async (request, reply) => {
+    const userId = request.userId;
+    const versionId = requireId(request.params.versionId, "versionId");
+    const reveal = await buildReveal(userId, versionId);
+    if (!reveal) throw notFound("No reveal earned for this problem version");
+    reply.send(reveal);
   });
 }

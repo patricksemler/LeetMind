@@ -110,8 +110,6 @@ describe("HintLadder", () => {
     );
 
     await user.click(await screen.findByRole("button", { name: /^reveal$/i }));
-    const dialog = screen.getByRole("dialog", { name: /take this hint/i });
-    await user.click(within(dialog).getByRole("button", { name: /^take hint$/i }));
     expect(await screen.findByText(HINT_TEXT.l1_orientation)).toBeInTheDocument();
 
     // Moving to the next problem re-renders this same component rather than remounting it, so the
@@ -141,7 +139,7 @@ describe("HintLadder", () => {
     expect(screen.queryByRole("button", { name: /^reveal$/i })).not.toBeInTheDocument();
   });
 
-  it("does not take a hint without an explicit confirm", async () => {
+  it("takes the hint on the click itself — no confirm step in between", async () => {
     const user = userEvent.setup();
     render(
       <Providers>
@@ -153,14 +151,10 @@ describe("HintLadder", () => {
     expect(api.takeHint).not.toHaveBeenCalled();
 
     await user.click(revealButton);
-    const dialog = screen.getByRole("dialog", { name: /take this hint/i });
-    expect(within(dialog).getByText(/Hint #1/)).toBeInTheDocument();
-    expect(api.takeHint).not.toHaveBeenCalled(); // still not taken — confirm hasn't happened yet
-
-    await user.click(within(dialog).getByRole("button", { name: /^take hint$/i }));
 
     expect(api.takeHint).toHaveBeenCalledWith({ problem_version_id: "v1", level: "l1_orientation" });
     expect(await screen.findByText(HINT_TEXT.l1_orientation)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("taking L2 leaves L1 visibly taken and marks both as taken", async () => {
@@ -172,17 +166,12 @@ describe("HintLadder", () => {
     );
 
     await user.click(await screen.findByRole("button", { name: /^reveal$/i }));
-    const dialog1 = screen.getByRole("dialog", { name: /take this hint/i });
-    await user.click(within(dialog1).getByRole("button", { name: /^take hint$/i }));
     await screen.findByText(HINT_TEXT.l1_orientation);
 
-    // L2 is now the available rung
-    const l2Reveal = await screen.findByRole("button", { name: /^reveal$/i });
-    await user.click(l2Reveal);
-    const dialog2 = screen.getByRole("dialog", { name: /take this hint/i });
-    expect(within(dialog2).getByText(/Hint #2/)).toBeInTheDocument();
-    await user.click(within(dialog2).getByRole("button", { name: /^take hint$/i }));
+    // L2 is now the available rung — the only Reveal left belongs to it.
+    await user.click(await screen.findByRole("button", { name: /^reveal$/i }));
 
+    expect(api.takeHint).toHaveBeenLastCalledWith({ problem_version_id: "v1", level: "l2_conceptual" });
     expect(await screen.findByText(HINT_TEXT.l2_conceptual)).toBeInTheDocument();
     // L1's text is still visible — taken hints stay visible
     expect(screen.getByText(HINT_TEXT.l1_orientation)).toBeInTheDocument();
@@ -197,19 +186,19 @@ describe("HintLadder", () => {
       </Providers>,
     );
 
-    await user.click(await screen.findByRole("button", { name: /^reveal$/i }));
+    const reveal = await screen.findByRole("button", { name: /^reveal$/i });
     // From here the refetch that `onSuccess` kicks off never lands, so anything keyed on the
     // server's `taken` stays stale for the rest of the test — the flicker, held still. The rung
     // used to drop back to an un-taken "Reveal" for exactly this window.
     vi.mocked(api.getHints).mockReturnValue(new Promise(() => {}));
-    const dialog = screen.getByRole("dialog", { name: /take this hint/i });
-    await user.click(within(dialog).getByRole("button", { name: /^take hint$/i }));
+    await user.click(reveal);
 
     expect(await screen.findByText(HINT_TEXT.l1_orientation)).toBeInTheDocument();
-    // …and the ladder has moved on: the only "Reveal" left belongs to rung 2, not to the one just
-    // taken. Asserted through the dialog because that's what names the rung.
-    await user.click(screen.getByRole("button", { name: /^reveal$/i }));
-    expect(within(screen.getByRole("dialog", { name: /take this hint/i })).getByText(/Hint #2/)).toBeInTheDocument();
+    // …and the ladder has moved on: the only "Reveal" left sits in rung 2's row, not the one just
+    // taken.
+    const rung2 = screen.getByText("Hint #2").closest("div")!;
+    expect(within(rung2).getByRole("button", { name: /^reveal$/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^reveal$/i })).toHaveLength(1);
   });
 
   it("shows a pending label on the reveal button while the take is in flight, not just a disabled 'Reveal'", async () => {
@@ -227,8 +216,6 @@ describe("HintLadder", () => {
     );
 
     await user.click(await screen.findByRole("button", { name: /^reveal$/i }));
-    const dialog = screen.getByRole("dialog", { name: /take this hint/i });
-    await user.click(within(dialog).getByRole("button", { name: /^take hint$/i }));
 
     const pendingButton = await screen.findByRole("button", { name: /revealing…/i });
     expect(pendingButton).toBeDisabled();

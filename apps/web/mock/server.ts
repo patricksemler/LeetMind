@@ -27,6 +27,7 @@ import {
 import { CONCEPT_EDGES, CONCEPTS } from "./fixtures/concepts.js";
 import { runLifecycle } from "./lifecycle.js";
 import { outcomeScore, updateConcepts } from "./mastery.js";
+import { buildMockReveal } from "./reveal.js";
 import { subscribe } from "./sse.js";
 import {
   bumpSubmissionCount,
@@ -215,6 +216,22 @@ app.get(
       revealConcepts: hasSolvedOrGivenUp(fixture.problemVersionId),
     });
     res.json({ problem });
+  }),
+);
+
+// --- GET /api/problems/:versionId/reveal -----------------------------------------------------
+// The reveal already earned on this version, so the workspace can restore the solution after a
+// reload instead of relying on the one-shot give-up response. Mirrors apps/api: un-earned is a 404,
+// never an empty 200.
+
+app.get(
+  "/api/problems/:versionId/reveal",
+  handle((req, res) => {
+    const fixture = problemsById.get(pparam(req.params.versionId));
+    if (!fixture) return notFound(res, `no problem version ${pparam(req.params.versionId)}`);
+    const reveal = buildMockReveal(fixture);
+    if (!reveal) return notFound(res, `no reveal earned for ${fixture.problemVersionId}`);
+    res.json(reveal);
   }),
 );
 

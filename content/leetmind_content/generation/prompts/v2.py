@@ -291,6 +291,11 @@ Metadata (inside the single `{META_DELIM}` JSON object):
     for a prepared-but-not-expert solver, `[low, high]`.
   - `target_complexity` (object): `{{time, space}}` — big-O strings (e.g. `"O(n)"`, `"O(n log
     n)"`, `"O(1)"`) describing YOUR `reference_solution_py`'s complexity, not the brute force's.
+    This is SHOWN TO THE SOLVER in the statement, before they solve, as the bar to aim for — so
+    write each one in terms of the SAME variable names as `constraints_md`/`signature.params`, and
+    keep it a bare big-O expression — no prose, no explanation, and nothing naming the technique
+    or data structure that achieves it (the same "insight, never the NAME" rule the hint ladder
+    section states applies to this string, since the solver reads it before they solve).
   - `comparator` (string): one of `"exact"`, `"float_tol"`, `"unordered"`, `"checker_py"`. Use
     `"exact"` unless the problem has floating-point outputs (`"float_tol"`) or multiple equally
     valid outputs (`"unordered"` for order-independent collections, or `"checker_py"` for

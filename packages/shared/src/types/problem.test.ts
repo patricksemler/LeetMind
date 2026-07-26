@@ -207,6 +207,7 @@ describe("toPublicProblem", () => {
     expect(pub.examples).toEqual(content.examples);
     expect(pub.difficulty_rating).toBe(content.difficulty.rating);
     expect(pub.expected_active_minutes).toEqual(content.expected_active_minutes);
+    expect(pub.target_complexity).toEqual(content.target_complexity);
     expect(pub.comparator).toBe(content.comparator);
     expect(typeof pub.starter_code.python).toBe("string");
     expect(typeof pub.starter_code.cpp).toBe("string");

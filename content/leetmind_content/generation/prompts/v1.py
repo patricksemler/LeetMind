@@ -319,6 +319,11 @@ def _problem_version_field_doc() -> str:
     for a prepared-but-not-expert solver, `[low, high]`.
   - `target_complexity` (object): `{{time, space}}` — big-O strings (e.g. `"O(n)"`, `"O(n log
     n)"`, `"O(1)"`) describing YOUR `reference_solution_py`'s complexity, not the brute force's.
+    This is SHOWN TO THE SOLVER in the statement, before they solve, as the bar to aim for — so
+    write each one in terms of the SAME variable names as `constraints_md`/`signature.params`, and
+    keep it a bare big-O expression — no prose, no explanation, and nothing naming the technique
+    or data structure that achieves it (the same "insight, never the NAME" rule the hint ladder
+    section states applies to this string, since the solver reads it before they solve).
   - `reference_solution_py` (string): a correct Python module-level function named
     `signature.name`, achieving `target_complexity`.
   - `brute_force_py` (string): ALSO a correct, independent implementation of the SAME function —

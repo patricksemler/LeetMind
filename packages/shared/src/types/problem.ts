@@ -129,6 +129,11 @@ export const PublicProblemSchema = z.object({
   examples: z.array(ExampleSchema),
   difficulty_rating: z.number().int(),
   expected_active_minutes: z.tuple([z.number().int(), z.number().int()]),
+  // The reference solution's complexity, shown in the statement as the target to aim for. This is
+  // the one field promoted out of the post-solve `reveal` payload into the pre-solve problem: it
+  // states the bar without hinting at the technique that meets it, the same way a LeetCode
+  // "can you do it in O(n)?" follow-up does.
+  target_complexity: z.object({ time: z.string(), space: z.string() }),
   comparator: z.enum(["exact", "float_tol", "unordered", "checker_py"]),
   starter_code: z.object({ python: z.string(), cpp: z.string() }),
   hint_levels_available: z.array(HintLevel),
@@ -172,6 +177,7 @@ export function toPublicProblem(input: ToPublicProblemInput): PublicProblem {
     examples: content.examples,
     difficulty_rating: content.difficulty.rating,
     expected_active_minutes: content.expected_active_minutes,
+    target_complexity: content.target_complexity,
     comparator: content.comparator,
     starter_code: {
       python: starterCodeFor(content.signature, "python"),

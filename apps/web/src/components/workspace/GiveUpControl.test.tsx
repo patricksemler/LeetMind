@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GiveUpResponse } from "@leetmind/shared";
@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 
 describe("GiveUpControl", () => {
-  it("requires an explicit confirm and only then reveals the solution and concepts", async () => {
+  it("reveals the solution and concepts on the click itself, with no confirm step", async () => {
     const user = userEvent.setup();
     render(
       <Providers>
@@ -57,15 +57,27 @@ describe("GiveUpControl", () => {
     expect(screen.queryByTestId("reveal")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /^see solution$/i }));
-    expect(api.giveUp).not.toHaveBeenCalled(); // confirm dialog, not taken yet
-
-    const dialog = screen.getByRole("dialog", { name: /see the solution/i });
-    await user.click(within(dialog).getByRole("button", { name: /^see solution$/i }));
 
     expect(api.giveUp).toHaveBeenCalledWith("v1", { baseline_item_id: undefined, active_ms: 12345 });
     expect(await screen.findByTestId("reveal")).toBeInTheDocument();
     expect(screen.getByTestId("editorial")).toHaveTextContent("Maintain a hash map");
     expect(screen.getByTestId("concepts")).toHaveTextContent("Arrays & Hashing");
-    expect(dialog).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("surfaces a failed give-up inline, since no dialog is left to hold the error", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.giveUp).mockRejectedValue(new Error("Couldn't reach the server."));
+
+    render(
+      <Providers>
+        <Harness />
+      </Providers>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^see solution$/i }));
+
+    expect(await screen.findByText("Couldn't reach the server.")).toBeInTheDocument();
+    expect(screen.queryByTestId("reveal")).not.toBeInTheDocument();
   });
 });

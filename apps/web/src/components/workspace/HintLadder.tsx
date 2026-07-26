@@ -1,7 +1,10 @@
 /**
- * The hint ladder: l1_orientation → l2_conceptual → l3_structural → outline. Each rung requires an
- * explicit confirm (docs/CONTRACTS.md §8, §12). Taken rungs stay visible with their text. Rungs
- * beyond the next one are locked — hints are meant to be climbed in order.
+ * The hint ladder: l1_orientation → l2_conceptual → l3_structural → outline. Reveal takes the rung
+ * immediately — there is no confirm step. The confirm dialog that used to sit in front of every
+ * rung asked "are you sure?" about something the button already said plainly, on a ladder where
+ * only one rung is ever reachable at a time; the cost is a scoring cap the UI doesn't narrate
+ * anyway, so the dialog was friction without information. Taken rungs stay visible with their
+ * text. Rungs beyond the next one are locked — hints are meant to be climbed in order.
  *
  * Rungs are numbered rather than named for their internal level: the label shouldn't preview how
  * specific the hint is about to get. The scoring consequence of taking one isn't surfaced here
@@ -15,7 +18,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { HintLevel } from "@leetmind/shared";
 import { api } from "../../lib/api";
 import { useHints } from "../../hooks/useHints";
-import { Button, Dialog, Plate } from "../ui";
+import { Button, Plate } from "../ui";
 import { Markdown } from "./Markdown";
 
 const LADDER: HintLevel[] = ["l1_orientation", "l2_conceptual", "l3_structural", "outline"];
@@ -35,8 +38,6 @@ export function HintLadder({ versionId, disabled = false }: { versionId: string;
     versionId,
     texts: {},
   });
-  const [confirmLevel, setConfirmLevel] = useState<HintLevel | null>(null);
-
   const hintsQuery = useHints(versionId);
 
   const rememberText = useCallback((forVersion: string, level: HintLevel, text: string) => {
@@ -116,19 +117,25 @@ export function HintLadder({ versionId, disabled = false }: { versionId: string;
               isTaken ? "border-accent-dim bg-bg-inset" : isLocked ? "border-border opacity-50" : "border-border-strong"
             }`}
           >
-            <Plate size="sm" tone={isTaken ? "accent" : "neutral"} filled={isTaken} className="mt-0.5" />
+            {/* Plate and title row share one height (`min-h-7`, the height of the reveal button) and
+                both center within it. Without that the plate was pinned near the top of the row: a
+                rung carrying a button was taller than one without, so the same nudge that centered
+                it on a plain rung left it sitting high on the one rung that had an action. */}
+            <div className="flex min-h-7 shrink-0 items-center">
+              <Plate size="sm" tone={isTaken ? "accent" : "neutral"} filled={isTaken} />
+            </div>
             <div className="min-w-0 flex-1">
               {/* Title row: label left, reveal action hard right. A locked rung carries no
                   explanatory line — the dimmed row and the absent button already say it isn't
                   reachable yet. */}
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex min-h-7 items-center justify-between gap-2">
                 <span className="text-sm font-medium text-text">{labelFor(level)}</span>
                 {isNext && (
                   <Button
                     size="sm"
                     variant="secondary"
                     className="shrink-0"
-                    onClick={() => setConfirmLevel(level)}
+                    onClick={() => takeMutation.mutate(level)}
                     disabled={takeMutation.isPending}
                   >
                     {takeMutation.isPending ? "Revealing…" : "Reveal"}
@@ -141,30 +148,6 @@ export function HintLadder({ versionId, disabled = false }: { versionId: string;
           </div>
         );
       })}
-
-      <Dialog open={confirmLevel !== null} onClose={() => setConfirmLevel(null)} title="Take this hint?">
-        {confirmLevel && (
-          <div className="space-y-3 text-sm text-text-dim">
-            <p>
-              Revealing <strong className="text-text">{labelFor(confirmLevel)}</strong> can't be undone.
-            </p>
-          </div>
-        )}
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setConfirmLevel(null)}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => {
-              if (confirmLevel) takeMutation.mutate(confirmLevel);
-              setConfirmLevel(null);
-            }}
-          >
-            Take hint
-          </Button>
-        </div>
-      </Dialog>
     </div>
   );
 }
