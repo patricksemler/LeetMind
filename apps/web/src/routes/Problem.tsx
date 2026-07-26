@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { failedPublicCase, type GiveUpResponse, type Language, type SubmissionMode, type VerdictEvent } from "@leetmind/shared";
 import { api } from "../lib/api";
@@ -36,8 +36,6 @@ function initialLanguage(): Language {
 
 export function Problem() {
   const { versionId } = useParams<{ versionId: string }>();
-  const [searchParams] = useSearchParams();
-  const baselineItemId = searchParams.get("item") ?? undefined;
   const queryClient = useQueryClient();
 
   const problemQuery = useQuery({
@@ -53,8 +51,22 @@ export function Problem() {
   // key as the ladder's own `useHints`, so this is one shared request, not a second one.
   const hintsQuery = useHints(versionId);
 
-  /** Whether a give-up is already on record for this version — what survives a reload. */
+  /** Whether the editorial is on record for this version — what survives a reload. Set by giving
+   * up, and also by practice opening a teaching episode on a problem the user kept failing. */
   const gaveUpEarlier = hintsQuery.data?.taken.includes("editorial") ?? false;
+
+  /**
+   * Teaching mode: the solution has been revealed and the user still owes a transcription of it.
+   *
+   * Derived from the server's own two facts rather than from anything this component remembers, so
+   * a reload lands back in the same place. `transcribed` is what closes the episode — not a solve,
+   * not a give-up, and not navigating away.
+   */
+  const transcribed = hintsQuery.data?.transcribed ?? false;
+  const mustTranscribe = gaveUpEarlier && !transcribed;
+  /** Recorded, never enforced. See migration 007: blocking paste is trivially worked around and
+   * punishes someone pasting their own scratch work; the transfer problem is the real check. */
+  const [pasted, setPasted] = useState(false);
 
   const [leftTab, setLeftTab] = useState<LeftTab>("problem");
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
@@ -104,6 +116,7 @@ export function Problem() {
     setCreatedSubmissionId(null);
     setActiveMode(null);
     setGaveUpResult(null);
+    setPasted(false);
     setLeftTab("problem");
     setSelectedSubmissionId(null);
     setShownResults(undefined);
@@ -136,16 +149,6 @@ export function Problem() {
       cancelled = true;
     };
   }, [versionId]);
-
-  // Reaching this problem via a baseline item (`?item=`) never itself transitioned the item to
-  // 'active' — nothing downstream (the baseline list, its completion panel) ever advanced past
-  // "not started" (confirmed live, docs/QA-PLAN.md §1.2). `startBaselineItem` is idempotent (only
-  // flips `pending -> active`, stamps `started_at` once), so firing it unconditionally on mount is
-  // safe even on a revisit.
-  useEffect(() => {
-    if (!baselineItemId) return;
-    void api.startBaselineItem(baselineItemId);
-  }, [baselineItemId]);
 
   // Load starter code / draft once the problem and language are known.
   useEffect(() => {
@@ -216,8 +219,8 @@ export function Problem() {
         language,
         source,
         mode: input.mode,
-        baseline_item_id: baselineItemId,
         active_ms: activeTime.activeMs,
+        ...(input.mode === "transcribe" ? { paste_detected: pasted } : {}),
       }),
     onSuccess: (res, variables) => {
       hasLocalSubmissionRef.current = true;
@@ -234,7 +237,12 @@ export function Problem() {
   // a Run left Submit's button reading "Submitting…" with Run itself showing nothing (confirmed
   // live). Split by `variables.mode`, the mode of whichever call is actually in flight, so each
   // button only ever reflects its own request.
-  const submitPending = submitMutation.isPending && submitMutation.variables?.mode === "submit";
+  /** What the primary button actually posts. A transcription runs the same hidden suite as a
+   * submit but writes no learning event, which is the whole point: the reveal has already been
+   * scored, and copying it out must not hand that back. */
+  const primaryMode: SubmissionMode = mustTranscribe ? "transcribe" : "submit";
+  const submitPending =
+    submitMutation.isPending && submitMutation.variables?.mode === primaryMode;
   const runPending = submitMutation.isPending && submitMutation.variables?.mode === "run";
 
   // "In flight" spans creating the submission AND judging it. `submitMutation.isPending` only covers
@@ -258,7 +266,7 @@ export function Problem() {
   const createdHere = !!createdSubmissionId && createdSubmissionId === activeSubmissionId;
   const streamRunning = events.status !== null && events.status !== "completed" && events.status !== "cancelled";
   const judging = !verdict && events.status !== "cancelled" && (createdHere || streamRunning);
-  const submitBusy = submitPending || (activeMode === "submit" && judging);
+  const submitBusy = submitPending || (activeMode === primaryMode && judging);
   const runBusy = runPending || (activeMode === "run" && judging);
 
   function triggerSubmit(input: { mode: SubmissionMode }) {
@@ -272,13 +280,15 @@ export function Problem() {
   // the editor, the statement pane, or anywhere else on the page — see EditorPane's doc comment.
   useHotkeys(
     [
-      { key: "Enter", meta: true, allowInInputs: true, handler: () => triggerSubmit({ mode: "submit" }) },
+      { key: "Enter", meta: true, allowInInputs: true, handler: () => triggerSubmit({ mode: primaryMode }) },
       { key: "'", meta: true, allowInInputs: true, handler: () => triggerSubmit({ mode: "run" }) },
     ],
-    [versionId, language, source],
+    [versionId, language, source, primaryMode],
   );
 
   const solved = activeMode === "submit" && verdict?.verdict === "accepted";
+  /** The transcription just passed — the episode is over and practice will move on. */
+  const transcriptionAccepted = activeMode === "transcribe" && verdict?.verdict === "accepted";
 
   // The judged row is what the Submissions tab shows — an in-flight attempt isn't listed at all —
   // so the verdict is also the moment the list has something new in it. Unconditional, unlike the
@@ -288,6 +298,15 @@ export function Problem() {
     if (activeMode !== "submit" || !verdict) return;
     void queryClient.invalidateQueries({ queryKey: ["submissions", versionId] });
   }, [activeMode, verdict, versionId, queryClient]);
+
+  // An accepted transcription closes the teaching episode server-side. Re-read the hints so
+  // `transcribed` flips and the onward link appears, and drop the practice answer, which was
+  // "this same problem, still owed" right up until this moment.
+  useEffect(() => {
+    if (!transcriptionAccepted || !versionId) return;
+    void queryClient.invalidateQueries({ queryKey: ["hints", versionId] });
+    void queryClient.invalidateQueries({ queryKey: ["practice", "next"] });
+  }, [transcriptionAccepted, versionId, queryClient]);
 
   // A landed submit takes the user to Submissions — success or failure, that screen is where the
   // outcome is, and the verdict is the first moment there is one to show. Keyed on the submission
@@ -313,7 +332,6 @@ export function Problem() {
     void queryClient.invalidateQueries({ queryKey: ["problem", versionId] });
     void queryClient.invalidateQueries({ queryKey: ["hints", versionId] });
     void queryClient.invalidateQueries({ queryKey: ["practice", "next"] });
-    void queryClient.invalidateQueries({ queryKey: ["baseline", "current"] });
     void queryClient.invalidateQueries({ queryKey: ["progress"] });
   }, [solved, versionId, queryClient]);
 
@@ -339,10 +357,16 @@ export function Problem() {
   // the same payload read back from the reveal endpoint.
   const solution = gaveUpResult ?? revealQuery.data ?? null;
   // A verdict (or a give-up) turns this page into a dead end otherwise: the workspace has nothing
-  // left to do and nothing on it routes onward. In the baseline that means back to the remaining
-  // probes; in practice it means straight to the next problem, which is the loop. `gaveUpEarlier`
-  // covers the reload: the attempt is just as over as it was before the refresh.
-  const finished = solved || !!gaveUpResult || gaveUpEarlier;
+  // left to do and nothing on it routes onward, so the onward link appears once the attempt is
+  // over. `gaveUpEarlier` covers the reload — the attempt is just as over as it was before the
+  // refresh.
+  //
+  // Except while a transcription is owed. That is the one case where the attempt IS over and the
+  // user still has something to do, and letting them click through would make the write-it-out
+  // step optional — which is the exact behaviour teaching mode exists to prevent. The API enforces
+  // the same rule (`GET /api/practice/next` keeps returning this problem), so this is the honest
+  // rendering of the server's state rather than a second, client-side gate that could disagree.
+  const finished = (solved || !!gaveUpResult || gaveUpEarlier) && !mustTranscribe;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -367,12 +391,11 @@ export function Problem() {
                 // exact moment the solution arrived. The row is already there and doesn't grow.
                 trailing={
                   finished ? (
-                    <Link
-                      to={baselineItemId ? "/baseline" : "/"}
-                      className={buttonClassName({ variant: "primary", size: "sm" })}
-                    >
-                      {baselineItemId ? "Next baseline question" : "Next problem"}
+                    <Link to="/" className={buttonClassName({ variant: "primary", size: "sm" })}>
+                      Next problem
                     </Link>
+                  ) : mustTranscribe ? (
+                    <span className="px-1 text-xs text-text-faint">Type the solution out to continue</span>
                   ) : null
                 }
               />
@@ -410,7 +433,6 @@ export function Problem() {
                       <GiveUpControl
                         versionId={versionId}
                         activeMs={activeTime.activeMs}
-                        baselineItemId={baselineItemId}
                         onGaveUp={(result) => {
                           setGaveUpResult(result);
                           void queryClient.invalidateQueries({ queryKey: ["problem", versionId] });
@@ -445,10 +467,17 @@ export function Problem() {
                 language={language}
                 onLanguageChange={handleLanguageChange}
                 onRun={() => triggerSubmit({ mode: "run" })}
-                onSubmit={() => triggerSubmit({ mode: "submit" })}
+                onSubmit={() => triggerSubmit({ mode: primaryMode })}
                 running={runBusy}
                 submitting={submitBusy}
+                transcribing={mustTranscribe}
               />
+              {mustTranscribe && (
+                <div className="border-b border-accent-dim bg-accent-dim px-4 py-1.5 text-xs text-text">
+                  Read the solution below the statement, then type it out here — not paste it. Writing it
+                  is what makes it stick, and a similar problem comes next so you can use it.
+                </div>
+              )}
               {submitMutation.isError && (
                 <div className="flex items-center justify-between gap-3 border-b border-verdict-error bg-verdict-error-dim px-4 py-1.5 text-xs text-text">
                   <span>
@@ -478,7 +507,14 @@ export function Problem() {
                   initialFirstPct={62}
                   minFirstPct={25}
                   maxFirstPct={85}
-                  first={<EditorPane language={language} value={source} onChange={handleSourceChange} />}
+                  first={
+                    <EditorPane
+                      language={language}
+                      value={source}
+                      onChange={handleSourceChange}
+                      onPaste={mustTranscribe ? () => setPasted(true) : undefined}
+                    />
+                  }
                   second={<TestCasePanel problem={problem} results={shownResults} />}
                 />
               </div>

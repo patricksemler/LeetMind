@@ -2,13 +2,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import type { MeResponse, NextPracticeProblemResponse, PublicProblem } from "@leetmind/shared";
+import type { NextPracticeProblemResponse, PublicProblem } from "@leetmind/shared";
 import { Providers } from "../test/testUtils";
 import { Practice } from "./Practice";
 
 vi.mock("../lib/api", () => ({
   api: {
-    me: vi.fn(),
     nextPracticeProblem: vi.fn(),
     concepts: vi.fn(),
   },
@@ -37,19 +36,12 @@ function next(overrides: Partial<NextPracticeProblemResponse> = {}): NextPractic
   return {
     problem: null,
     generating: null,
-    needs_baseline: false,
+    teaching: null,
+    followup: null,
     rationale: "",
     evidence: {},
     ...overrides,
   } as NextPracticeProblemResponse;
-}
-
-function me(overrides: Partial<MeResponse> = {}): MeResponse {
-  return {
-    user: { id: "u1", handle: "local", email: null },
-    has_baseline: true,
-    ...overrides,
-  };
 }
 
 function renderPractice() {
@@ -58,7 +50,6 @@ function renderPractice() {
       <MemoryRouter initialEntries={["/"]}>
         <Routes>
           <Route path="/" element={<Practice />} />
-          <Route path="/baseline" element={<div>BASELINE ROUTE</div>} />
         </Routes>
       </MemoryRouter>
     </Providers>,
@@ -67,7 +58,6 @@ function renderPractice() {
 
 describe("Practice", () => {
   it("shows the next problem with the concept it targets", async () => {
-    vi.mocked(api.me).mockResolvedValue(me());
     vi.mocked(api.concepts).mockResolvedValue({ concepts: [], edges: [] });
     vi.mocked(api.nextPracticeProblem).mockResolvedValue(
       next({
@@ -87,18 +77,70 @@ describe("Practice", () => {
     );
   });
 
-  it("redirects a never-probed user to the baseline instead of serving them problems", async () => {
-    vi.mocked(api.me).mockResolvedValue(me({ has_baseline: false }));
+  it("serves a brand-new user a problem rather than routing them into onboarding", async () => {
+    // The regression this locks down: practice used to gate on `has_baseline` and bounce a
+    // never-probed user to `/baseline`. There is no gate and no such route now — the cold-start
+    // rule calibrates over the first few problems without the user having to complete anything.
     vi.mocked(api.concepts).mockResolvedValue({ concepts: [], edges: [] });
-    vi.mocked(api.nextPracticeProblem).mockResolvedValue(next({ needs_baseline: true }));
+    vi.mocked(api.nextPracticeProblem).mockResolvedValue(
+      next({
+        problem: problem(),
+        rationale: "Starting at arrays_hashing, a little below average difficulty (1050).",
+        evidence: { cold_start: true, concept: "arrays_hashing" },
+      }),
+    );
 
     renderPractice();
 
-    expect(await screen.findByText("BASELINE ROUTE")).toBeInTheDocument();
+    expect(await screen.findByText("Maximum Sum of a Length-K Subarray")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Start" })).toBeInTheDocument();
+    expect(screen.getByText(/finding your range/)).toBeInTheDocument();
+  });
+
+  it("marks a teaching problem as a worked example and removes the escape hatch", async () => {
+    vi.mocked(api.concepts).mockResolvedValue({ concepts: [], edges: [] });
+    vi.mocked(api.nextPracticeProblem).mockResolvedValue(
+      next({
+        problem: problem(),
+        teaching: {
+          reason: "That's 2 in a row on sliding_window — let's go through one together.",
+          trigger: "consecutive_failures",
+          transcribed: false,
+        },
+        rationale: "That's 2 in a row on sliding_window — let's go through one together.",
+      }),
+    );
+
+    renderPractice();
+
+    expect(await screen.findByText("worked example")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Work through it" })).toBeInTheDocument();
+    // "Something else" would let the user shuffle past the intervention chosen for them.
+    expect(screen.queryByRole("button", { name: "Something else" })).not.toBeInTheDocument();
+  });
+
+  it("labels a transfer follow-up as a check that the teaching stuck", async () => {
+    vi.mocked(api.concepts).mockResolvedValue({ concepts: [], edges: [] });
+    vi.mocked(api.nextPracticeProblem).mockResolvedValue(
+      next({
+        problem: problem(),
+        followup: {
+          id: "f1",
+          kind: "transfer",
+          concept_id: "sliding_window",
+          rationale: "Same concept as the one you were taught, in a form you haven't seen.",
+        },
+        rationale: "Same concept as the one you were taught, in a form you haven't seen.",
+      }),
+    );
+
+    renderPractice();
+
+    expect(await screen.findByText("checking it stuck")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Something else" })).not.toBeInTheDocument();
   });
 
   it("renders a waiting state — not an empty one — while a problem is being generated", async () => {
-    vi.mocked(api.me).mockResolvedValue(me());
     vi.mocked(api.concepts).mockResolvedValue({
       concepts: [
         { id: "two_pointers", name: "Two Pointers", description: "", misconceptions: [], min_rating: 800, max_rating: 2400, sort_order: 1 },
@@ -125,7 +167,6 @@ describe("Practice", () => {
   });
 
   it("polls only while generating, so a problem the user is reading is never swapped out", async () => {
-    vi.mocked(api.me).mockResolvedValue(me());
     vi.mocked(api.concepts).mockResolvedValue({ concepts: [], edges: [] });
     vi.mocked(api.nextPracticeProblem).mockResolvedValue(next({ problem: problem() }));
 
@@ -138,7 +179,6 @@ describe("Practice", () => {
   });
 
   it("'Something else' re-asks the API rather than recording a skip", async () => {
-    vi.mocked(api.me).mockResolvedValue(me());
     vi.mocked(api.concepts).mockResolvedValue({ concepts: [], edges: [] });
     vi.mocked(api.nextPracticeProblem).mockResolvedValue(next({ problem: problem() }));
 
@@ -154,7 +194,6 @@ describe("Practice", () => {
   });
 
   it("surfaces the API's own rationale when there is genuinely nothing to serve", async () => {
-    vi.mocked(api.me).mockResolvedValue(me());
     vi.mocked(api.concepts).mockResolvedValue({ concepts: [], edges: [] });
     vi.mocked(api.nextPracticeProblem).mockResolvedValue(
       next({ rationale: "The concept taxonomy is empty — run `pnpm db:migrate` to seed it." }),

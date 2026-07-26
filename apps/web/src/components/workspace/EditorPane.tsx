@@ -74,10 +74,14 @@ export function EditorPane({
   language,
   value,
   onChange,
+  onPaste,
 }: {
   language: Language;
   value: string;
   onChange: (v: string) => void;
+  /** Fired once per paste into the editor. Used only by teaching mode, which records (never
+   * blocks) a paste during transcription — see migration 007 for why blocking is the wrong tool. */
+  onPaste?: () => void;
 }) {
   const theme = useMonacoTheme();
 
@@ -88,6 +92,12 @@ export function EditorPane({
       value={value}
       onChange={(v) => onChange(v ?? "")}
       beforeMount={defineTheme}
+      onMount={(editor) => {
+        // `onDidPaste` rather than a DOM paste listener: Monaco renders into a hidden textarea and
+        // synthesises its own paste handling, so a listener on the container misses pastes made
+        // through the command palette or the context menu.
+        editor.onDidPaste(() => onPaste?.());
+      }}
       theme={theme}
       options={{
         fontSize: 13,

@@ -1,17 +1,18 @@
-// GET /api/me — who the caller is and whether they still need onboarding.
+// GET /api/me — who the caller is.
 //
-// The web client needs both facts before it can decide what to render, and asking for them
-// separately means a first paint that flickers between "sign in", "take the baseline", and
-// "practice". One call, one decision.
+// This used to also answer "do they still need onboarding?" (`has_baseline`), which the web client
+// needed before it could decide between rendering the sign-in screen, the baseline, or practice.
+// There is no onboarding any more: a signed-in user goes straight to a problem, so identity is the
+// only question left to answer here.
 import type { FastifyInstance } from "fastify";
-import { getLatestBaselineSession, getUser } from "@leetmind/db";
+import { getUser } from "@leetmind/db";
 import { notFound } from "@leetmind/shared";
 import type { Deps } from "../deps.js";
 
 export function registerMeRoutes(fastify: FastifyInstance, _deps: Deps): void {
   fastify.get("/api/me", async (request, reply) => {
     const userId = request.userId;
-    const [user, baseline] = await Promise.all([getUser(userId), getLatestBaselineSession(userId)]);
+    const user = await getUser(userId);
 
     if (!user) {
       // Only reachable with auth off and a SINGLE_USER_ID that was never seeded — a
@@ -27,10 +28,6 @@ export function registerMeRoutes(fastify: FastifyInstance, _deps: Deps): void {
         // refreshed at provisioning time, so it goes stale if the account changes address.
         email: request.authEmail ?? user.email ?? null,
       },
-      // A baseline that was started and abandoned still counts as "asked for" — re-prompting a
-      // user who deliberately backed out of onboarding every time they open the app is a trap.
-      // The practice route uses the same rule (`getLatestBaselineSession`, any status).
-      has_baseline: baseline !== null,
     });
   });
 }

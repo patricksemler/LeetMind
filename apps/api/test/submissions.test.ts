@@ -251,23 +251,53 @@ describe.skipIf(!dbReachable)("submissions", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("rejects an unknown baseline_item_id with 400, not a raw FK-violation 500", async () => {
+  it("rejects mode:'transcribe' with 400 until the editorial has actually been revealed", async () => {
+    // Without this guard, `transcribe` is an unlimited free run against the full hidden suite on
+    // any problem: it runs the same tests as a submit but deliberately writes no learning event.
     const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
 
-    const res = await server.inject({
+    const before = await server.inject({
       method: "POST",
       url: "/api/submissions",
       payload: {
         problem_version_id: seeded.problemVersionId,
         language: "python",
         source: "def solve(): pass",
-        mode: "submit",
-        baseline_item_id: "not-a-real-baseline-item",
+        mode: "transcribe",
       },
     });
-    expect(res.statusCode).toBe(400);
+    expect(before.statusCode).toBe(400);
+
+    // Giving up reveals it, which is what makes a transcription meaningful.
+    await server.inject({
+      method: "POST",
+      url: `/api/problems/${seeded.problemVersionId}/give-up`,
+      payload: {},
+    });
+
+    const after = await server.inject({
+      method: "POST",
+      url: "/api/submissions",
+      payload: {
+        problem_version_id: seeded.problemVersionId,
+        language: "python",
+        source: "def solve(): pass",
+        mode: "transcribe",
+        paste_detected: true,
+      },
+    });
+    expect(after.statusCode).toBe(201);
+    submissionIds.push(JSON.parse(after.body).submission_id);
+
+    // Advisory only — recorded so a "pasted every transcription, failed every transfer" diagnosis
+    // is possible later, never used to block the submission.
+    const row = await pool.query<{ paste_detected: boolean }>(
+      "select paste_detected from submissions where id = $1",
+      [JSON.parse(after.body).submission_id],
+    );
+    expect(row.rows[0]?.paste_detected).toBe(true);
   });
 
   it("GET /api/submissions/:id strips expected_preview/input_preview/actual_preview for mode:'submit' but keeps them for mode:'run'", async () => {

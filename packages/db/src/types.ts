@@ -49,6 +49,8 @@ export interface UserConceptStateRow {
   review_interval_days: number;
   review_ease: number;
   review_reps: number;
+  /** Set once, never cleared — see migration 007. */
+  mastered_at: Date | null;
   updated_at: Date;
 }
 
@@ -63,6 +65,23 @@ export type ProblemVersionState = 'candidate' | 'verifying' | 'approved' | 'reje
 export type DifficultyConfidence = 'generated' | 'verified' | 'calibrated';
 export type Comparator = 'exact' | 'float_tol' | 'unordered' | 'checker_py';
 
+/**
+ * What a problem asks you to produce — orthogonal to the concept that solves it. Mirrors the
+ * `problem_versions.shape` check constraint in migration 007 exactly; see that migration for why
+ * "same concept, different form" needs its own axis.
+ */
+export type ProblemShape =
+  | 'find_pair'
+  | 'count_occurrences'
+  | 'find_extremum'
+  | 'check_property'
+  | 'build_output'
+  | 'in_place_transform'
+  | 'simulate_process'
+  | 'partition_group'
+  | 'path_or_order'
+  | 'optimize_value';
+
 export interface ProblemVersionRow {
   id: Uuid;
   problem_id: Uuid;
@@ -75,6 +94,8 @@ export interface ProblemVersionRow {
   expected_min_minutes: number | null;
   expected_max_minutes: number | null;
   comparator: Comparator;
+  /** Null for problems approved before migration 007 — callers must degrade, not assume. */
+  shape: ProblemShape | null;
   provenance: Record<string, unknown>;
   rejected_reason: string | null;
   created_at: Date;
@@ -136,7 +157,7 @@ export interface BaselineItemRow {
   completed_at: Date | null;
 }
 
-export type SubmissionMode = 'run' | 'submit';
+export type SubmissionMode = 'run' | 'submit' | 'transcribe';
 export type Language = 'python' | 'cpp';
 export type SubmissionStatus =
   | 'created'
@@ -208,6 +229,7 @@ export interface SubmissionRow {
   active_ms: number | null;
   custom_input: unknown | null;
   public_results: PublicTestResult[] | null;
+  paste_detected: boolean;
   idempotency_key: string | null;
   correlation_id: string | null;
   created_at: Date;
@@ -254,6 +276,33 @@ export interface LearningEventRow {
   after_state: Record<string, unknown>;
   idempotency_key: string | null;
   correlation_id: string | null;
+  created_at: Date;
+}
+
+export type FollowUpKind = 'reinforce' | 'transfer';
+export type ShapeMatch = 'same' | 'different';
+export type TeachingTrigger = 'editorial_revealed' | 'consecutive_failures';
+
+/**
+ * A problem owed to the user after a teaching episode (migration 007). Mirrors
+ * `packages/learner/src/teaching.ts`'s `FollowUpPlan`, plus the serving/settlement bookkeeping the
+ * pure planner has no concept of.
+ */
+export interface ScheduledFollowupRow {
+  id: Uuid;
+  user_id: Uuid;
+  concept_id: string;
+  origin_problem_version_id: Uuid;
+  kind: FollowUpKind;
+  origin_trigger: TeachingTrigger;
+  target_rating: number;
+  shape_match: ShapeMatch;
+  origin_shape: ProblemShape | null;
+  rationale: string;
+  due_at: Date;
+  served_problem_version_id: Uuid | null;
+  served_at: Date | null;
+  satisfied_at: Date | null;
   created_at: Date;
 }
 

@@ -1,6 +1,5 @@
 import type { FastifyInstance } from "fastify";
 import type { Deps } from "../deps.js";
-import { registerBaselineRoutes } from "./baseline.js";
 import { registerConceptRoutes } from "./concepts.js";
 import { registerGenerateRoutes } from "./generate.js";
 import { registerHealthRoutes } from "./health.js";
@@ -24,6 +23,5 @@ export function registerRoutes(fastify: FastifyInstance, deps: Deps): void {
   registerSystemRoutes(fastify, deps);
   registerMetricsRoutes(fastify, deps);
   registerGenerateRoutes(fastify, deps);
-  registerBaselineRoutes(fastify, deps);
   registerPracticeRoutes(fastify, deps);
 }

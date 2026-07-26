@@ -19,7 +19,6 @@ import {
   HintLevel,
   newId,
   ProblemVersionSchema,
-  SkipBaselineItemRequest,
   type Submission,
   TakeHintRequest,
   toPublicProblem,
@@ -39,11 +38,6 @@ import {
   problemsById,
   submissions,
   USER_ID,
-  advanceMockBaseline,
-  buildBaseline,
-  resetBaseline,
-  baselineItems,
-  baselineState,
 } from "./state.js";
 
 // Sanity-check every fixture against the full, server-only schema at boot — catches fixture
@@ -141,21 +135,36 @@ app.get(
 
 // --- GET /api/practice/next ----------------------------------------------------------------------
 //
-// The mock's job here is to exercise all three branches the real endpoint can return, since two of
-// them (needs_baseline, generating) are otherwise only reachable against a live stack with an
-// empty content pool. `?mock=generating` forces the generating branch so the polling UI can be
-// developed and tested without waiting on a real `claude -p` run.
+// The mock's job here is to exercise both branches the real endpoint can return, since one of them
+// (generating) is otherwise only reachable against a live stack with an empty content pool.
+// `?mock=generating` forces it so the polling UI can be developed and tested without waiting on a
+// real `claude -p` run.
+//
+// There is no `needs_baseline` branch any more: the endpoint always has something to serve.
 
 app.get(
   "/api/practice/next",
   handle((req, res) => {
-    if (!baselineState.everStarted) {
+    // An open teaching episode outranks everything, exactly as it does in the real route: the user
+    // was shown a solution and has not written it out yet.
+    const teachingFixture = problemFixtures.find((p) => {
+      const st = getProblemUserState(p.problemVersionId);
+      return st.gaveUp && !st.transcribed;
+    });
+    if (teachingFixture) {
+      const reason = "You needed the full solution for that one — type it out yourself before moving on.";
       res.json({
-        problem: null,
+        problem: toPublicProblem({
+          problemVersionId: teachingFixture.problemVersionId,
+          content: teachingFixture.content,
+          hintsTaken: getProblemUserState(teachingFixture.problemVersionId).hintsTaken,
+          revealConcepts: true,
+        }),
         generating: null,
-        needs_baseline: true,
-        rationale: "Take the short baseline first — it seeds honest starting ratings so practice can target your edge.",
-        evidence: {},
+        teaching: { reason, trigger: "editorial_revealed", transcribed: false },
+        followup: null,
+        rationale: reason,
+        evidence: { teaching: true, trigger: "editorial_revealed" },
       });
       return;
     }
@@ -163,7 +172,11 @@ app.get(
     const weakest = [...conceptState.entries()].sort((a, b) => a[1].rating - b[1].rating)[0];
     const conceptId = weakest?.[0] ?? "arrays_hashing";
 
-    const unsolved = problemFixtures.filter((p) => !getProblemUserState(p.problemVersionId).solved);
+    // `hasSolvedOrGivenUp`, not just `solved`: the real route excludes anything the user has ever
+    // submitted against (`listApprovedUnattempted`), and a give-up plus its transcription leaves
+    // submissions behind. Filtering on `solved` alone re-served a problem the user had just been
+    // taught and transcribed.
+    const unsolved = problemFixtures.filter((p) => !hasSolvedOrGivenUp(p.problemVersionId));
     const forceGenerating = req.query.mock === "generating";
 
     if (forceGenerating || unsolved.length === 0) {
@@ -175,7 +188,8 @@ app.get(
           target_rating: Math.round(weakest?.[1].rating ?? 1200),
           reason: `${conceptId} is your weakest concept. Nothing verified is left in that range, so a new problem is being generated and verified for you.`,
         },
-        needs_baseline: false,
+        teaching: null,
+        followup: null,
         rationale: "Generating your next problem.",
         evidence: { concept: conceptId },
       });
@@ -195,7 +209,8 @@ app.get(
         revealConcepts: hasSolvedOrGivenUp(chosen.problemVersionId),
       }),
       generating: null,
-      needs_baseline: false,
+      teaching: null,
+      followup: null,
       rationale: `${conceptId} is your weakest concept (rating ${Math.round(targetRating)}); this problem sits in the 65-80% band.`,
       evidence: { concept: conceptId, candidate_count: unsolved.length },
     });
@@ -247,12 +262,19 @@ app.post(
     const fixture = problemsById.get(body.problem_version_id);
     if (!fixture) return notFound(res, `no problem version ${body.problem_version_id}`);
 
+    // Mirrors the real API's guard: `transcribe` runs the full hidden suite but writes no mastery
+    // consequence, so allowing it before the solution has been revealed would be an unlimited free
+    // run against the real tests.
+    if (body.mode === "transcribe" && !getProblemUserState(body.problem_version_id).gaveUp) {
+      return badRequest(res, "transcribe mode requires the editorial to have been revealed for this problem");
+    }
+
     const id = newId();
     const row: Submission = {
       id,
       user_id: USER_ID,
       problem_version_id: body.problem_version_id,
-      baseline_item_id: body.baseline_item_id ?? null,
+      baseline_item_id: null,
       mode: body.mode,
       language: body.language,
       source: body.source,
@@ -275,17 +297,8 @@ app.post(
       mode: body.mode,
       language: body.language,
       source: body.source,
-      baselineItemId: body.baseline_item_id,
       activeMs: body.active_ms ?? 0,
     });
-
-    if (body.baseline_item_id) {
-      const item = baselineItems.get(body.baseline_item_id);
-      if (item && item.state === "pending") {
-        item.state = "active";
-        item.started_at = new Date().toISOString();
-      }
-    }
 
     res.status(201).json({ submission_id: id, status: "created" });
 
@@ -394,7 +407,20 @@ app.get(
     for (const level of HINT_LADDER) {
       if (userState.hintsTaken.includes(level)) texts[level] = fixture.content.hints[level];
     }
-    res.json({ taken, available, penalties: HINT_PENALTY_CAPS, texts });
+    // Once the editorial is genuinely revealed this endpoint serves it too, so a reload
+    // mid-teaching-episode still shows the user the solution they were asked to transcribe.
+    const editorialTaken = taken.includes("editorial");
+    res.json({
+      taken,
+      available,
+      penalties: HINT_PENALTY_CAPS,
+      texts,
+      editorial_md: editorialTaken ? fixture.content.hints.editorial_md : null,
+      solutions: editorialTaken
+        ? { python: fixture.content.reference_solution_py, cpp: fixture.content.reference_solution_cpp }
+        : null,
+      transcribed: userState.transcribed,
+    });
   }),
 );
 
@@ -472,15 +498,6 @@ app.post(
       created_at: new Date().toISOString(),
     });
 
-    if (body.baseline_item_id) {
-      const item = baselineItems.get(body.baseline_item_id);
-      if (item) {
-        item.state = "gave_up";
-        item.completed_at = new Date().toISOString();
-        item.active_ms = activeMs;
-      }
-    }
-
     const concepts = fixture.content.concepts
       .map((c) => CONCEPTS.find((full) => full.id === c.id))
       .filter((c): c is NonNullable<typeof c> => !!c)
@@ -490,6 +507,11 @@ app.post(
       editorial_md: fixture.content.hints.editorial_md,
       solutions: { python: fixture.content.reference_solution_py, cpp: fixture.content.reference_solution_cpp },
       concepts,
+      teaching: {
+        reason: "You needed the full solution for that one — type it out yourself before moving on.",
+        trigger: "editorial_revealed",
+        transcribed: false,
+      },
       mastery_change: { changes, outcome, explanation },
     });
   }),
@@ -653,133 +675,7 @@ app.get(
   handle((_req, res) => {
     res.json({
       user: { id: USER_ID, handle: "local", email: null },
-      has_baseline: baselineState.everStarted,
     });
-  }),
-);
-
-// --- POST /api/baseline/start --------------------------------------------------------------------
-
-app.post(
-  "/api/baseline/start",
-  handle((_req, res) => {
-    res.json({ baseline: buildBaseline() });
-  }),
-);
-
-// --- GET /api/baseline/current -------------------------------------------------------------------
-
-app.get(
-  "/api/baseline/current",
-  handle((_req, res) => {
-    // Same adaptive side effect the real endpoint has: reading it is what appends the next probe.
-    res.json({ baseline: advanceMockBaseline() });
-  }),
-);
-
-// --- POST /api/baseline-items/:id/skip -----------------------------------------------------------
-
-app.post(
-  "/api/baseline-items/:id/skip",
-  handle((req, res) => {
-    const item = baselineItems.get(pparam(req.params.id));
-    if (!item) return notFound(res, `no baseline item ${pparam(req.params.id)}`);
-    const parsed = SkipBaselineItemRequest.safeParse(req.body);
-    if (!parsed.success) return badRequest(res, "invalid skip request", parsed.error.flatten());
-    const { reason, active_ms } = parsed.data;
-
-    item.state = reason === "inability" ? "skipped_inability" : "skipped_preference";
-    item.completed_at = new Date().toISOString();
-    item.active_ms = active_ms ?? 0;
-
-    if (reason === "preference") {
-      // CONTRACTS.md §8: skip(preference) -> no learning event at all.
-      res.json({ item });
-      return;
-    }
-
-    const fixture = problemsById.get(item.problem_version_id);
-    if (!fixture) {
-      res.json({ item });
-      return;
-    }
-
-    const { outcome, evidenceWeight } = outcomeScore({
-      verdict: null,
-      gaveUp: false,
-      skipped: "inability",
-      highestHint: null,
-      activeMs: active_ms ?? 0,
-      expectedMinutes: fixture.content.expected_active_minutes,
-      substantiveSubmissions: 0,
-    });
-
-    const states: Record<string, { rating: number; uncertainty: number }> = {};
-    for (const c of fixture.content.concepts) {
-      const cs = conceptState.get(c.id);
-      if (cs) states[c.id] = { rating: cs.rating, uncertainty: cs.uncertainty };
-    }
-    const { changes, explanation, newStates } = updateConcepts({
-      states,
-      weights: fixture.content.concepts.map((c) => ({ id: c.id, weight: c.weight })),
-      problemRating: fixture.content.difficulty.rating,
-      outcome,
-      evidenceWeight,
-    });
-    for (const c of fixture.content.concepts) {
-      const cs = conceptState.get(c.id);
-      const next = newStates[c.id];
-      if (!cs || !next) continue;
-      cs.rating = next.rating;
-      cs.uncertainty = next.uncertainty;
-      cs.attempts += 1;
-      cs.skips += 1;
-      cs.current_streak = 0;
-    }
-
-    learningEvents.push({
-      id: `le_skip_${item.id}`,
-      kind: "skip",
-      problem_version_id: item.problem_version_id,
-      verdict: null,
-      outcome,
-      hints_used: [],
-      active_ms: active_ms ?? 0,
-      created_at: new Date().toISOString(),
-    });
-
-    res.json({ item, mastery_change: { changes, outcome, explanation } });
-  }),
-);
-
-// --- POST /api/baseline-items/:id/start ----------------------------------------------------------
-
-app.post(
-  "/api/baseline-items/:id/start",
-  handle((req, res) => {
-    const item = baselineItems.get(pparam(req.params.id));
-    if (!item) return notFound(res, `no baseline item ${pparam(req.params.id)}`);
-    // Mirrors the real API's guard (packages/db/src/baseline.ts startBaselineItem): only
-    // `pending -> active`. Unconditionally setting `active` un-completed already-terminal items
-    // (solved/skipped/gave_up) every time the client revisited via the baseline list's "Review"
-    // link — the item mount effect fires this unconditionally, assuming idempotence.
-    if (item.state === "pending") {
-      item.state = "active";
-      item.started_at = item.started_at ?? new Date().toISOString();
-    }
-    res.json({ item });
-  }),
-);
-
-// --- POST /api/mock/reset-baseline ---------------------------------------------------------------
-// Mock-only: puts the fixture back into the never-onboarded state so the first-run flow can be
-// driven from a browser (or an e2e run) without restarting the process.
-
-app.post(
-  "/api/mock/reset-baseline",
-  handle((_req, res) => {
-    resetBaseline();
-    res.json({ ok: true });
   }),
 );
 

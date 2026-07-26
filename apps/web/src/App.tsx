@@ -5,7 +5,6 @@ import { NavBar } from "./components/layout/NavBar";
 import { ShortcutHelp } from "./components/shortcuts/ShortcutHelp";
 import { useHotkeys } from "./hooks/useHotkeys";
 import { AuthProvider } from "./lib/auth";
-import { Baseline } from "./routes/Baseline";
 import { Concepts } from "./routes/Concepts";
 import { Practice } from "./routes/Practice";
 import { Problem } from "./routes/Problem";
@@ -43,14 +42,6 @@ export function App() {
               element={
                 <RequireAuth>
                   <Practice />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/baseline"
-              element={
-                <RequireAuth>
-                  <Baseline />
                 </RequireAuth>
               }
             />

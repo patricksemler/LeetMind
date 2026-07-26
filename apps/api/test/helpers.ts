@@ -221,6 +221,11 @@ export async function cleanup(pool: Pool, scope: CleanupScope): Promise<void> {
     await pool.query("delete from learning_events where problem_version_id = any($1)", [problemVersionIds]);
     await pool.query("delete from submissions where problem_version_id = any($1)", [problemVersionIds]);
     await pool.query("delete from verification_reports where problem_version_id = any($1)", [problemVersionIds]);
+    // Both FKs — a follow-up references the problem it was born from AND the one it was served as.
+    await pool.query(
+      "delete from scheduled_followups where origin_problem_version_id = any($1) or served_problem_version_id = any($1)",
+      [problemVersionIds],
+    );
     await pool.query("delete from problem_concepts where problem_version_id = any($1)", [problemVersionIds]);
     await pool.query("delete from problem_versions where id = any($1)", [problemVersionIds]);
   }

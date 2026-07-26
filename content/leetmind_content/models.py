@@ -193,6 +193,23 @@ SERVER_ONLY_FIELDS: tuple[str, ...] = (
 )
 
 
+#: The closed vocabulary of problem shapes. Mirrors the `problem_versions.shape` check constraint
+#: in migration 007 and `ProblemShape` in @leetmind/shared exactly — all three must be edited
+#: together, since the DB constraint is what actually rejects a mismatch.
+ProblemShape = Literal[
+    "find_pair",
+    "count_occurrences",
+    "find_extremum",
+    "check_property",
+    "build_output",
+    "in_place_transform",
+    "simulate_process",
+    "partition_group",
+    "path_or_order",
+    "optimize_value",
+]
+
+
 class ProblemVersion(BaseModel):
     problem_id: str
     version: int = Field(gt=0)
@@ -204,6 +221,12 @@ class ProblemVersion(BaseModel):
     examples: list[Example] = Field(min_length=1)
     concepts: list[ConceptRef] = Field(min_length=1)
     difficulty: Difficulty
+    #: What the problem asks the solver to PRODUCE, orthogonal to the concept that solves it.
+    #: Drives transfer-problem selection ("same concept, different form") — see migration
+    #: 007_teaching_and_followups.sql. Optional: versions generated before this field existed have
+    #: none, and selection degrades to "a different problem on the same concept" rather than
+    #: refusing to serve one.
+    shape: ProblemShape | None = None
     expected_active_minutes: tuple[int, int]
     target_complexity: TargetComplexity
     reference_solution_py: str

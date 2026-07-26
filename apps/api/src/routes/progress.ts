@@ -43,10 +43,11 @@ export function registerProgressRoutes(fastify: FastifyInstance, deps: Deps): vo
           best_streak: number;
           last_practiced_at: Date | null;
           next_review_at: Date | null;
+          mastered_at: Date | null;
         }>(
           `select c.id as concept_id, c.name, ucs.rating, ucs.uncertainty, ucs.attempts, ucs.solves,
                   ucs.unassisted_solves, ucs.skips, ucs.current_streak, ucs.best_streak,
-                  ucs.last_practiced_at, ucs.next_review_at
+                  ucs.last_practiced_at, ucs.next_review_at, ucs.mastered_at
              from concepts c
              join user_concept_state ucs on ucs.concept_id = c.id and ucs.user_id = $1
             order by c.sort_order asc`,

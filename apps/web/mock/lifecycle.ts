@@ -13,7 +13,6 @@ import {
   learningEvents,
   problemsById,
   submissions,
-  baselineItems,
 } from "./state.js";
 import { outcomeScore, scheduleReview, updateConcepts } from "./mastery.js";
 import { buildMockReveal } from "./reveal.js";
@@ -51,10 +50,13 @@ export async function runLifecycle(submissionId: string): Promise<void> {
   await sleep(300);
   setStatus(submissionId, "running");
 
+  // `transcribe` grades like `submit`, not like `run` — it runs the FULL hidden suite so the user
+  // sees their typed-out solution genuinely pass. Only its MASTERY consequence differs (there is
+  // none). Mirrors `selectTests` in apps/judge, which special-cases `run` alone.
   const grade =
-    sub.mode === "submit"
-      ? gradeSubmit(problem, sub.language, sub.source)
-      : gradeRun(problem, sub.language, sub.source);
+    sub.mode === "run"
+      ? gradeRun(problem, sub.language, sub.source)
+      : gradeSubmit(problem, sub.language, sub.source);
 
   const total = grade.totalTests;
   const steps = Math.max(1, Math.min(total, 5));
@@ -100,8 +102,16 @@ export async function runLifecycle(submissionId: string): Promise<void> {
     ...(gaveUpAlready ? { practice: true } : {}),
   });
 
-  // Run mode never touches mastery (CONTRACTS.md §12 / PLAN.md §8). Neither does a submission
-  // that follows a give-up on this version — judged and streamed, but no mastery consequence.
+  // An accepted transcription closes the teaching episode: practice stops re-serving this problem
+  // and the workspace's onward link comes back. Recorded before the mastery gate below, because a
+  // transcription deliberately has no mastery consequence at all.
+  if (sub.mode === "transcribe" && grade.verdict === "accepted") {
+    getProblemUserState(sub.problemVersionId).transcribed = true;
+  }
+
+  // Run mode never touches mastery (CONTRACTS.md §12 / PLAN.md §8). Neither does a `transcribe`
+  // (the reveal was already scored — copying it out must not hand that back), nor a submission
+  // that follows a give-up on this version — all judged and streamed, but no mastery consequence.
   if (sub.mode !== "submit" || gaveUpAlready) return;
 
   const userState = getProblemUserState(sub.problemVersionId);
@@ -175,15 +185,6 @@ export async function runLifecycle(submissionId: string): Promise<void> {
     difficulty_rating: problem.content.difficulty.rating,
     created_at: new Date().toISOString(),
   });
-
-  if (sub.baselineItemId) {
-    const item = baselineItems.get(sub.baselineItemId);
-    if (item && grade.verdict === "accepted") {
-      item.state = "solved";
-      item.completed_at = new Date().toISOString();
-      item.active_ms = sub.activeMs;
-    }
-  }
 
   publish(submissionId, "mastery", { submission_id: submissionId, changes, outcome, explanation });
 }

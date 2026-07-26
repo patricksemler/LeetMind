@@ -17,40 +17,60 @@ decision is explainable.
 
 ## How it works
 
-Two surfaces, and deliberately only two.
+One surface. You open the app and you get a problem.
 
-**1. Baseline** — a handful of short problems across the core pattern families, one at a time.
-Difficulty steps up when you solve one and drops fast when you skip. **Skipping is the encouraged
-path for anything you haven't learned yet**: the skip button sits beside the start button at equal
-weight, and a skip is recorded as real evidence (it lowers the rating estimate *and* tightens the
-uncertainty around it) rather than as a failure. That is not politeness — a baseline where skipping
-feels like failure produces dishonest ratings, because someone who doesn't recognise a topic will
-guess or grind instead of admitting it, and a rating that is wrong in *that* direction makes
-everything downstream useless. Skipping three topics gets you through in a few minutes with better
-data than grinding six.
-
-**2. Practice** — everything after. One endpoint, `GET /api/practice/next`, answers "what should I
-do right now?" with exactly one of three things:
+`GET /api/practice/next` answers "what should I do right now?" and it always has an answer:
 
 | | |
 |---|---|
 | **a problem** | verified, approved, unattempted, at the edge of your weakest evidenced concept |
 | **generating** | nothing verified is left in that band, so a new problem is being written and verified for you — the wait is shown, not hidden behind an empty state |
-| **needs baseline** | nothing has measured you yet, so there is no honest edge to target |
 
-There is no session to start, nothing to plan, and nothing persisted between problems. **The
-learner state *is* the plan**, re-read on every request — so the next problem reflects the solve you
-just finished, not a list chosen before you started.
+There is no session to start, nothing to plan, no onboarding to finish, and nothing persisted
+between problems. **The learner state *is* the plan**, re-read on every request — so the next
+problem reflects the solve you just finished, not a list chosen before you started.
 
-> **Workouts were removed.** v1 assembled a session ladder — warm-up → working sets → overload →
-> recovery, with duration budgeting. Its entire value was *which problem comes next*, which the
-> learner model already decides one problem at a time; the container around it added ceremony
-> (start a workout, finish it, abandon it, honour a minutes budget) without adding information. A
-> stateless loop that re-decides after every solve is strictly more responsive to the evidence.
-> Full reasoning in [`PLAN.md`](PLAN.md) §8.
+### Finding your level without asking
 
-Everything you do teaches the model something — solve, skip, or give up — and every resulting
-change is explained in plain language:
+The first six problems are calibration, and they never say so. Difficulty starts a little below
+average, steps up 120 on a solve and drops 220 on a give-up, so it lands in the right
+neighbourhood in about two problems. Dropping almost twice as fast as it climbs is the whole
+trick: being handed something far beyond you is what makes people quit, and being handed something
+slightly too easy costs one problem.
+
+> **The baseline was removed.** v2 opened with a diagnostic probe you had to complete before
+> practice would serve you anything — six problems, a progress counter, a `needs_baseline` gate.
+> The stepping rule above *was* the baseline; everything around it was ceremony asking the user to
+> agree to be measured before being allowed to start. The rule stayed and the screen went.
+
+### When you're stuck, it teaches instead of retrying
+
+Two failures on a concept, or one give-up, and the app stops asking. It shows the full solution and
+then makes you **type it out** before you can move on — reading a solution produces the feeling of
+understanding without the encounter with the details that writing it forces you through. The
+transcription runs against the real hidden test suite so you see it pass, but it is scored as
+nothing: the reveal was already scored, and copying it out must not hand that back.
+
+Then two follow-ups, planned at the moment of the reveal so that closing the tab can't skip them:
+
+| | |
+|---|---|
+| **reinforce** | immediately — same concept, **same shape**, a step easier. Where you use what you just typed, while it's still in working memory. |
+| **transfer** | three days later — same concept, **different shape**. The one that actually measures whether anything was learned. |
+
+The pair matters more than either half. Reinforce alone teaches recall of one solution; transfer
+alone, with nothing in between, is just another failure a week later.
+
+### Mastery is a claim, not a number
+
+A rating can't tell three unaided solves over three weeks apart from one four-hint solve yesterday —
+both land on 1500. So mastery has its own bar, and all five clauses must hold: you're at the top of
+that concept's own difficulty range, the estimate has settled, you solved without hints, across
+different problems, spread over more than a week. The last one can't be satisfied in a single
+sitting, which is the point.
+
+Everything you do teaches the model something — solve, skip, give up, or be taught — and every
+resulting change is explained in plain language:
 
 > This problem was rated 1450 and you were at 1200, so you had about a 1 in 5 chance. You solved it
 > unaided. That moves **Two Pointers** up 39 to 1239. The estimate is more confident than before:
@@ -58,7 +78,8 @@ change is explained in plain language:
 
 ## Status
 
-All six milestones (M0–M5) are implemented and test-covered. **637 tests** across the workspace:
+All six milestones (M0–M5) are implemented and test-covered. **673 tests** across the workspace,
+all passing:
 
 | Package | Tests | What it covers |
 |---|---:|---|
@@ -66,11 +87,12 @@ All six milestones (M0–M5) are implemented and test-covered. **637 tests** acr
 | `@leetmind/db` | 26 | pool, migrations, bigint parsing, test-DB guard |
 | `@leetmind/queue` | 14 | claim/lease/heartbeat/reaper, priority, idempotency, poison jobs |
 | `@leetmind/sandbox` | 112 | isolation flags, harness protocol, C++ codegen, **cross-language parity** |
-| `@leetmind/learner` | 85 | Glicko-lite, outcome scoring, SM-2, baseline planning, convergence |
-| `apps/web` | 52 | SSE lifecycle, practice loop, baseline skip flow, hint penalties, verdict-leak safety |
-| `apps/api` | 81 | auth + token verification, practice selection/generation, baseline stepping, transactional enqueue, SSE races, sentinel leaks |
-| `apps/judge` | 29 | state machine, exactly-once mastery, **7 chaos scenarios** |
+| `@leetmind/learner` | 102 | Glicko-lite, outcome scoring, SM-2, cold-start stepping, teaching triggers, mastery clauses, convergence |
+| `apps/web` | 69 | SSE lifecycle, practice loop, teaching/follow-up rendering, hint penalties, verdict-leak safety |
+| `apps/api` | 74 | auth + token verification, practice selection/generation, cold start, follow-up queueing, transcribe gating, transactional enqueue, SSE races, sentinel leaks |
+| `apps/judge` | 38 | state machine, exactly-once mastery, public-vs-hidden failure semantics, **7 chaos scenarios** |
 | `content/` (Python) | 199 | six-stage gate, generation envelope, replenishment, DB nesting |
+
 
 Notable verified properties:
 

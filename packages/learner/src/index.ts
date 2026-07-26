@@ -10,10 +10,21 @@ export * from "./outcome.js";
 export * from "./update.js";
 export * from "./review.js";
 export * from "./select.js";
-export * from "./baseline.js";
+export * from "./coldstart.js";
+export * from "./teaching.js";
+export * from "./mastery.js";
 
 import { HINT_PENALTY_CAPS } from "./types.js";
 import { BAND_HIGH_P, BAND_LOW_P, DEFAULT_SELECTION_WEIGHTS } from "./select.js";
+import { COLD_START_PROBLEM_COUNT, COLD_START_RATING } from "./coldstart.js";
+import { REINFORCE_RATING_DROP, TEACHING_FAILURE_STREAK, TRANSFER_DELAY_DAYS } from "./teaching.js";
+import {
+  MASTERY_BAND_FRACTION,
+  MASTERY_MAX_UNCERTAINTY,
+  MASTERY_MIN_DISTINCT_PROBLEMS,
+  MASTERY_MIN_SPAN_DAYS,
+  MASTERY_MIN_UNASSISTED_SOLVES,
+} from "./mastery.js";
 
 /**
  * Every tunable number in the learner engine, in one place, so `/system` can display them and
@@ -49,4 +60,17 @@ export const LEARNER_CONSTANTS = {
   TARGET_BAND_HIGH_P: BAND_HIGH_P,
   /** Default weights for `scoreCandidate` (M1 selection heuristic; see src/select.ts). */
   SELECTION_WEIGHTS: DEFAULT_SELECTION_WEIGHTS,
+  /** Cold start: how many problems the stepping rule governs, and where it starts (src/coldstart.ts). */
+  COLD_START_PROBLEM_COUNT,
+  COLD_START_RATING,
+  /** Teaching mode trigger and its two follow-ups (src/teaching.ts). */
+  TEACHING_FAILURE_STREAK,
+  REINFORCE_RATING_DROP,
+  TRANSFER_DELAY_DAYS,
+  /** The five clauses of explicit mastery (src/mastery.ts). */
+  MASTERY_BAND_FRACTION,
+  MASTERY_MAX_UNCERTAINTY,
+  MASTERY_MIN_UNASSISTED_SOLVES,
+  MASTERY_MIN_DISTINCT_PROBLEMS,
+  MASTERY_MIN_SPAN_DAYS,
 } as const;

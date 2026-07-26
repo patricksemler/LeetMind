@@ -148,7 +148,9 @@ Tables and their columns (types are Postgres; `not null` unless marked `?`):
   `skips int`, `current_streak int`, `best_streak int`, `total_active_ms bigint`,
   `hint_counts jsonb default '{}'`, `error_counts jsonb default '{}'`, `last_practiced_at?`,
   `next_review_at?`, `review_interval_days double precision default 1`,
-  `review_ease double precision default 2.5`, `review_reps int default 0`, `updated_at`
+  `review_ease double precision default 2.5`, `review_reps int default 0`,
+  `mastered_at?` (set once when all five mastery clauses first hold, **never cleared** — see §8
+  "Explicit mastery"), `updated_at`
 - **problems**: `id pk`, `internal_name`, `created_at`, `retired_at?`
 - **problem_versions**: `id pk`, `problem_id fk`, `version int`, `state`
   (`candidate|verifying|approved|rejected|retired`), `content jsonb` (the **full** ProblemVersion,
@@ -157,17 +159,22 @@ Tables and their columns (types are Postgres; `not null` unless marked `?`):
   `expected_max_minutes int?`, `comparator default 'exact'`, `provenance jsonb default '{}'`,
   `rejected_reason?`, `created_at`, `approved_at?`; unique(`problem_id`,`version`);
   index on (`state`,`difficulty_rating`)
+  `problem_versions` also carries `shape?` — what the problem asks the solver to PRODUCE
+  (`find_pair|count_occurrences|find_extremum|check_property|build_output|in_place_transform|`
+  `simulate_process|partition_group|path_or_order|optimize_value`), orthogonal to the concept that
+  solves it. Null for anything approved before 007; selection must degrade, never assume.
 - **problem_concepts**: `problem_version_id fk cascade`, `concept_id fk`, `role`
   (`primary|secondary`), `weight double precision`; pk(version,concept)
 - **verification_reports**: `id pk`, `problem_version_id fk cascade`, `passed bool`, `failed_stage?`,
   `stages jsonb`, `seeds jsonb default '[]'`, `counterexample jsonb?`,
   `solution_hashes jsonb default '{}'`, `duration_ms int?`, `correlation_id?`, `created_at`
-- **submissions**: `id pk`, `user_id fk`, `problem_version_id fk`, `baseline_item_id?`, `mode`
-  (`run|submit`), `language` (`python|cpp`), `source`, `source_hash`, `status`
-  (`created|queued|assigned|compiling|running|completed|cancelled`), `verdict?`,
-  `passed_tests int default 0`, `total_tests int default 0`, `runtime_ms int?`, `memory_kb int?`,
-  `failure jsonb?`, `public_results jsonb?` (per-public-test outcomes),
-  `active_ms int?`, `custom_input jsonb?` (legacy; never written), `idempotency_key text unique?`,
+- **submissions**: `id pk`, `user_id fk`, `problem_version_id fk`, `baseline_item_id?` (legacy;
+  never written since 007), `mode` (`run|submit|transcribe`), `language` (`python|cpp`), `source`,
+  `source_hash`, `status` (`created|queued|assigned|compiling|running|completed|cancelled`),
+  `verdict?`, `passed_tests int default 0`, `total_tests int default 0`, `runtime_ms int?`,
+  `memory_kb int?`, `failure jsonb?`, `public_results jsonb?` (per-public-test outcomes),
+  `active_ms int?`, `paste_detected bool default false` (transcribe only; advisory, never a gate),
+  `custom_input jsonb?` (legacy; never written), `idempotency_key text unique?`,
   `correlation_id?`, `created_at`, `completed_at?`
 - **execution_attempts**: `id pk`, `submission_id fk cascade`, `attempt int`, `worker_id`,
   `image_digest?`, `language_version?`, `flags?`, `limits jsonb`, `usage jsonb?`, `per_test jsonb?`,
@@ -179,14 +186,16 @@ Tables and their columns (types are Postgres; `not null` unless marked `?`):
   (`submission|skip|give_up|diagnostic|review|decay`), `outcome double precision`, `evidence jsonb`,
   `before_state jsonb`, `after_state jsonb`, `idempotency_key text unique?`, `correlation_id?`,
   `created_at`
-- **baseline_sessions**: `id pk`, `user_id fk`,
-  `status default 'active'` (`active|completed|abandoned`), `rationale jsonb default '{}'`
-  (holds `summary` and the `plan` of concept+target-rating steps), `created_at`, `completed_at?`
-- **baseline_items**: `id pk`, `baseline_session_id fk cascade`, `position int`,
-  `problem_version_id fk`, `rationale default ''`,
-  `selection_evidence jsonb default '{}'`, `state default 'pending'`
-  (`pending|active|solved|skipped_inability|skipped_preference|gave_up`), `active_ms int default 0`,
-  `started_at?`, `completed_at?`; unique(`baseline_session_id`,`position`)
+- **scheduled_followups**: `id pk`, `user_id fk`, `concept_id fk`,
+  `origin_problem_version_id fk`, `kind` (`reinforce|transfer`), `origin_trigger`
+  (`editorial_revealed|consecutive_failures`), `target_rating int`, `shape_match` (`same|different`),
+  `origin_shape?`, `rationale default ''`, `due_at`, `served_problem_version_id?`, `served_at?`,
+  `satisfied_at?`, `created_at`; unique(`user_id`,`origin_problem_version_id`,`kind`).
+  The debts owed after a teaching episode — see §8 "Teaching mode".
+- **baseline_sessions** / **baseline_items**: RETAINED AS READ-ONLY HISTORY. The baseline product
+  surface was removed in 007 (see §8 "Cold start"); nothing writes these tables any more, but
+  `submissions.baseline_item_id` and historical `learning_events` still reference them, so they are
+  not dropped. Columns unchanged from 003/005.
 - **model_runs**: `id pk`, `kind` (`generate|repair`), `invoker`, `model?`, `prompt_version`,
   `request jsonb`, `duration_ms int?`, `output_hash?`, `input_tokens int?`, `output_tokens int?`,
   `cost_usd double precision?`, `problem_version_id?`, `status` (`ok|schema_error|invoke_error`),
@@ -330,6 +339,7 @@ Idempotency keys:
 - verify job: `verify:<problem_version_id>`
 - generate job: `generate:<concept_key>:<rating_band>:<slot_index>`
 - learning event: `le:<submission_id>` / `le:skip:<baseline_item_id>` / `le:diag:<baseline_item_id>`
+  (the two baseline forms are legacy — no new events of those kinds are written since 007)
 
 ### 4.5 SSE events
 
@@ -615,6 +625,20 @@ export function updateConcepts(input: {
 export function scheduleReview(state: ConceptState, outcome: number, now: Date): {
   next_review_at: Date, review_interval_days: number, review_ease: number, review_reps: number }
 export function decayUncertainty(state: ConceptState, now: Date): ConceptState
+
+// Cold start (src/coldstart.ts) — the first COLD_START_PROBLEM_COUNT problems.
+export function nextColdStartStep(orderedConcepts: string[], history: ColdStartHistoryEntry[]):
+  { concept_id: string | null, target_rating: number, rationale: string, done: boolean }
+
+// Teaching mode (src/teaching.ts).
+export function shouldTeach(recentNewestFirst: TeachingAttempt[]):
+  { teach: boolean, trigger: 'editorial_revealed'|'consecutive_failures'|null, reason: string }
+export function planFollowUps(input: { conceptId: string, originRating: number, now: Date }):
+  FollowUpPlan[]
+
+// Explicit mastery (src/mastery.ts).
+export function isMastered(input: { state: ConceptState, band: ConceptBand, evidence: MasteryEvidence }):
+  { mastered: boolean, criteria: MasteryCriterion[], met: number, total: number, summary: string }
 ```
 
 Numbers (fixed, do not improvise):
@@ -643,6 +667,36 @@ Numbers (fixed, do not improvise):
   `failure.failing_test.origin`, so a failure with no case at all (a compile error) is unaffected
   and keeps the rule above.
 
+**Cold start (no baseline).** There is no onboarding probe and no `needs_baseline` gate: a new
+user's first `GET /api/practice/next` returns a problem. For their first `COLD_START_PROBLEM_COUNT`
+(6) resolved attempts, difficulty comes from a stepping rule rather than from `scoreCandidate` —
+start at `1050` (deliberately below the 1200 seed), `+120` per solve, `−220` per skip or give-up,
+clamped to `[800, 2000]`, accumulating across the whole history. One concept per problem, walking
+the taxonomy's `sort_order`. The asymmetry is intentional: being handed something far too hard is
+what makes someone quit, and `SWING_CAP` (64) makes plain Elo far too slow to recover from a bad
+seed. The phase is derived from the learning-event count on every request — there is no session row.
+
+**Teaching mode.** Two triggers, both in `shouldTeach`: the editorial was revealed (give-up), or
+`TEACHING_FAILURE_STREAK` (2) consecutive non-solves on one concept. Either way the solution is
+shown and the user must submit a `transcribe`-mode submission — which runs the full hidden suite so
+they see it pass, but writes **no learning event**, because the reveal has already been scored at
+outcome 0 and copying it out must not hand that back. `GET /api/practice/next` returns the same
+problem until an accepted transcription exists, so the step cannot be skipped by reloading. An
+episode is *derived*, never stored as status: it is open iff `scheduled_followups` rows exist for
+the problem and no accepted `transcribe` submission does.
+
+Each episode owes two follow-ups, both planned at reveal time (so abandoning the first cannot skip
+the second): a `reinforce` — same concept, same `shape`, `origin_rating − 150`, due immediately —
+and a `transfer` — same concept, **different** `shape`, same rating, due in 3 days. A follow-up is
+settled by being *attempted*, not passed. Due follow-ups outrank ordinary selection.
+
+**Explicit mastery.** A rating alone cannot distinguish three unaided solves over three weeks from
+one four-hint solve yesterday; both reach 1500. `isMastered` requires all five of: rating ≥
+`min_rating + 0.7 * (max_rating − min_rating)` for that concept's own band; `uncertainty ≤ 100`;
+≥3 solves with **no hint of any level**; across ≥3 distinct problems; spanning ≥7 days. Evaluated
+by the judge after the rating update, written to `user_concept_state.mastered_at`, and never
+cleared.
+
 **Target band (settled in M1, do not re-derive):** the 65–80% success band lies **below** the
 user's rating on both edges, because both targets are above the 50% coin-flip point. For a 1500
 user the band is `[1259, 1392]` with an ideal near `1332` — verified:
@@ -666,20 +720,16 @@ All routes are JSON, prefix `/api`, and every response carries `x-correlation-id
 | GET | `/api/problems/next` | `?concept=&rating=` | `{ problem: PublicProblem, rationale: string, evidence: object }` |
 | GET | `/api/problems/:versionId` | | `{ problem: PublicProblem }` |
 | GET | `/api/problems/:versionId/reveal` | | `Reveal` (§4.5) once earned — 404 until then |
-| POST | `/api/submissions` | `{ problem_version_id, language, source, mode, baseline_item_id?, active_ms? }` | `{ submission_id, status }` |
+| POST | `/api/submissions` | `{ problem_version_id, language, source, mode, active_ms?, paste_detected? }` | `{ submission_id, status }` |
 | GET | `/api/submissions/:id` | | `{ submission }` (safe projection) |
 | GET | `/api/submissions/:id/events` | | SSE |
 | POST | `/api/hints` | `{ problem_version_id, level }` | `{ level, text, penalty_cap, next_level_penalty }` |
-| GET | `/api/hints/:versionId` | | `{ taken: [...], available: [...], penalties: {...}, texts: {...} }` |
-| POST | `/api/problems/:versionId/give-up` | `{ baseline_item_id?, active_ms? }` | `{ editorial_md, concepts, mastery_change }` |
+| GET | `/api/hints/:versionId` | | `{ taken, available, penalties, texts, editorial_md \| null, solutions \| null, transcribed }` |
+| POST | `/api/problems/:versionId/give-up` | `{ active_ms? }` | `{ editorial_md, solutions, concepts, teaching, mastery_change }` |
 | GET | `/api/progress` | | concept mastery, reviews due, stats, records, history |
 | GET | `/api/system/stats` | | queue depth/waits, workers, verdicts, buffer depth, gen pass rate, dead jobs |
-| GET | `/api/me` | | `{ user: { id, handle, email }, has_baseline }` |
-| GET | `/api/practice/next` | | `{ problem \| null, generating \| null, needs_baseline, rationale, evidence }` |
-| POST | `/api/baseline/start` | | `{ baseline }` |
-| GET | `/api/baseline/current` | | `{ baseline \| null }` |
-| POST | `/api/baseline-items/:id/skip` | `{ reason: 'inability'|'preference', active_ms? }` | `{ item, mastery_change? }` |
-| POST | `/api/baseline-items/:id/start` | | `{ item }` |
+| GET | `/api/me` | | `{ user: { id, handle, email } }` |
+| GET | `/api/practice/next` | | `{ problem \| null, generating \| null, teaching \| null, followup \| null, rationale, evidence }` |
 | POST | `/api/generate-now` | `{ concepts, target_rating }` | `{ job_id }` (M3 escape hatch) |
 | GET | `/api/concepts` | | `{ concepts, edges }` |
 
@@ -742,7 +792,7 @@ pile up duplicates. Bands are 200-wide, keyed by floor(rating/200)*200.
 ## 12. Web (`apps/web`)
 
 React 19 + Vite + TypeScript + Tailwind v4 + `@monaco-editor/react`. Routes (react-router):
-`/` (practice), `/baseline`, `/problem/:versionId`, `/progress`, `/concepts`, `/login`, `/signup`.
+`/` (practice), `/problem/:versionId`, `/progress`, `/concepts`, `/login`, `/signup`.
 State: TanStack Query for reads, plain `EventSource` for SSE.
 Shared types imported from `@leetmind/shared` — the web app must never redeclare API shapes.
 

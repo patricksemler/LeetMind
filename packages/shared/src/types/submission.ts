@@ -33,7 +33,13 @@ export type SubmissionStatus = z.infer<typeof SubmissionStatus>;
 export const Language = z.enum(["python", "cpp"]);
 export type Language = z.infer<typeof Language>;
 
-export const SubmissionMode = z.enum(["run", "submit"]);
+/**
+ * `transcribe` (migration 007) is the teaching-mode write-it-out step: it runs the hidden tests
+ * like a `submit` so the user sees their typed solution pass, but writes NO learning event. See
+ * apps/api/src/routes/submissions.ts and packages/learner/src/teaching.ts for why copying out an
+ * editorial you have already been scored for must not move the rating back.
+ */
+export const SubmissionMode = z.enum(["run", "submit", "transcribe"]);
 export type SubmissionMode = z.infer<typeof SubmissionMode>;
 
 /**
@@ -182,6 +188,7 @@ export const SubmissionSchema = z
     memory_kb: z.number().int().nullable().optional(),
     failure: SubmissionFailureSchema.nullable().optional(),
     active_ms: z.number().int().nullable().optional(),
+    paste_detected: z.boolean().optional(),
     correlation_id: z.string().nullable().optional(),
     created_at: timestampSchema,
     completed_at: timestampSchema.nullable().optional(),
@@ -261,8 +268,10 @@ export const CreateSubmissionRequest = z.object({
   language: Language,
   source: z.string(),
   mode: SubmissionMode,
-  baseline_item_id: z.string().optional(),
   active_ms: z.number().int().nonnegative().optional(),
+  /** `transcribe` mode only: the editor observed a paste while the user was typing the solution
+   * out. Recorded, never enforced — see migration 007 for why blocking paste is the wrong tool. */
+  paste_detected: z.boolean().optional(),
 });
 export type CreateSubmissionRequest = z.infer<typeof CreateSubmissionRequest>;
 
@@ -319,9 +328,10 @@ export type TakeHintResponse = z.infer<typeof TakeHintResponse>;
  * get it back. That reconstruction was what made a revisited problem render its taken hints a beat
  * after everything else, and it put N writes on the wire for a read.
  *
- * Only the four ladder rungs ever appear here — never `editorial`, which stays reachable solely
- * through the give-up flow (docs/CONTRACTS.md §8). An un-taken rung is absent, not empty: the hard
- * rule that un-taken hint text never appears in a payload is unchanged.
+ * Only the four ladder rungs ever appear in `texts` — never `editorial`. The editorial reaches the
+ * client through `editorial_md`/`solutions` below, and *only* once it has genuinely been revealed
+ * (give-up, or practice opening a teaching episode). The hard rule that un-taken hint text never
+ * appears in a payload is unchanged: both fields are null until `taken` contains `editorial`.
  */
 export const GetHintsResponse = z
   .object({
@@ -329,14 +339,34 @@ export const GetHintsResponse = z
     available: z.array(HintLevel),
     penalties: z.record(z.string(), z.number()).default({}),
     texts: z.record(z.string(), z.string()).default({}),
+    /** Non-null only once `taken` includes `editorial`. Serving it here (and not solely in the
+     * give-up response body) is what lets a reload mid-teaching-episode still show the user the
+     * solution they have been asked to transcribe. */
+    editorial_md: z.string().nullable().default(null),
+    solutions: SolutionsSchema.nullable().default(null),
+    /** Whether an accepted `transcribe` submission exists for this problem. Server-authoritative:
+     * the client uses it to decide whether the write-it-out step is still owed, so a reload cannot
+     * skip past it. */
+    transcribed: z.boolean().default(false),
   })
   .passthrough();
 export type GetHintsResponse = z.infer<typeof GetHintsResponse>;
 
+export const TeachingModeSchema = z
+  .object({
+    /** Why teaching mode engaged, shown to the user verbatim. */
+    reason: z.string(),
+    trigger: z.enum(["editorial_revealed", "consecutive_failures"]),
+    /** True once a `transcribe` submission for this problem has been accepted — the client uses
+     * this to unlock "next problem". Server-authoritative so a reload cannot skip the step. */
+    transcribed: z.boolean().default(false),
+  })
+  .passthrough();
+export type TeachingMode = z.infer<typeof TeachingModeSchema>;
+
 // --- POST /api/problems/:versionId/give-up ----------------------------------------------------
 
 export const GiveUpRequest = z.object({
-  baseline_item_id: z.string().optional(),
   active_ms: z.number().int().nonnegative().optional(),
 });
 export type GiveUpRequest = z.infer<typeof GiveUpRequest>;
@@ -346,6 +376,9 @@ export const GiveUpResponse = z
     editorial_md: z.string(),
     solutions: SolutionsSchema,
     concepts: z.array(ConceptSchema),
+    /** Giving up opens a teaching episode — the user must transcribe this solution before
+     * `GET /api/practice/next` will serve anything else. */
+    teaching: TeachingModeSchema.optional(),
     mastery_change: MasteryChangeSchema.optional(),
   })
   .passthrough();
@@ -369,6 +402,9 @@ const ProgressConceptSchema = z
     solves: z.number().int(),
     unassisted_solves: z.number().int(),
     trend: z.string(),
+    /** When all five mastery clauses first held (packages/learner/src/mastery.ts). Null until
+     * then, and never cleared once set — a later bad day is already reflected in the rating. */
+    mastered_at: z.union([z.string(), z.date()]).nullable().default(null),
   })
   .passthrough();
 
@@ -488,14 +524,16 @@ export const SystemStatsResponse = z
   .passthrough();
 export type SystemStatsResponse = z.infer<typeof SystemStatsResponse>;
 
-// --- baseline (POST /api/baseline/start, GET /api/baseline/current) -----------------------------
+// --- baseline (removed) -------------------------------------------------------------------------
 //
-// The baseline replaces the removed workout ladder. It is a short adaptive probe whose whole
-// purpose is to seed honest per-concept ratings before the practice loop takes over — so a skip is
-// a first-class outcome here, not a failure.
-
-export const BaselineSessionStatus = z.enum(["active", "completed", "abandoned"]);
-export type BaselineSessionStatus = z.infer<typeof BaselineSessionStatus>;
+// The baseline was a short adaptive probe the user had to complete before practice would serve
+// them anything. Its endpoints, schemas, and UI are gone: the stepping rule that made it useful
+// now runs invisibly over the first few practice problems (packages/learner/src/coldstart.ts), and
+// a new user is served a problem on their first request instead of a form.
+//
+// The `baseline_sessions` / `baseline_items` tables survive as read-only history (migration 007) —
+// `submissions.baseline_item_id` and historical `learning_events` still point at them — so
+// `BaselineItemState` remains here for the few readers that project those old rows.
 
 export const BaselineItemState = z.enum([
   "pending",
@@ -507,76 +545,27 @@ export const BaselineItemState = z.enum([
 ]);
 export type BaselineItemState = z.infer<typeof BaselineItemState>;
 
-export const BaselineItemSchema = z
-  .object({
-    id: z.string(),
-    baseline_session_id: z.string(),
-    position: z.number().int(),
-    problem_version_id: z.string(),
-    rationale: z.string().default(""),
-    selection_evidence: z.record(z.string(), z.unknown()).default({}),
-    state: BaselineItemState,
-    active_ms: z.number().int().default(0),
-    started_at: timestampSchema.nullable().optional(),
-    completed_at: timestampSchema.nullable().optional(),
-  })
-  .passthrough();
-export type BaselineItem = z.infer<typeof BaselineItemSchema>;
-
-export const BaselineSessionSchema = z
-  .object({
-    id: z.string(),
-    user_id: z.string(),
-    status: BaselineSessionStatus.default("active"),
-    rationale: z.record(z.string(), z.unknown()).default({}),
-    created_at: timestampSchema,
-    completed_at: timestampSchema.nullable().optional(),
-    items: z.array(BaselineItemSchema).optional(),
-    /** How many probes the plan holds in total, so the UI can render "3 of 6" without having to
-     * reverse-engineer it out of `rationale.plan`. */
-    planned_count: z.number().int().nonnegative().optional(),
-  })
-  .passthrough();
-export type BaselineSession = z.infer<typeof BaselineSessionSchema>;
-
-export const StartBaselineResponse = z.object({
-  baseline: BaselineSessionSchema,
-});
-export type StartBaselineResponse = z.infer<typeof StartBaselineResponse>;
-
-export const GetCurrentBaselineResponse = z.object({
-  baseline: BaselineSessionSchema.nullable(),
-});
-export type GetCurrentBaselineResponse = z.infer<typeof GetCurrentBaselineResponse>;
-
-// --- POST /api/baseline-items/:id/skip ----------------------------------------------------------
-
-export const SkipBaselineItemRequest = z.object({
-  reason: z.enum(["inability", "preference"]),
-  active_ms: z.number().int().nonnegative().optional(),
-});
-export type SkipBaselineItemRequest = z.infer<typeof SkipBaselineItemRequest>;
-
-export const SkipBaselineItemResponse = z
-  .object({
-    item: BaselineItemSchema,
-    mastery_change: MasteryChangeSchema.optional(),
-  })
-  .passthrough();
-export type SkipBaselineItemResponse = z.infer<typeof SkipBaselineItemResponse>;
-
-// --- POST /api/baseline-items/:id/start ---------------------------------------------------------
-
-export const StartBaselineItemResponse = z.object({
-  item: BaselineItemSchema,
-});
-export type StartBaselineItemResponse = z.infer<typeof StartBaselineItemResponse>;
-
 // --- GET /api/practice/next ---------------------------------------------------------------------
 //
 // The iterative autogenerate loop. Exactly one of `problem` / `generating` is non-null: either a
 // problem is ready now, or generation for the user's current target band is in flight and the
-// client should poll. `needs_baseline` short-circuits both for a user who hasn't been probed yet.
+// client should poll.
+//
+// There is deliberately no third "you must do X first" state. The baseline gate that used to live
+// here (`needs_baseline`) is gone: a new user is served a problem on their very first request, and
+// the cold-start stepping rule (packages/learner/src/coldstart.ts) calibrates them through the
+// first few problems without announcing itself.
+
+export const FollowUpContextSchema = z
+  .object({
+    id: z.string(),
+    kind: z.enum(["reinforce", "transfer"]),
+    concept_id: z.string(),
+    /** Persisted at planning time so the user is told why they got this problem. */
+    rationale: z.string(),
+  })
+  .passthrough();
+export type FollowUpContext = z.infer<typeof FollowUpContextSchema>;
 
 export const PracticeGenerationSchema = z
   .object({
@@ -595,8 +584,12 @@ export const NextPracticeProblemResponse = z
     problem: PublicProblemSchema.nullable(),
     /** Non-null exactly when `problem` is null and generation is in flight. */
     generating: PracticeGenerationSchema.nullable().default(null),
-    /** True when no baseline has been taken yet — the client should route to /baseline. */
-    needs_baseline: z.boolean().default(false),
+    /** Non-null when this problem is being *taught* rather than tested: the client must open the
+     * whole hint ladder including the editorial, and require a `transcribe` submission before
+     * moving on. See packages/learner/src/teaching.ts. */
+    teaching: TeachingModeSchema.nullable().default(null),
+    /** Non-null when this problem is settling a scheduled follow-up debt (reinforce or transfer). */
+    followup: FollowUpContextSchema.nullable().default(null),
     rationale: z.string().default(""),
     evidence: z.record(z.string(), z.unknown()).default({}),
   })
@@ -611,7 +604,6 @@ export const MeResponse = z.object({
     handle: z.string(),
     email: z.string().nullable(),
   }),
-  has_baseline: z.boolean(),
 });
 export type MeResponse = z.infer<typeof MeResponse>;
 

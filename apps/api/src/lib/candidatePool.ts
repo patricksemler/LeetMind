@@ -1,10 +1,11 @@
 // DB-integration glue between `@leetmind/db` rows and the pure `@leetmind/learner` shapes
-// (docs/CONTRACTS.md §9). Shared by the baseline route (which resolves one planned concept+rating
-// target at a time) and the practice route (which selects from a band around the user's edge), so
-// neither has to re-implement the widen-band search or the row-to-candidate parse.
+// (docs/CONTRACTS.md §9). Shared by every caller that has to turn a (concept, target rating) pair
+// into a real problem — the cold-start stepper, follow-up resolution, and the practice loop's
+// band search — so none of them re-implements the widen-band search or the row-to-candidate parse.
 import {
   listApprovedUnattempted,
   listConceptStates,
+  type ProblemShape,
   type ProblemVersionRow,
 } from "@leetmind/db";
 import { ProblemVersionSchema } from "@leetmind/shared";
@@ -24,6 +25,14 @@ export function defaultConceptState(conceptId: string): ConceptState {
     review_ease: 2.5,
     review_reps: 0,
   };
+}
+
+/** Restricts a candidate search to problems of the same form as `shape`, or to a different one.
+ * Only follow-up selection uses this — see `ListApprovedUnattemptedFilter.shape` in @leetmind/db,
+ * including why unknown (pre-007) shapes stay eligible either way. */
+export interface ShapeConstraint {
+  shape: ProblemShape;
+  matchShape: "same" | "different";
 }
 
 /** Every concept state for `userId`, keyed by concept id — real rows where they exist, a fresh
@@ -85,6 +94,7 @@ export async function findCandidateNear(
   conceptId: string,
   targetRating: number,
   excludeIds: Set<string>,
+  shape?: ShapeConstraint,
 ): Promise<ProblemVersionRow | null> {
   for (const pad of WIDEN_STEPS) {
     const rows = await listApprovedUnattempted(userId, {
@@ -92,6 +102,8 @@ export async function findCandidateNear(
       minRating: Math.floor(targetRating - pad),
       maxRating: Math.ceil(targetRating + pad),
       limit: 25,
+      shape: shape?.shape,
+      matchShape: shape?.matchShape,
     });
     const usable = rows.filter((r) => !excludeIds.has(r.id));
     if (usable.length === 0) continue;

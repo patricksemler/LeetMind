@@ -4,6 +4,7 @@ import type {
   Comparator,
   ConceptRole,
   DifficultyConfidence,
+  ProblemShape,
   ProblemVersionRow,
   ProblemVersionState,
 } from "./types.js";
@@ -25,6 +26,9 @@ export interface NewProblemVersionInput {
   expected_min_minutes?: number | null;
   expected_max_minutes?: number | null;
   comparator?: Comparator;
+  /** Migration 007. Null when the generator did not classify one — selection degrades, see
+   * `ListApprovedUnattemptedFilter.shape`. */
+  shape?: ProblemShape | null;
   provenance?: Record<string, unknown>;
 }
 
@@ -35,9 +39,10 @@ export async function insertProblemVersion(
   const sql = `
     insert into problem_versions (
       id, problem_id, version, state, content, title, difficulty_rating,
-      difficulty_confidence, expected_min_minutes, expected_max_minutes, comparator, provenance
+      difficulty_confidence, expected_min_minutes, expected_max_minutes, comparator, shape,
+      provenance
     ) values (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
     )
     returning *
   `;
@@ -53,6 +58,7 @@ export async function insertProblemVersion(
     row.expected_min_minutes ?? null,
     row.expected_max_minutes ?? null,
     row.comparator ?? "exact",
+    row.shape ?? null,
     JSON.stringify(row.provenance ?? {}),
   ]);
   if (!inserted) {
@@ -107,6 +113,19 @@ export interface ListApprovedUnattemptedFilter {
   minRating?: number;
   maxRating?: number;
   limit?: number;
+  /**
+   * Restrict to (`matchShape: 'same'`) or exclude (`'different'`) `shape`. Used only by follow-up
+   * selection (migration 007): a reinforce problem must be the same form as the one just taught, a
+   * transfer problem must not be.
+   *
+   * Rows with a null `shape` — everything approved before 007 — are treated as *eligible under
+   * either mode* rather than excluded. A stricter reading ("unknown shape can't be proven
+   * different") would make transfer problems unservable on any pre-007 pool, which is every
+   * existing install; a follow-up that silently never arrives is a worse failure than one whose
+   * shape guarantee is best-effort. Callers that need the distinction can check `row.shape`.
+   */
+  shape?: ProblemShape | null;
+  matchShape?: 'same' | 'different';
 }
 
 /** Approved problem versions this user has never submitted against, optionally filtered by concept/rating band. */
@@ -136,6 +155,14 @@ export async function listApprovedUnattempted(
   if (filter.maxRating !== undefined) {
     conditions.push(`pv.difficulty_rating <= $${idx}`);
     params.push(filter.maxRating);
+    idx += 1;
+  }
+  if (filter.shape && filter.matchShape) {
+    // `pv.shape is null or ...` — see ListApprovedUnattemptedFilter.shape for why unknown shapes
+    // stay eligible in both directions.
+    const op = filter.matchShape === 'same' ? '=' : '<>';
+    conditions.push(`(pv.shape is null or pv.shape ${op} $${idx})`);
+    params.push(filter.shape);
     idx += 1;
   }
 

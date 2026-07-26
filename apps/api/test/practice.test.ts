@@ -1,12 +1,12 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { loadApiConfig } from "@leetmind/shared";
-import { insertBaselineSession, newIdForTest, withTransaction } from "./practiceHelpers.js";
+import { newIdForTest } from "./practiceHelpers.js";
 import { buildDeps, type Deps } from "../src/deps.js";
 import { buildServer } from "../src/server.js";
 import { chooseTarget } from "../src/routes/practice.js";
 import { cleanup, isDatabaseReachable, seedApprovedProblem, testPool } from "./helpers.js";
-import type { ConceptState } from "@leetmind/learner";
+import { COLD_START_PROBLEM_COUNT, COLD_START_RATING, type ConceptState } from "@leetmind/learner";
 
 const dbReachable = await isDatabaseReachable();
 
@@ -88,13 +88,22 @@ describe.skipIf(!dbReachable)("GET /api/practice/next", () => {
     await server.close();
   });
 
-  /** Practice is gated on having been probed at least once; every test that isn't specifically
-   * about that gate needs a baseline row to exist. */
-  async function seedBaselineSession(): Promise<void> {
-    const session = await withTransaction((client) =>
-      insertBaselineSession(client, { id: newIdForTest(), user_id: deps.config.singleUserId }),
-    );
-    baselineSessionIds.push(session.id);
+  /**
+   * Pushes the user past the cold start.
+   *
+   * The first COLD_START_PROBLEM_COUNT problems are chosen by the stepping rule, not by
+   * `scoreCandidate`, so every test about *selection* has to get out of that phase first. These
+   * carry no `problem_version_id`, which is deliberate: it exercises the unattributable-event path
+   * (a problem retired out from under an old event) while still counting toward the phase.
+   */
+  async function exitColdStart(): Promise<void> {
+    for (let i = 0; i < COLD_START_PROBLEM_COUNT; i += 1) {
+      await pool.query(
+        `insert into learning_events (id, user_id, kind, outcome, evidence, before_state, after_state)
+         values ($1, $2, 'submission', 1, '{}', '{}', '{}')`,
+        [newIdForTest(), deps.config.singleUserId],
+      );
+    }
   }
 
   async function setAttempted(conceptId: string, rating: number): Promise<void> {
@@ -110,15 +119,42 @@ describe.skipIf(!dbReachable)("GET /api/practice/next", () => {
     return JSON.parse(res.body);
   }
 
-  it("routes a never-probed user to the baseline instead of serving problems against flat defaults", async () => {
+  it("serves a brand-new user a problem instead of gating them behind onboarding", async () => {
+    // The gate this replaces returned `{ problem: null, needs_baseline: true }` and the client
+    // bounced to /baseline. A first-time user now gets something to do on their first request.
+    const seeded = await seedApprovedProblem(pool, {
+      conceptId: "arrays_hashing",
+      difficultyRating: COLD_START_RATING,
+      title: "First problem",
+    });
+    problemVersionIds.push(seeded.problemVersionId);
+    problemIds.push(seeded.problemId);
+
     const body = await next();
-    expect(body.needs_baseline).toBe(true);
-    expect(body.problem).toBeNull();
-    expect(body.generating).toBeNull();
+    expect(body.problem.problem_version_id).toBe(seeded.problemVersionId);
+    expect(body.evidence.cold_start).toBe(true);
+    expect(body.evidence.of).toBe(COLD_START_PROBLEM_COUNT);
+  });
+
+  it("aims the cold start below the 1200 seed, and steps up after a solve", async () => {
+    // Nothing seeded, so the pool can't answer and the route reports what it WANTED — which is the
+    // cleanest way to observe the target the stepping rule chose.
+    const first = await next();
+    expect(first.generating.target_rating).toBe(COLD_START_RATING);
+    expect(COLD_START_RATING).toBeLessThan(1200);
+
+    await pool.query(
+      `insert into learning_events (id, user_id, kind, outcome, evidence, before_state, after_state)
+       values ($1, $2, 'submission', 1, '{}', '{}', '{}')`,
+      [newIdForTest(), deps.config.singleUserId],
+    );
+
+    const second = await next();
+    expect(second.generating.target_rating).toBeGreaterThan(COLD_START_RATING);
   });
 
   it("serves a problem targeting the weakest evidenced concept", async () => {
-    await seedBaselineSession();
+    await exitColdStart();
     await setAttempted("arrays_hashing", 1500);
     await setAttempted("two_pointers", 1100);
 
@@ -131,14 +167,13 @@ describe.skipIf(!dbReachable)("GET /api/practice/next", () => {
     }
 
     const body = await next();
-    expect(body.needs_baseline).toBe(false);
     expect(body.generating).toBeNull();
     expect(body.problem.problem_version_id).toBe(weak.problemVersionId);
     expect(body.evidence.concept).toBe("two_pointers");
   });
 
   it("enqueues generation and reports it, rather than an empty state, when nothing covers the target band", async () => {
-    await seedBaselineSession();
+    await exitColdStart();
     await setAttempted("two_pointers", 1100);
 
     const body = await next();
@@ -157,7 +192,7 @@ describe.skipIf(!dbReachable)("GET /api/practice/next", () => {
   });
 
   it("does not stack a second generate job while one is already in flight for the same cell", async () => {
-    await seedBaselineSession();
+    await exitColdStart();
     await setAttempted("two_pointers", 1100);
 
     // The web client polls this endpoint every couple of seconds for the whole generation wait —
@@ -176,7 +211,7 @@ describe.skipIf(!dbReachable)("GET /api/practice/next", () => {
   });
 
   it("uses a fresh slot once the previous job for a cell is finished, so a cell is never permanently locked out", async () => {
-    await seedBaselineSession();
+    await exitColdStart();
     await setAttempted("two_pointers", 1100);
 
     const first = await next();
@@ -192,7 +227,7 @@ describe.skipIf(!dbReachable)("GET /api/practice/next", () => {
   });
 
   it("tops the buffer up in the background while still serving the problem it has", async () => {
-    await seedBaselineSession();
+    await exitColdStart();
     await setAttempted("two_pointers", 1100);
 
     // A single in-band candidate is below PRACTICE_BUFFER_WATERMARK, so serving it should also
@@ -219,20 +254,28 @@ describe.skipIf(!dbReachable)("GET /api/practice/next", () => {
     expect(count).toBe(1);
   });
 
-  it("never re-serves a problem the baseline already showed, even though a skip writes no submission", async () => {
-    await seedBaselineSession();
+  it("never re-serves a problem an old baseline already showed, even though a skip writes no submission", async () => {
+    // The baseline product surface is gone, but its tables survive as read-only history
+    // (migration 007) and a long-lived install can still hold rows. A baseline skip wrote no
+    // `submissions` row, which is exactly why `listApprovedUnattempted` alone would offer the
+    // problem again — re-asking "can you do this?" when the answer is already on record.
+    await exitColdStart();
     await setAttempted("two_pointers", 1100);
 
     const seeded = await seedApprovedProblem(pool, { conceptId: "two_pointers", difficultyRating: 1100, title: "Already skipped in the baseline" });
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
 
-    // A baseline item in a terminal skip state — no `submissions` row exists, which is exactly why
-    // `listApprovedUnattempted` alone would happily offer it again.
+    const sessionId = newIdForTest();
+    baselineSessionIds.push(sessionId);
+    await pool.query("insert into baseline_sessions (id, user_id) values ($1, $2)", [
+      sessionId,
+      deps.config.singleUserId,
+    ]);
     await pool.query(
       `insert into baseline_items (id, baseline_session_id, position, problem_version_id, state)
        values ($1, $2, 0, $3, 'skipped_inability')`,
-      [newIdForTest(), baselineSessionIds[baselineSessionIds.length - 1], seeded.problemVersionId],
+      [newIdForTest(), sessionId, seeded.problemVersionId],
     );
 
     const body = await next();
@@ -241,7 +284,7 @@ describe.skipIf(!dbReachable)("GET /api/practice/next", () => {
   });
 
   it("never serves a problem the user has already submitted against", async () => {
-    await seedBaselineSession();
+    await exitColdStart();
     await setAttempted("two_pointers", 1100);
 
     const seeded = await seedApprovedProblem(pool, { conceptId: "two_pointers", difficultyRating: 1100, title: "Already attempted" });

@@ -139,7 +139,6 @@ describe.skipIf(!dbReachable)("authenticated requests", () => {
     const firstBody = JSON.parse(first.body);
     expect(firstBody.user.email).toBe("newcomer@example.com");
     expect(firstBody.user.handle).toBe("newcomer");
-    expect(firstBody.has_baseline).toBe(false);
 
     const second = await server.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${token}` } });
     expect(JSON.parse(second.body).user.id).toBe(firstBody.user.id);

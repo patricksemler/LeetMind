@@ -1,11 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import {
-  completeBaselineItem,
   getApprovedProblemVersion,
   getConceptStateForUpdate,
-  getBaselineItem,
-  getBaselineSession,
   hasAcceptedSubmission,
+  hasTranscribed,
   hasInFlightSubmission,
   insertHintEvent,
   insertLearningEvent,
@@ -35,6 +33,7 @@ import {
 import { scheduleReview, updateConcepts } from "@leetmind/learner";
 import type { Deps } from "../deps.js";
 import { requireId } from "../server.js";
+import { queueFollowUps } from "../lib/teaching.js";
 
 /** The rungs reachable through `POST /api/hints`. `editorial` is deliberately excluded — it is
  * only ever taken via `POST /api/problems/:versionId/give-up`, which is the "give up" action, not
@@ -67,6 +66,7 @@ function defaultConceptStateRow(userId: string, conceptId: string): UserConceptS
     review_interval_days: 1,
     review_ease: 2.5,
     review_reps: 0,
+    mastered_at: null,
     updated_at: new Date(),
   };
 }
@@ -156,11 +156,22 @@ export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void 
       if (taken.includes(rung)) texts[rung] = content.hints[rung];
     }
 
+    // Once the editorial has genuinely been revealed — by giving up, or by practice opening a
+    // teaching episode — this endpoint must serve it too. Otherwise the full solution exists only
+    // in the give-up response body, and a page reload mid-teaching-episode leaves the user staring
+    // at a problem they have been told to transcribe with nothing to transcribe from.
+    const editorialTaken = taken.includes("editorial");
+
     reply.send({
       taken,
       available: nextRung ? [nextRung] : [],
       penalties: penaltiesRecord(),
       texts,
+      editorial_md: editorialTaken ? content.hints.editorial_md : null,
+      solutions: editorialTaken
+        ? { python: content.reference_solution_py, cpp: content.reference_solution_cpp }
+        : null,
+      transcribed: editorialTaken ? await hasTranscribed(userId, versionId) : false,
     });
   });
 
@@ -200,15 +211,6 @@ export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void 
         throw conflict("Already solved — there's nothing to give up.");
       }
 
-      if (body.baseline_item_id) {
-        // Ownership, not just existence: with real accounts an item id is no longer implicitly
-        // the caller's, and completing someone else's baseline item would corrupt their probe
-        // sequence. 404 rather than 403 so an id can't be probed for existence.
-        const item = await getBaselineItem(body.baseline_item_id);
-        const session = item ? await getBaselineSession(item.baseline_session_id) : null;
-        if (!item || !session || session.user_id !== userId) throw notFound("Baseline item not found");
-      }
-
       const result = await withTransaction(async (client) => {
         await insertHintEvent(client, {
           id: newId(),
@@ -216,18 +218,6 @@ export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void 
           problem_version_id: versionId,
           level: "editorial",
         });
-
-        // Completes the item even on an idempotent replay — `completeBaselineItem` no-ops once
-        // already terminal, so this is safe to call unconditionally. Previously `baseline_item_id`
-        // was parsed and never used at all: the item never reached `gave_up`, which meant the
-        // baseline's pending-items guard could never pass and the flow stalled permanently
-        // (confirmed live).
-        if (body.baseline_item_id) {
-          await completeBaselineItem(client, body.baseline_item_id, {
-            state: "gave_up",
-            active_ms: body.active_ms ?? null,
-          });
-        }
 
         const existing = await queryOneWith<LearningEventRow>(
           client,
@@ -304,6 +294,26 @@ export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void 
         return { changes: update.changes, explanation: update.explanation, outcome: 0 };
       });
 
+      // Giving up opens a teaching episode: the user now owes a transcription of this solution,
+      // and — once they have written it out — an easier same-shape reinforce problem plus a
+      // delayed different-shape transfer problem. Queued here rather than after the transcription
+      // so that closing the tab on the editorial cannot skip the follow-ups; see
+      // packages/learner/src/teaching.ts.
+      //
+      // Idempotent through the (user, origin, kind) unique key, so a replayed give-up — which the
+      // block above already handles for the learning event — cannot stack duplicate debts.
+      const primaryConcept = content.concepts.find((c) => c.role === "primary") ?? content.concepts[0];
+      if (primaryConcept) {
+        await queueFollowUps({
+          userId,
+          conceptId: primaryConcept.id,
+          problemVersionId: versionId,
+          problemRating: content.difficulty.rating,
+          originShape: versionRow.shape,
+          trigger: "editorial_revealed",
+        });
+      }
+
       const conceptRows =
         conceptIds.length > 0
           ? await query<ConceptRow>("select * from concepts where id = any($1)", [conceptIds])
@@ -313,6 +323,13 @@ export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void 
         editorial_md: content.hints.editorial_md,
         solutions: { python: content.reference_solution_py, cpp: content.reference_solution_cpp },
         concepts: conceptRows,
+        // The write-it-out step. Server-authoritative: `GET /api/practice/next` will keep
+        // returning this problem until an accepted `transcribe` submission exists for it.
+        teaching: {
+          reason: "You needed the full solution for that one — type it out yourself before moving on.",
+          trigger: "editorial_revealed",
+          transcribed: false,
+        },
         mastery_change: {
           changes: result.changes,
           outcome: result.outcome,

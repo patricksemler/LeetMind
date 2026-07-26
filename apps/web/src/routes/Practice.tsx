@@ -1,5 +1,4 @@
-import { useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useConcepts } from "../hooks/useConcepts";
@@ -10,10 +9,15 @@ import { buttonClassName } from "../components/ui/Button";
 /**
  * `/` — practice. One problem at a time, forever.
  *
- * There is no session to start and nothing to plan: the API answers "what now?" and this route
- * renders whichever of the three answers came back. The interesting one is `generating` — when the
- * verified pool can't cover the user's current edge, the API commissions a new problem and this
- * page polls until it lands, rather than showing an empty state and a shrug.
+ * There is no session to start, nothing to plan, and — as of the baseline's removal — nothing to
+ * complete before the app will give you something to do. This route used to check `has_baseline`
+ * and bounce a new user to an onboarding probe; now their first request returns a problem like
+ * every other request does. Calibration still happens over the first few problems, but it is the
+ * API's business, not a screen the user has to get through.
+ *
+ * Two answers to render, then: a problem, or `generating` — when the verified pool can't cover the
+ * user's current edge, the API commissions a new problem and this page polls until it lands rather
+ * than showing an empty state and a shrug.
  */
 
 /** Generation runs `claude -p` and then a six-stage verification gate, so it is measured in tens
@@ -50,11 +54,8 @@ function GeneratingPanel({
 }
 
 export function Practice() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { namesById } = useConcepts();
-
-  const meQuery = useQuery({ queryKey: ["me"], queryFn: api.me });
 
   const nextQuery = useQuery({
     queryKey: ["practice", "next"],
@@ -65,13 +66,7 @@ export function Practice() {
     refetchInterval: (query) => (query.state.data?.generating ? GENERATING_POLL_MS : false),
   });
 
-  const needsBaseline = nextQuery.data?.needs_baseline || meQuery.data?.has_baseline === false;
-
-  useEffect(() => {
-    if (needsBaseline) navigate("/baseline", { replace: true });
-  }, [needsBaseline, navigate]);
-
-  if (meQuery.isLoading || nextQuery.isLoading) {
+  if (nextQuery.isLoading) {
     return <div className="flex h-full items-center justify-center text-text-faint">Loading…</div>;
   }
 
@@ -82,17 +77,6 @@ export function Practice() {
         <button className="text-accent underline" onClick={() => void nextQuery.refetch()}>
           Retry
         </button>
-      </div>
-    );
-  }
-
-  if (needsBaseline) {
-    // The effect above is already navigating; render the reason rather than a blank frame.
-    return (
-      <div className="flex h-full items-center justify-center p-6">
-        <Panel className="max-w-md p-6 text-center">
-          <p className="text-sm text-text-dim">Taking you to the baseline first…</p>
-        </Panel>
       </div>
     );
   }
@@ -127,15 +111,29 @@ export function Practice() {
     );
   }
 
-  const conceptId = (data?.evidence as { concept?: string } | undefined)?.concept;
+  const evidence = data?.evidence as { concept?: string; cold_start?: boolean } | undefined;
+  const conceptId = evidence?.concept;
   const conceptLabel = conceptId ? (namesById[conceptId] ?? conceptId) : null;
   const minutes = problem.expected_active_minutes;
+  const teaching = data?.teaching ?? null;
+  const followup = data?.followup ?? null;
 
   return (
     <div className="flex h-full items-center justify-center p-6">
       <Panel className="w-full max-w-lg p-6">
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <Badge tone="accent">next up</Badge>
+          {/* The lead badge names what KIND of problem this is, because the three kinds ask for
+              different things from the user. A teaching problem is not something to attempt; a
+              transfer problem is a check on something they were taught days ago. Rendering all of
+              them as an undifferentiated "next up" was what made the follow-up pair feel like the
+              model had simply forgotten what it had just shown them. */}
+          {teaching ? (
+            <Badge tone="warn">worked example</Badge>
+          ) : followup ? (
+            <Badge tone="accent">{followup.kind === "reinforce" ? "your turn" : "checking it stuck"}</Badge>
+          ) : (
+            <Badge tone="accent">next up</Badge>
+          )}
           {conceptLabel && <Badge tone="neutral">{conceptLabel}</Badge>}
           {minutes && (
             <span className="text-xs text-text-faint">
@@ -151,24 +149,33 @@ export function Practice() {
 
         <div className="mt-5 flex items-center gap-2">
           <Link to={`/problem/${problem.problem_version_id}`} className={buttonClassName({ variant: "primary" })}>
-            Start
+            {teaching ? "Work through it" : "Start"}
           </Link>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              // "Something else" is not a mastery signal — it must not write a skip event. Simply
-              // re-asking gets a different pick, because `selectNext`'s scoring is over a live
-              // pool that this request re-reads.
-              void queryClient.invalidateQueries({ queryKey: ["practice", "next"] });
-            }}
-          >
-            Something else
-          </Button>
+          {/* Hidden during a teaching episode and on a follow-up. Both exist precisely because the
+              model decided THIS problem is the one that matters next, and an escape hatch beside
+              them would let the user shuffle past the intervention that was chosen for them —
+              which is the behaviour teaching mode exists to interrupt. */}
+          {!teaching && !followup && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                // "Something else" is not a mastery signal — it must not write a skip event. Simply
+                // re-asking gets a different pick, because `selectNext`'s scoring is over a live
+                // pool that this request re-reads.
+                void queryClient.invalidateQueries({ queryKey: ["practice", "next"] });
+              }}
+            >
+              Something else
+            </Button>
+          )}
         </div>
 
         <p className="mt-5 border-t border-border pt-4 text-xs text-text-faint">
-          Solve it, skip it, or give up — all three teach the model something. Your ratings update either way, and
-          the next problem is chosen from what they say.
+          {teaching
+            ? "You'll see the full solution for this one. Read it, then type it out yourself — that's the part that sticks. A similar problem comes next so you can use it."
+            : evidence?.cold_start
+              ? "Solve it, or give up — either way the next one is pitched closer to your level. The first few problems are finding your range."
+              : "Solve it, skip it, or give up — all three teach the model something. Your ratings update either way, and the next problem is chosen from what they say."}
         </p>
       </Panel>
     </div>

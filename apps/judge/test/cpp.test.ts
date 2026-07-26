@@ -32,6 +32,10 @@ const canRun = dbReachable && dockerReachable;
 const CORRECT_CPP = "class Solution {\npublic:\n    long long solve(long long a, long long b) { return a + b; }\n};\n";
 const WRONG_CPP = "class Solution {\npublic:\n    long long solve(long long a, long long b) { return a - b; }\n};\n";
 const SYNTAX_ERROR_CPP = "class Solution {\npublic:\n    long long solve(long long a, long long b) { return this_is_not_defined; }\n};\n";
+/** Special-cases the public example and is wrong everywhere else — the exact behaviour hidden
+ * tests exist to catch. C++ counterpart of handler.test.ts test 2a's Python source. */
+const HARDCODED_CPP =
+  "class Solution {\npublic:\n    long long solve(long long a, long long b) {\n        if (a == 1 && b == 2) return 3;\n        return a - b;\n    }\n};\n";
 
 describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () => {
   const deps = testJudgeDeps();
@@ -105,10 +109,10 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
     expect(after.rating).toBeGreaterThan(before.rating);
   }, 60_000);
 
-  it("2. wrong answer: C++ solution -> wrong_answer, rating moves down, public preview only", async () => {
+  it("2. wrong answer on the PUBLIC example: previews shown, and no mastery consequence at all", async () => {
     // Submit runs the public examples first, so a uniformly-wrong solution breaks on example #1 —
     // whose values are on the problem page anyway. What must never appear is a genuinely hidden
-    // test's expected value; see handler.test.ts test 2a for the hard-coding case.
+    // test's expected value; see test 2a below for that case.
     const problem = await seed({
       hiddenTests: [
         { args: [1, 2], expected: 3, origin: "boundary" },
@@ -144,6 +148,71 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
     expect(reloaded.failure?.tests).toMatchObject({ public_passed: 0, public_total: 1 });
     expect(reloaded.failure?.expected_preview).toBe(3);
 
+    // …and because the case that broke is one the statement prints and `Run` executes for free,
+    // this attempt carries no mastery consequence at all — the same exemption compile-only
+    // failures get (CONTRACTS §8, and the `!failedPublicCase(failure)` gate in src/handler.ts).
+    // This assertion previously read `after.rating < before.rating`, which was correct before
+    // that gate existed and has been wrong since.
+    expect(await countLearningEvents(submission.id)).toBe(0);
+    const after = await snapshotConceptState();
+    expect(after.rating).toBe(before.rating);
+  }, 60_000);
+
+  it("2a. wrong answer on a HIDDEN case: rating moves down, and only that case is disclosed", async () => {
+    // The other side of test 2's rule, and the case that actually exercises the C++ path's mastery
+    // consequence: every public example passed, so nothing on the page warned the user this was
+    // coming, and it scores like any other attempt. C++ mirror of handler.test.ts test 2a.
+    const SECRET_EXPECTED = 918273645;
+    const OTHER_SECRET_EXPECTED = 111222333;
+    const problem = await seed({
+      hiddenTests: [
+        { args: [500000, 500000], expected: SECRET_EXPECTED, origin: "random" },
+        { args: [777, 777], expected: OTHER_SECRET_EXPECTED, origin: "adversarial" },
+      ],
+    });
+    const submission = await insertCppSubmission({
+      versionId: problem.versionId,
+      source: HARDCODED_CPP,
+      mode: "submit",
+    });
+
+    const before = await snapshotConceptState();
+
+    await handler(
+      await makeLeasedJudgeJob(deps, {
+        submission_id: submission.id,
+        mode: "submit",
+        language: "cpp",
+        problem_version_id: problem.versionId,
+        user_id: TEST_USER_ID,
+      }),
+      makeCtx(),
+    );
+
+    const reloaded = await reloadSubmission(submission.id);
+    expect(reloaded.status).toBe("completed");
+    expect(reloaded.verdict).toBe("wrong_answer");
+
+    // Every public example passed; the failure is in the hidden suite.
+    expect(reloaded.failure?.tests).toMatchObject({ public_passed: 1, public_total: 1 });
+    expect(reloaded.failure!.first_failing_test_index!).toBeGreaterThanOrEqual(1);
+
+    // The legacy `*_preview` fields stay empty for a hidden failure — unbounded, never brought
+    // back (see `sanitizeFailure` in apps/api).
+    expect(reloaded.failure?.expected_preview).toBeUndefined();
+    expect(reloaded.failure?.input_preview).toBeUndefined();
+    expect(reloaded.failure?.actual_preview).toBeUndefined();
+
+    // `failing_test` DOES disclose the one case that broke — and only that one, so a single
+    // submission can never enumerate the hidden suite.
+    expect(reloaded.failure?.failing_test).toMatchObject({
+      origin: "hidden",
+      args: [500000, 500000],
+      expected: SECRET_EXPECTED,
+    });
+    expect(JSON.stringify(reloaded.failure ?? {})).not.toContain(String(OTHER_SECRET_EXPECTED));
+
+    expect(await countLearningEvents(submission.id)).toBe(1);
     const after = await snapshotConceptState();
     expect(after.rating).toBeLessThan(before.rating);
   }, 60_000);

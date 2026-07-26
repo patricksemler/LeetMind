@@ -3,7 +3,7 @@ import {
   getApprovedProblemVersion,
   getLatestSubmission,
   getSubmission,
-  getBaselineItem,
+  hasSeenEditorial,
   insertSubmission,
   listHintEvents,
   listSubmissionsForVersion,
@@ -134,12 +134,18 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
     const versionRow = await getApprovedProblemVersion(body.problem_version_id);
     if (!versionRow) throw notFound("Problem version not found or not approved");
 
-    // Validated up front rather than left to the DB's foreign key — an unknown/bogus
-    // `baseline_item_id` used to surface as a raw FK-violation 500 (confirmed live), not the 400 a
-    // client-supplied bad id should produce.
-    if (body.baseline_item_id) {
-      const item = await getBaselineItem(body.baseline_item_id);
-      if (!item) throw badRequest("Unknown baseline_item_id", { baseline_item_id: body.baseline_item_id });
+    // `transcribe` is the teaching-mode write-it-out step, and it is only meaningful once the
+    // solution has actually been revealed. Rejecting it otherwise closes the obvious hole: without
+    // this, a client could submit `transcribe` on any problem to get it judged with the hidden
+    // tests but no mastery consequence — an unlimited free run against the real suite.
+    if (body.mode === "transcribe") {
+      const revealed = await hasSeenEditorial(userId, body.problem_version_id);
+      if (!revealed) {
+        throw badRequest(
+          "transcribe mode requires the editorial to have been revealed for this problem",
+          { problem_version_id: body.problem_version_id },
+        );
+      }
     }
 
     const sourceHash = sha256Hex(body.source);
@@ -150,8 +156,9 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
         id: newId(),
         user_id: userId,
         problem_version_id: body.problem_version_id,
-        baseline_item_id: body.baseline_item_id ?? null,
+        baseline_item_id: null,
         mode: body.mode,
+        paste_detected: body.mode === "transcribe" ? (body.paste_detected ?? false) : false,
         language: body.language,
         source: body.source,
         source_hash: sourceHash,

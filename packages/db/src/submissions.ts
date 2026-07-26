@@ -23,6 +23,8 @@ export interface NewSubmissionInput {
   status?: SubmissionStatus;
   custom_input?: unknown | null;
   active_ms?: number | null;
+  /** `transcribe` mode only — advisory, never a gate (migration 007). */
+  paste_detected?: boolean;
   idempotency_key?: string | null;
   correlation_id?: string | null;
 }
@@ -32,9 +34,9 @@ export async function insertSubmission(client: PoolClient, row: NewSubmissionInp
   const sql = `
     insert into submissions (
       id, user_id, problem_version_id, baseline_item_id, mode, language, source, source_hash,
-      status, custom_input, active_ms, idempotency_key, correlation_id
+      status, custom_input, active_ms, paste_detected, idempotency_key, correlation_id
     ) values (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
     )
     returning *
   `;
@@ -50,6 +52,7 @@ export async function insertSubmission(client: PoolClient, row: NewSubmissionInp
     row.status ?? "created",
     row.custom_input === undefined ? null : JSON.stringify(row.custom_input),
     row.active_ms ?? null,
+    row.paste_detected ?? false,
     row.idempotency_key ?? null,
     row.correlation_id ?? null,
   ]);
@@ -254,4 +257,36 @@ export async function listRecentSubmissions(userId: string, limit: number): Prom
     "select * from submissions where user_id = $1 order by created_at desc limit $2",
     [userId, limit],
   );
+}
+
+/**
+ * Whether this user has had the editorial revealed for this problem — by giving up, or by practice
+ * opening a teaching episode on it.
+ *
+ * The gate on `transcribe`-mode submissions. Without it, `transcribe` would be an unlimited free
+ * run against the full hidden suite with no mastery consequence, on any problem.
+ */
+export async function hasSeenEditorial(userId: string, problemVersionId: string): Promise<boolean> {
+  const row = await queryOne<{ exists: boolean }>(
+    `select exists (
+       select 1 from hint_events
+        where user_id = $1 and problem_version_id = $2 and level = 'editorial'
+     ) as exists`,
+    [userId, problemVersionId],
+  );
+  return row?.exists ?? false;
+}
+
+/** Whether this user has an accepted `transcribe` submission for this problem — i.e. the teaching
+ * episode's write-it-out step is done and practice may move on. */
+export async function hasTranscribed(userId: string, problemVersionId: string): Promise<boolean> {
+  const row = await queryOne<{ exists: boolean }>(
+    `select exists (
+       select 1 from submissions
+        where user_id = $1 and problem_version_id = $2
+          and mode = 'transcribe' and verdict = 'accepted'
+     ) as exists`,
+    [userId, problemVersionId],
+  );
+  return row?.exists ?? false;
 }

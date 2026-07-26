@@ -172,8 +172,8 @@ def _persist_candidate(
             insert into problem_versions
               (id, problem_id, version, state, content, title, difficulty_rating,
                difficulty_confidence, expected_min_minutes, expected_max_minutes, comparator,
-               provenance, created_at)
-            values (%s,%s,%s,'candidate',%s,%s,%s,%s,%s,%s,%s,%s, now());
+               shape, provenance, created_at)
+            values (%s,%s,%s,'candidate',%s,%s,%s,%s,%s,%s,%s,%s,%s, now());
             """,
             (
                 problem_version_id,
@@ -186,6 +186,10 @@ def _persist_candidate(
                 low_minutes,
                 high_minutes,
                 problem_version.comparator,
+                # Denormalised out of `content` into its own column so transfer-problem selection
+                # can filter on it in SQL. None when the model omitted it — the column is nullable
+                # and selection degrades (see ListApprovedUnattemptedFilter.shape in @leetmind/db).
+                problem_version.shape,
                 Json(problem_version.provenance.model_dump(mode="json")),
             ),
             conn=conn,

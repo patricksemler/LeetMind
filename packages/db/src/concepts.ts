@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { query, queryOne, queryOneWith } from "./pool.js";
+import { query, queryOne, queryOneWith, queryWith } from "./pool.js";
 import type { ConceptEdgeRow, ConceptRow, UserConceptStateRow } from "./types.js";
 
 export async function listConcepts(): Promise<ConceptRow[]> {
@@ -68,9 +68,10 @@ export async function upsertConceptState(client: PoolClient, state: UserConceptS
     insert into user_concept_state (
       user_id, concept_id, rating, uncertainty, attempts, solves, unassisted_solves, skips,
       current_streak, best_streak, total_active_ms, hint_counts, error_counts,
-      last_practiced_at, next_review_at, review_interval_days, review_ease, review_reps, updated_at
+      last_practiced_at, next_review_at, review_interval_days, review_ease, review_reps,
+      mastered_at, updated_at
     ) values (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, now()
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, now()
     )
     on conflict (user_id, concept_id) do update set
       rating = excluded.rating,
@@ -89,6 +90,9 @@ export async function upsertConceptState(client: PoolClient, state: UserConceptS
       review_interval_days = excluded.review_interval_days,
       review_ease = excluded.review_ease,
       review_reps = excluded.review_reps,
+      -- coalesce, not overwrite: mastery is sticky (migration 007). A caller that builds its
+      -- update from a state row read before mastery was awarded must not be able to revoke it.
+      mastered_at = coalesce(user_concept_state.mastered_at, excluded.mastered_at),
       updated_at = now()
     returning *
   `;
@@ -111,9 +115,79 @@ export async function upsertConceptState(client: PoolClient, state: UserConceptS
     state.review_interval_days,
     state.review_ease,
     state.review_reps,
+    state.mastered_at,
   ]);
   if (!row) {
     throw new Error(`upsertConceptState: failed to read back state for ${state.user_id}/${state.concept_id}`);
   }
   return row;
+}
+
+/**
+ * The evidence `isMastered` (packages/learner/src/mastery.ts) needs for one concept, plus that
+ * concept's own difficulty band.
+ *
+ * "Unassisted" is defined here as **no hint event of any level** on that problem — not "no
+ * editorial". Someone who took an orientation hint solved a different, easier problem than the one
+ * posed, and mastery is the one claim strict enough to care about the difference. (The rating model
+ * takes the softer view, capping the outcome by hint level rather than discarding it; that is
+ * correct for a running estimate and wrong for a durable claim.)
+ *
+ * `mode = 'submit'` excludes `transcribe` rows for free — a copied-out editorial is never evidence.
+ */
+export async function conceptMasteryEvidence(
+  client: PoolClient,
+  userId: string,
+  conceptId: string,
+): Promise<{
+  unassistedSolves: number;
+  distinctProblems: number;
+  firstUnassistedSolveAt: Date | null;
+  lastUnassistedSolveAt: Date | null;
+  band: { min_rating: number; max_rating: number } | null;
+}> {
+  const rows = await queryWith<{
+    unassisted_solves: number;
+    distinct_problems: number;
+    first_at: Date | null;
+    last_at: Date | null;
+    min_rating: number | null;
+    max_rating: number | null;
+  }>(
+    client,
+    `select
+       count(s.id)::int                        as unassisted_solves,
+       count(distinct s.problem_version_id)::int as distinct_problems,
+       min(s.completed_at)                     as first_at,
+       max(s.completed_at)                     as last_at,
+       max(c.min_rating)                       as min_rating,
+       max(c.max_rating)                       as max_rating
+     from concepts c
+     left join problem_concepts pc
+       on pc.concept_id = c.id and pc.role = 'primary'
+     left join submissions s
+       on s.problem_version_id = pc.problem_version_id
+      and s.user_id = $1
+      and s.mode = 'submit'
+      and s.verdict = 'accepted'
+      and not exists (
+        select 1 from hint_events he
+         where he.user_id = s.user_id
+           and he.problem_version_id = s.problem_version_id
+      )
+     where c.id = $2`,
+    [userId, conceptId],
+  );
+
+  const row = rows[0];
+  return {
+    unassistedSolves: row?.unassisted_solves ?? 0,
+    distinctProblems: row?.distinct_problems ?? 0,
+    firstUnassistedSolveAt: row?.first_at ?? null,
+    lastUnassistedSolveAt: row?.last_at ?? null,
+    band:
+      row && row.min_rating !== null && row.max_rating !== null
+        ? { min_rating: row.min_rating, max_rating: row.max_rating }
+        : null,
+  };
 }

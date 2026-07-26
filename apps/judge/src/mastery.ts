@@ -11,17 +11,19 @@
 // there is no "check if it exists, then decide" race window because the check *is* the write.
 import type { PoolClient } from "pg";
 import {
+  conceptMasteryEvidence,
   getConceptStateForUpdate,
   insertLearningEvent,
   listHintEvents,
   notify,
   queryWith,
+  satisfyFollowupsForProblem,
   upsertConceptState,
   type SubmissionRow,
   type UserConceptStateRow,
 } from "@leetmind/db";
 import { learningEventKey, newId, type HintLevel, type ProblemVersion, type Verdict } from "@leetmind/shared";
-import { outcomeScore, scheduleReview, updateConcepts, type ConceptChange } from "@leetmind/learner";
+import { isMastered, outcomeScore, scheduleReview, updateConcepts, type ConceptChange } from "@leetmind/learner";
 
 const HINT_LEVEL_ORDER: readonly HintLevel[] = [
   "l1_orientation",
@@ -64,8 +66,41 @@ function defaultConceptStateRow(userId: string, conceptId: string): UserConceptS
     review_interval_days: 1,
     review_ease: 2.5,
     review_reps: 0,
+    mastered_at: null,
     updated_at: new Date(),
   };
+}
+
+/**
+ * Awards `mastered_at` to any concept whose five clauses now all hold
+ * (packages/learner/src/mastery.ts), returning the states to persist.
+ *
+ * Evaluated here, after the rating update, because two of the five clauses (rating, uncertainty)
+ * are read from the state this call just produced — checking before the update would always be one
+ * submission stale. Already-mastered concepts are skipped rather than re-evaluated: the award is
+ * sticky, so re-running the predicate could only ever waste a query.
+ */
+async function awardMastery(
+  client: PoolClient,
+  userId: string,
+  states: Record<string, UserConceptStateRow>,
+  now: Date,
+): Promise<Record<string, UserConceptStateRow>> {
+  const out: Record<string, UserConceptStateRow> = {};
+  for (const [conceptId, state] of Object.entries(states)) {
+    if (state.mastered_at) {
+      out[conceptId] = state;
+      continue;
+    }
+    const evidence = await conceptMasteryEvidence(client, userId, conceptId);
+    if (!evidence.band) {
+      out[conceptId] = state;
+      continue;
+    }
+    const result = isMastered({ state, band: evidence.band, evidence });
+    out[conceptId] = result.mastered ? { ...state, mastered_at: now } : state;
+  }
+  return out;
 }
 
 function snapshotStates(states: Record<string, UserConceptStateRow>): Record<string, unknown> {
@@ -296,9 +331,17 @@ export async function applyMastery(input: ApplyMasteryInput): Promise<ApplyMaste
     return { applied: false };
   }
 
+  // Mastery is evaluated against the freshly-updated states but written in the same loop, so a
+  // concept that crosses the line on this submission is durable the moment the submission is.
+  const withMastery = await awardMastery(client, userId, newStates, now);
   for (const id of conceptIds) {
-    await upsertConceptState(client, newStates[id]!);
+    await upsertConceptState(client, withMastery[id]!);
   }
+
+  // A follow-up debt is settled by being *attempted*, not passed — see
+  // `satisfyFollowupsForProblem`. Runs inside this transaction so a redelivered judge job cannot
+  // settle a debt whose learning event was rolled back.
+  await satisfyFollowupsForProblem(client, userId, versionId);
 
   await notify(client, {
     type: "mastery",

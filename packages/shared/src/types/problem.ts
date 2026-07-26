@@ -37,6 +37,27 @@ const ProblemConceptRefSchema = z.object({
  * what `problem_versions.content` stores. It must never be serialized directly to a client — only
  * `toPublicProblem()` may derive a client-safe projection from it.
  */
+/**
+ * What a problem asks you to *produce*, as opposed to which technique solves it — the concept
+ * taxonomy answers the second question and nothing answered the first. Selecting a transfer
+ * problem ("same concept, different form") is impossible without this axis: Two Sum and Subarray
+ * Sum Equals K are both `arrays_hashing`, and only one of them is a useful transfer test of the
+ * other. Mirrors the `problem_versions.shape` check constraint in migration 007 exactly.
+ */
+export const ProblemShape = z.enum([
+  "find_pair",
+  "count_occurrences",
+  "find_extremum",
+  "check_property",
+  "build_output",
+  "in_place_transform",
+  "simulate_process",
+  "partition_group",
+  "path_or_order",
+  "optimize_value",
+]);
+export type ProblemShape = z.infer<typeof ProblemShape>;
+
 export const ProblemVersionSchema = z
   .object({
     problem_id: z.string(),
@@ -53,6 +74,10 @@ export const ProblemVersionSchema = z
       confidence: z.enum(["generated", "verified", "calibrated"]),
     }),
     expected_active_minutes: z.tuple([z.number().int(), z.number().int()]),
+    // Nullish, like `reference_solution_cpp` below: Python emits `null` for an unset optional, and
+    // every problem version generated before migration 007 has no shape at all. Consumers must
+    // degrade (see `ListApprovedUnattemptedFilter.shape` in @leetmind/db) rather than assume one.
+    shape: ProblemShape.nullish().transform((v) => v ?? undefined),
     target_complexity: z.object({ time: z.string(), space: z.string() }),
     reference_solution_py: z.string(),
     // The C++ counterpart shown alongside Python in the post-reveal solution view. Optional and

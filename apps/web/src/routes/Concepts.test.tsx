@@ -45,6 +45,7 @@ describe("Concepts", () => {
             solves: 7,
             unassisted_solves: 5,
             trend: "up",
+            mastered_at: null,
           },
         ],
       }),

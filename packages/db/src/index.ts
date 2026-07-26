@@ -20,6 +20,7 @@ export * from "./concepts.js";
 export * from "./problems.js";
 export * from "./submissions.js";
 export * from "./events.js";
+export * from "./followups.js";
 export * from "./verification.js";
 export * from "./modelRuns.js";
 export * from "./notify.js";

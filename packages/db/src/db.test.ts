@@ -94,6 +94,7 @@ describe.skipIf(!dbReachable)("live database: migrations + seed", () => {
         "004_accounts",
         "005_rename_baseline_constraints",
         "006_submission_public_results",
+        "007_teaching_and_followups",
       ]);
     } finally {
       await client.end();

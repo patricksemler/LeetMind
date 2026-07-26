@@ -83,6 +83,7 @@ _WORKED_EXAMPLE = {
     ],
     "concepts": [{"id": "arrays_hashing", "role": "primary", "weight": 1.0}],
     "difficulty": {"rating": 950, "confidence": "generated"},
+    "shape": "find_extremum",
     "expected_active_minutes": [4, 10],
     "target_complexity": {"time": "O(n)", "space": "O(1)"},
     "reference_solution_py": (
@@ -315,6 +316,22 @@ def _problem_version_field_doc() -> str:
   - `difficulty` (object): `{{rating, confidence}}` — `rating` is an Elo-scale integer estimate
     of the problem's difficulty for this platform's users; set `confidence` to `"generated"`
     (you are estimating from first principles, not from observed data).
+  - `shape` (string, one of the values listed below): what the problem asks the solver to
+    PRODUCE. This is deliberately NOT the technique that solves it — `concepts` already records
+    that. It is the *form of the question*, and it is what lets the app later serve "the same
+    concept in a shape you have not seen" as a genuine transfer test. Two hash-map problems that
+    both ask "find the two elements that…" are the same shape; one that asks "how many subarrays
+    sum to k" is a different one. Pick the single best fit:
+      - `find_pair` — locate elements standing in some relation (two numbers summing to a target)
+      - `count_occurrences` — tally things matching a predicate (how many subarrays sum to k)
+      - `find_extremum` — the longest/shortest/max/min such thing (longest run, maximum profit)
+      - `check_property` — a yes/no question about the input (are these brackets balanced)
+      - `build_output` — construct a new structure from the input (merge overlapping intervals)
+      - `in_place_transform` — mutate the given structure (reverse a list, rotate a matrix)
+      - `simulate_process` — run a described process to its end state (collide the asteroids)
+      - `partition_group` — split or bucket elements (partition labels, the k closest points)
+      - `path_or_order` — produce an ordering or a route (a valid course schedule)
+      - `optimize_value` — maximise/minimise an objective under constraints (coin change)
   - `expected_active_minutes` (array of 2 ints, ascending): your estimate of focused solve time
     for a prepared-but-not-expert solver, `[low, high]`.
   - `target_complexity` (object): `{{time, space}}` — big-O strings (e.g. `"O(n)"`, `"O(n log

@@ -30,6 +30,7 @@ export function ActionBar({
   onSubmit,
   running,
   submitting,
+  transcribing = false,
 }: {
   language: Language;
   onLanguageChange: (l: Language) => void;
@@ -37,6 +38,11 @@ export function ActionBar({
   onSubmit: () => void;
   running: boolean;
   submitting: boolean;
+  /** Teaching mode: the primary action submits a transcription of the revealed solution rather
+   * than an attempt. Relabelled rather than given a fourth button — there is exactly one thing to
+   * do on this screen, and offering "Submit" beside "Submit transcription" would only ask the user
+   * to distinguish two things that run the same tests. */
+  transcribing?: boolean;
 }) {
   const busy = running || submitting;
 
@@ -63,7 +69,7 @@ export function ActionBar({
           way in through the keyboard either. */}
       <div className="flex min-h-[30px] items-center gap-2">
         {busy ? (
-          <Spinner label={submitting ? "Submitting…" : "Running…"} />
+          <Spinner label={submitting ? (transcribing ? "Checking your transcription…" : "Submitting…") : "Running…"} />
         ) : (
           <>
             <Button size="sm" variant="secondary" onClick={onRun} title="Run against the public example tests (Cmd/Ctrl + ')">
@@ -73,9 +79,13 @@ export function ActionBar({
               size="sm"
               variant="primary"
               onClick={onSubmit}
-              title="Submit against the public examples AND the hidden tests (Cmd/Ctrl + Enter)"
+              title={
+                transcribing
+                  ? "Check your typed-out solution against the full test suite (Cmd/Ctrl + Enter)"
+                  : "Submit against the public examples AND the hidden tests (Cmd/Ctrl + Enter)"
+              }
             >
-              Submit
+              {transcribing ? "Check transcription" : "Submit"}
             </Button>
           </>
         )}

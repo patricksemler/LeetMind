@@ -9,7 +9,6 @@
 import {
   CreateSubmissionResponse,
   GetConceptsResponse,
-  GetCurrentBaselineResponse,
   GetHintsResponse,
   GetLatestSubmissionResponse,
   GetProblemResponse,
@@ -22,15 +21,11 @@ import {
   NextProblemResponse,
   ProgressResponse,
   RevealSchema,
-  SkipBaselineItemResponse,
-  StartBaselineItemResponse,
-  StartBaselineResponse,
   TakeHintResponse,
   GiveUpResponse,
   type CreateSubmissionRequest,
   type GenerateNowRequest,
   type GiveUpRequest,
-  type SkipBaselineItemRequest,
   type TakeHintRequest,
 } from "@leetmind/shared";
 
@@ -153,16 +148,6 @@ export const api = {
   getReveal: (versionId: string) => request(`/api/problems/${versionId}/reveal`, RevealSchema),
 
   progress: () => request("/api/progress", ProgressResponse),
-
-  startBaseline: () => postJson("/api/baseline/start", {}, StartBaselineResponse),
-
-  currentBaseline: () => request("/api/baseline/current", GetCurrentBaselineResponse),
-
-  skipBaselineItem: (id: string, body: SkipBaselineItemRequest) =>
-    postJson(`/api/baseline-items/${id}/skip`, body, SkipBaselineItemResponse),
-
-  startBaselineItem: (id: string) =>
-    postJson(`/api/baseline-items/${id}/start`, {}, StartBaselineItemResponse),
 
   generateNow: (body: GenerateNowRequest) => postJson("/api/generate-now", body, GenerateNowResponse),
 

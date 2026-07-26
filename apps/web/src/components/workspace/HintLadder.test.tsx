@@ -32,6 +32,9 @@ function makeStatefulApi(initialTaken: HintLevel[] = []) {
     penalties: { l1_orientation: 0.9, l2_conceptual: 0.75, l3_structural: 0.6, outline: 0.4, editorial: 0 },
     // The server hands back the text of rungs already paid for, so the ladder redraws from one read.
     texts: Object.fromEntries(taken.map((l) => [l, HINT_TEXT[l]])),
+    editorial_md: null,
+    solutions: null,
+    transcribed: false,
   }));
 
   vi.mocked(api.takeHint).mockImplementation(async ({ level }) => {
@@ -88,6 +91,9 @@ describe("HintLadder", () => {
       available: ["l3_structural"],
       penalties: { l1_orientation: 0.9, l2_conceptual: 0.75, l3_structural: 0.6, outline: 0.4, editorial: 0 },
       texts: {},
+      editorial_md: null,
+      solutions: null,
+      transcribed: false,
     });
 
     render(

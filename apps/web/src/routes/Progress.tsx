@@ -89,7 +89,22 @@ export function Progress() {
                     single-line rating badge against the wrapped name's full height instead of
                     its first line — misaligned (confirmed live). */}
                 <div className="mb-1.5 flex items-start justify-between gap-2 text-sm">
-                  <span className="min-w-0 text-text">{asStr(c.name) || asStr(c.concept_id)}</span>
+                  <span className="flex min-w-0 items-center gap-1.5 text-text">
+                    <span className="min-w-0">{asStr(c.name) || asStr(c.concept_id)}</span>
+                    {/* Mastery is a separate claim from a high rating, so it gets its own mark
+                        rather than being inferred from the number beside it — a rating can reach
+                        1500 on one lucky solve, and the five clauses behind this badge cannot.
+                        See packages/learner/src/mastery.ts. */}
+                    {c.mastered_at && (
+                      <span
+                        className="shrink-0 text-verdict-accepted"
+                        title="Mastered: solved unaided, across different problems, spread over more than a week"
+                        aria-label="mastered"
+                      >
+                        ✓
+                      </span>
+                    )}
+                  </span>
                   <span className="shrink-0 font-mono text-xs text-text-dim">
                     {Math.round(rating)} ± {Math.round(uncertainty)} {TREND_ICON[trend] ?? ""}
                   </span>

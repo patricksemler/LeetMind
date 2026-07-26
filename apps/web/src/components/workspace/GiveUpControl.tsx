@@ -22,16 +22,14 @@ import { Button } from "../ui";
 export function GiveUpControl({
   versionId,
   activeMs,
-  baselineItemId,
   onGaveUp,
 }: {
   versionId: string;
   activeMs: number;
-  baselineItemId?: string;
   onGaveUp: (result: GiveUpResponse) => void;
 }) {
   const mutation = useMutation({
-    mutationFn: () => api.giveUp(versionId, { baseline_item_id: baselineItemId, active_ms: activeMs }),
+    mutationFn: () => api.giveUp(versionId, { active_ms: activeMs }),
     onSuccess: onGaveUp,
   });
 
