@@ -1,21 +1,16 @@
 import type { FastifyInstance } from "fastify";
 import {
   getApprovedProblemVersion,
-  getConceptStateForUpdate,
   hasAcceptedSubmission,
   hasTranscribed,
   hasInFlightSubmission,
   insertHintEvent,
-  insertLearningEvent,
   listHintEvents,
   query,
   queryOne,
-  queryOneWith,
-  upsertConceptState,
   withTransaction,
   type ConceptRow,
   type LearningEventRow,
-  type UserConceptStateRow,
 } from "@leetmind/db";
 import {
   badRequest,
@@ -28,13 +23,11 @@ import {
   notFound,
   ProblemVersionSchema,
   TakeHintRequest,
-  type ConceptChange,
 } from "@leetmind/shared";
-import { scheduleReview, updateConcepts } from "@leetmind/learner";
 import type { Deps } from "../deps.js";
 import { requireId } from "../server.js";
 import { queueFollowUps } from "../lib/teaching.js";
-import { defaultConceptStateRow } from "../lib/candidatePool.js";
+import { runGiveUpTransaction } from "../lib/giveUp.js";
 
 /** The rungs reachable through `POST /api/hints`. `editorial` is deliberately excluded — it is
  * only ever taken via `POST /api/problems/:versionId/give-up`, which is the "give up" action, not
@@ -45,21 +38,6 @@ function penaltiesRecord(): Record<string, number> {
   const out: Record<string, number> = {};
   for (const level of HintLevel.options) out[level] = HINT_PENALTY_CAPS[level];
   return out;
-}
-
-function snapshotStates(states: Record<string, UserConceptStateRow>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(states).map(([id, s]) => [
-      id,
-      {
-        rating: s.rating,
-        uncertainty: s.uncertainty,
-        review_interval_days: s.review_interval_days,
-        review_ease: s.review_ease,
-        review_reps: s.review_reps,
-      },
-    ]),
-  );
 }
 
 export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void {
@@ -187,88 +165,18 @@ export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void 
         throw conflict("Already solved — there's nothing to give up.");
       }
 
-      const result = await withTransaction(async (client) => {
-        await insertHintEvent(client, {
-          id: newId(),
-          user_id: userId,
-          problem_version_id: versionId,
-          level: "editorial",
-        });
-
-        const existing = await queryOneWith<LearningEventRow>(
-          client,
-          "select * from learning_events where idempotency_key = $1",
-          [idempotencyKey],
-        );
-        if (existing) {
-          const evidence = existing.evidence as { changes?: ConceptChange[]; explanation?: string };
-          return {
-            changes: evidence?.changes ?? [],
-            explanation: evidence?.explanation ?? "",
-            outcome: existing.outcome,
-          };
-        }
-
-        // Row-locked (see getConceptStateForUpdate's doc comment, @leetmind/db) and in a globally
-        // consistent sorted order — the same read-modify-write-without-a-lock shape that caused
-        // the confirmed-live mastery lost-update race elsewhere (QA-PLAN.md §2.2).
-        const stateMap: Record<string, UserConceptStateRow> = {};
-        for (const id of [...conceptIds].sort()) {
-          stateMap[id] = (await getConceptStateForUpdate(client, userId, id)) ?? defaultConceptStateRow(userId, id);
-        }
-
-        const beforeSnapshot = snapshotStates(stateMap);
-        const weights = content.concepts.map((c) => ({ id: c.id, weight: c.weight }));
-
-        const update = updateConcepts({
-          states: stateMap,
-          weights,
+      const result = await withTransaction((client) =>
+        runGiveUpTransaction(client, {
+          userId,
+          versionId,
+          idempotencyKey,
+          conceptIds,
+          weights: content.concepts.map((c) => ({ id: c.id, weight: c.weight })),
           problemRating: content.difficulty.rating,
-          outcome: 0,
-          evidenceWeight: 1,
-          highestHint: "editorial",
-        });
-
-        const now = new Date();
-        for (const change of update.changes) {
-          const old = stateMap[change.concept_id];
-          if (!old) continue;
-          const review = scheduleReview(old, 0, now);
-          const newState: UserConceptStateRow = {
-            ...old,
-            rating: change.after_rating,
-            uncertainty: change.after_uncertainty,
-            attempts: old.attempts + 1,
-            current_streak: 0,
-            total_active_ms: old.total_active_ms + (body.active_ms ?? 0),
-            last_practiced_at: now,
-            next_review_at: review.next_review_at,
-            review_interval_days: review.review_interval_days,
-            review_ease: review.review_ease,
-            review_reps: review.review_reps,
-          };
-          await upsertConceptState(client, newState);
-          stateMap[change.concept_id] = newState;
-        }
-
-        const afterSnapshot = snapshotStates(stateMap);
-
-        await insertLearningEvent(client, {
-          id: newId(),
-          user_id: userId,
-          problem_version_id: versionId,
-          submission_id: null,
-          kind: "give_up",
-          outcome: 0,
-          evidence: { changes: update.changes, explanation: update.explanation, expected: update.expected },
-          before_state: beforeSnapshot,
-          after_state: afterSnapshot,
-          idempotency_key: idempotencyKey,
-          correlation_id: correlationId,
-        });
-
-        return { changes: update.changes, explanation: update.explanation, outcome: 0 };
-      });
+          activeMs: body.active_ms,
+          correlationId,
+        }),
+      );
 
       // Giving up opens a teaching episode: the user now owes a transcription of this solution,
       // and — once they have written it out — an easier same-shape reinforce problem plus a
