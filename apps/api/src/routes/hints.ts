@@ -34,6 +34,7 @@ import { scheduleReview, updateConcepts } from "@leetmind/learner";
 import type { Deps } from "../deps.js";
 import { requireId } from "../server.js";
 import { queueFollowUps } from "../lib/teaching.js";
+import { defaultConceptStateRow } from "../lib/candidatePool.js";
 
 /** The rungs reachable through `POST /api/hints`. `editorial` is deliberately excluded — it is
  * only ever taken via `POST /api/problems/:versionId/give-up`, which is the "give up" action, not
@@ -44,31 +45,6 @@ function penaltiesRecord(): Record<string, number> {
   const out: Record<string, number> = {};
   for (const level of HintLevel.options) out[level] = HINT_PENALTY_CAPS[level];
   return out;
-}
-
-function defaultConceptStateRow(userId: string, conceptId: string): UserConceptStateRow {
-  return {
-    user_id: userId,
-    concept_id: conceptId,
-    rating: 1200,
-    uncertainty: 350,
-    attempts: 0,
-    solves: 0,
-    unassisted_solves: 0,
-    skips: 0,
-    current_streak: 0,
-    best_streak: 0,
-    total_active_ms: 0,
-    hint_counts: {},
-    error_counts: {},
-    last_practiced_at: null,
-    next_review_at: null,
-    review_interval_days: 1,
-    review_ease: 2.5,
-    review_reps: 0,
-    mastered_at: null,
-    updated_at: new Date(),
-  };
 }
 
 function snapshotStates(states: Record<string, UserConceptStateRow>): Record<string, unknown> {

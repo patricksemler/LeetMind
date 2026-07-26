@@ -7,8 +7,8 @@ import {
   listConceptStates,
   type ProblemShape,
   type ProblemVersionRow,
+  type UserConceptStateRow,
 } from "@leetmind/db";
-import { ProblemVersionSchema } from "@leetmind/shared";
 import type { CandidateProblem, ConceptState } from "@leetmind/learner";
 
 export const DEFAULT_RATING = 1200;
@@ -24,6 +24,34 @@ export function defaultConceptState(conceptId: string): ConceptState {
     review_interval_days: 1,
     review_ease: 2.5,
     review_reps: 0,
+  };
+}
+
+/** DB-row projection of the same defaults as `defaultConceptState`, for callers that need a full
+ * `user_concept_state` row (e.g. a row-locked read-modify-write that must populate every column
+ * even when no row exists yet) rather than the pure learner `ConceptState` shape. */
+export function defaultConceptStateRow(userId: string, conceptId: string): UserConceptStateRow {
+  return {
+    user_id: userId,
+    concept_id: conceptId,
+    rating: DEFAULT_RATING,
+    uncertainty: DEFAULT_UNCERTAINTY,
+    attempts: 0,
+    solves: 0,
+    unassisted_solves: 0,
+    skips: 0,
+    current_streak: 0,
+    best_streak: 0,
+    total_active_ms: 0,
+    hint_counts: {},
+    error_counts: {},
+    last_practiced_at: null,
+    next_review_at: null,
+    review_interval_days: 1,
+    review_ease: 2.5,
+    review_reps: 0,
+    mastered_at: null,
+    updated_at: new Date(),
   };
 }
 
@@ -111,10 +139,4 @@ export async function findCandidateNear(
     return usable[0]!;
   }
   return null;
-}
-
-/** Validates+parses `row.content` once, for callers that need the full `ProblemVersion` (title,
- * concepts with roles, expected_active_minutes) rather than just the candidate-shaped subset. */
-export function parseContent(row: ProblemVersionRow) {
-  return ProblemVersionSchema.parse(row.content);
 }

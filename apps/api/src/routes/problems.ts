@@ -7,40 +7,16 @@ import {
   type UserConceptStateRow,
 } from "@leetmind/db";
 import { NextProblemQuery, notFound } from "@leetmind/shared";
-import { selectNext, targetBand, type CandidateProblem, type ConceptState } from "@leetmind/learner";
+import { selectNext, targetBand, type ConceptState } from "@leetmind/learner";
 import type { Deps } from "../deps.js";
 import { buildPublicProblem, type PublicProblemWithNames } from "../mappers/publicProblem.js";
 import { buildReveal } from "../mappers/submission.js";
 import { requireId } from "../server.js";
+import { DEFAULT_RATING, defaultConceptState, toPoolCandidate, type PoolCandidate } from "../lib/candidatePool.js";
 
-const DEFAULT_RATING = 1200;
-const DEFAULT_UNCERTAINTY = 350;
 /** Progressive rating-band widenings tried, in order, before giving up on "the ideal band". */
 const WIDEN_STEPS = [0, 200, 400, 800];
 const CANDIDATE_LIMIT = 25;
-
-function defaultConceptState(conceptId: string): ConceptState {
-  return {
-    concept_id: conceptId,
-    rating: DEFAULT_RATING,
-    uncertainty: DEFAULT_UNCERTAINTY,
-    last_practiced_at: null,
-    next_review_at: null,
-    review_interval_days: 1,
-    review_ease: 2.5,
-    review_reps: 0,
-  };
-}
-
-function toCandidateProblem(row: ProblemVersionRow): CandidateProblem | null {
-  const content = row.content as { concepts?: Array<{ id?: unknown; weight?: unknown }> };
-  const rawConcepts = Array.isArray(content?.concepts) ? content.concepts : [];
-  const concepts = rawConcepts
-    .filter((c): c is { id: string; weight: number } => typeof c?.id === "string" && typeof c?.weight === "number")
-    .map((c) => ({ id: c.id, weight: c.weight }));
-  if (concepts.length === 0) return null;
-  return { problem_version_id: row.id, difficulty_rating: row.difficulty_rating, concepts };
-}
 
 function averageRating(states: UserConceptStateRow[]): number {
   if (states.length === 0) return DEFAULT_RATING;
@@ -102,8 +78,8 @@ export function registerProblemRoutes(fastify: FastifyInstance, _deps: Deps): vo
     }
 
     const candidates = candidateRows
-      .map(toCandidateProblem)
-      .filter((c): c is CandidateProblem => c !== null);
+      .map(toPoolCandidate)
+      .filter((c): c is PoolCandidate => c !== null);
 
     if (candidates.length === 0) {
       reply.send({
