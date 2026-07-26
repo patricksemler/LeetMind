@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { failedPublicCase, type GiveUpResponse, type Language, type SubmissionMode, type VerdictEvent } from "@leetmind/shared";
+import { failedPublicCase } from "@leetmind/shared";
+import type { GiveUpResponse, Language, SubmissionMode, VerdictEvent } from "@leetmind/shared";
 import { api } from "../lib/api";
 import { loadDraft, saveDraft } from "../lib/draft";
 import { loadPref, savePref } from "../lib/prefs";
@@ -9,7 +10,7 @@ import { useActiveTime } from "../hooks/useActiveTime";
 import { useHints } from "../hooks/useHints";
 import { useHotkeys } from "../hooks/useHotkeys";
 import { useSubmissionEvents } from "../hooks/useSubmissionEvents";
-import { Panel, Tabs, tabPanelProps } from "../components/ui";
+import { Panel, RouteLoading, Tabs, tabPanelProps } from "../components/ui";
 import { buttonClassName } from "../components/ui/Button";
 import { ActionBar } from "../components/workspace/ActionBar";
 import { EditorPane } from "../components/workspace/EditorPane";
@@ -134,17 +135,17 @@ export function Problem() {
   useEffect(() => {
     if (!versionId) return;
     let cancelled = false;
-    api
-      .latestSubmission(versionId)
-      .then((res) => {
+    (async () => {
+      try {
+        const res = await api.latestSubmission(versionId);
         if (cancelled || hasLocalSubmissionRef.current || !res.submission) return;
         setActiveSubmissionId(res.submission.id);
         setActiveMode(res.submission.mode);
-      })
-      .catch(() => {
+      } catch {
         // Best-effort — no latest submission to hydrate from is a normal state (never submitted
         // this problem yet), and a transient fetch failure just leaves the workspace empty.
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -338,7 +339,7 @@ export function Problem() {
   if (!versionId) return null;
 
   if (problemQuery.isLoading) {
-    return <div className="flex h-full items-center justify-center text-text-faint">Loading problem…</div>;
+    return <RouteLoading message="Loading problem…" />;
   }
 
   if (problemQuery.isError || !problem) {

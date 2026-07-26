@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { formatMs, formatDate } from "../lib/format";
-import { Badge, Panel, RatingMeter } from "../components/ui";
+import { formatMs, formatDate, formatRating } from "../lib/format";
+import { Badge, Panel, QueryError, RatingMeter, RouteLoading } from "../components/ui";
 
 function asNum(v: unknown, fallback = 0): number {
   return typeof v === "number" ? v : fallback;
@@ -43,18 +43,11 @@ export function Progress() {
   const query = useQuery({ queryKey: ["progress"], queryFn: api.progress });
 
   if (query.isLoading || !query.data) {
-    return <div className="flex h-full items-center justify-center text-text-faint">Loading…</div>;
+    return <RouteLoading />;
   }
 
   if (query.isError) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-text-dim">
-        <p>Couldn't load progress.</p>
-        <button className="text-accent underline" onClick={() => query.refetch()}>
-          Retry
-        </button>
-      </div>
-    );
+    return <QueryError message="Couldn't load progress." onRetry={() => query.refetch()} />;
   }
 
   const { concepts, reviews_due, stats, records, history } = query.data;
@@ -106,7 +99,7 @@ export function Progress() {
                     )}
                   </span>
                   <span className="shrink-0 font-mono text-xs text-text-dim">
-                    {Math.round(rating)} ± {Math.round(uncertainty)} {TREND_ICON[trend] ?? ""}
+                    {formatRating(rating)} ± {formatRating(uncertainty)} {TREND_ICON[trend] ?? ""}
                   </span>
                 </div>
                 {/* No scale endpoints here: this grid renders one card per concept, and repeating

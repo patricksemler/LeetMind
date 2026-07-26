@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useConcepts } from "../hooks/useConcepts";
 import { withConceptNames } from "../lib/conceptNames";
-import { Badge, Button, Panel } from "../components/ui";
+import { Badge, Button, Panel, QueryError, RouteLoading } from "../components/ui";
 import { buttonClassName } from "../components/ui/Button";
 
 /**
@@ -67,18 +67,11 @@ export function Practice() {
   });
 
   if (nextQuery.isLoading) {
-    return <div className="flex h-full items-center justify-center text-text-faint">Loading…</div>;
+    return <RouteLoading />;
   }
 
   if (nextQuery.isError) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-text-dim">
-        <p>Couldn't work out what's next.</p>
-        <button className="text-accent underline" onClick={() => void nextQuery.refetch()}>
-          Retry
-        </button>
-      </div>
-    );
+    return <QueryError message="Couldn't work out what's next." onRetry={() => void nextQuery.refetch()} />;
   }
 
   const data = nextQuery.data;

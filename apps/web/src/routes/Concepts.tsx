@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { Badge, Plate } from "../components/ui";
+import { formatRating } from "../lib/format";
+import { Badge, Plate, QueryError, RouteLoading } from "../components/ui";
 
 /** `/concepts` — the taxonomy as a readable tree (docs/CONTRACTS.md §3's DAG collapses to a
  * single-root tree here; a concept with more than one parent is shown once under each). Each node
@@ -12,18 +13,11 @@ export function Concepts() {
   // Gated on the concepts query alone — the taxonomy is the page's actual content, and mastery
   // badges are a fill-in-when-ready enhancement on top of it, not a blocker (docs/QA-PLAN.md).
   if (conceptsQuery.isLoading || !conceptsQuery.data) {
-    return <div className="flex h-full items-center justify-center text-text-faint">Loading…</div>;
+    return <RouteLoading />;
   }
 
   if (conceptsQuery.isError) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-text-dim">
-        <p>Couldn't load the concept taxonomy.</p>
-        <button className="text-accent underline" onClick={() => conceptsQuery.refetch()}>
-          Retry
-        </button>
-      </div>
-    );
+    return <QueryError message="Couldn't load the concept taxonomy." onRetry={() => conceptsQuery.refetch()} />;
   }
 
   const { concepts, edges } = conceptsQuery.data;
@@ -84,7 +78,7 @@ export function Concepts() {
           <Plate size="xs" tone={attempted ? toneFor(rating) : "neutral"} filled={attempted} />
           <span className="text-sm text-text">{concept.name}</span>
           {attempted && (
-            <Badge tone={toneFor(rating)}>{Math.round(rating)}</Badge>
+            <Badge tone={toneFor(rating)}>{formatRating(rating)}</Badge>
           )}
           {isRepeatOfMultiParent && (
             <span className="text-xs italic text-text-faint">
