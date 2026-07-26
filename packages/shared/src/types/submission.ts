@@ -80,7 +80,7 @@ export const SubmissionSchema = z
     id: z.string(),
     user_id: z.string(),
     problem_version_id: z.string(),
-    workout_item_id: z.string().nullable().optional(),
+    baseline_item_id: z.string().nullable().optional(),
     mode: SubmissionMode,
     language: Language,
     source: z.string(),
@@ -169,7 +169,7 @@ export const CreateSubmissionRequest = z.object({
   source: z.string(),
   mode: SubmissionMode,
   custom_input: z.unknown().optional(),
-  workout_item_id: z.string().optional(),
+  baseline_item_id: z.string().optional(),
   active_ms: z.number().int().nonnegative().optional(),
 });
 export type CreateSubmissionRequest = z.infer<typeof CreateSubmissionRequest>;
@@ -224,7 +224,7 @@ export type GetHintsResponse = z.infer<typeof GetHintsResponse>;
 // --- POST /api/problems/:versionId/give-up ----------------------------------------------------
 
 export const GiveUpRequest = z.object({
-  workout_item_id: z.string().optional(),
+  baseline_item_id: z.string().optional(),
   active_ms: z.number().int().nonnegative().optional(),
 });
 export type GiveUpRequest = z.infer<typeof GiveUpRequest>;
@@ -375,18 +375,16 @@ export const SystemStatsResponse = z
   .passthrough();
 export type SystemStatsResponse = z.infer<typeof SystemStatsResponse>;
 
-// --- POST /api/workouts (M3) --------------------------------------------------------------------
+// --- baseline (POST /api/baseline/start, GET /api/baseline/current) -----------------------------
+//
+// The baseline replaces the removed workout ladder. It is a short adaptive probe whose whole
+// purpose is to seed honest per-concept ratings before the practice loop takes over — so a skip is
+// a first-class outcome here, not a failure.
 
-export const WorkoutKind = z.enum(["standard", "diagnostic"]);
-export type WorkoutKind = z.infer<typeof WorkoutKind>;
+export const BaselineSessionStatus = z.enum(["active", "completed", "abandoned"]);
+export type BaselineSessionStatus = z.infer<typeof BaselineSessionStatus>;
 
-export const WorkoutStatus = z.enum(["active", "completed", "abandoned"]);
-export type WorkoutStatus = z.infer<typeof WorkoutStatus>;
-
-export const WorkoutItemRole = z.enum(["warmup", "working", "overload", "recovery", "diagnostic"]);
-export type WorkoutItemRole = z.infer<typeof WorkoutItemRole>;
-
-export const WorkoutItemState = z.enum([
+export const BaselineItemState = z.enum([
   "pending",
   "active",
   "solved",
@@ -394,89 +392,115 @@ export const WorkoutItemState = z.enum([
   "skipped_preference",
   "gave_up",
 ]);
-export type WorkoutItemState = z.infer<typeof WorkoutItemState>;
+export type BaselineItemState = z.infer<typeof BaselineItemState>;
 
-export const WorkoutItemSchema = z
+export const BaselineItemSchema = z
   .object({
     id: z.string(),
-    workout_id: z.string(),
+    baseline_session_id: z.string(),
     position: z.number().int(),
-    role: WorkoutItemRole,
     problem_version_id: z.string(),
     rationale: z.string().default(""),
     selection_evidence: z.record(z.string(), z.unknown()).default({}),
-    state: WorkoutItemState,
+    state: BaselineItemState,
     active_ms: z.number().int().default(0),
     started_at: timestampSchema.nullable().optional(),
     completed_at: timestampSchema.nullable().optional(),
   })
   .passthrough();
-export type WorkoutItem = z.infer<typeof WorkoutItemSchema>;
+export type BaselineItem = z.infer<typeof BaselineItemSchema>;
 
-export const WorkoutSchema = z
+export const BaselineSessionSchema = z
   .object({
     id: z.string(),
     user_id: z.string(),
-    kind: WorkoutKind.default("standard"),
-    status: WorkoutStatus.default("active"),
+    status: BaselineSessionStatus.default("active"),
     rationale: z.record(z.string(), z.unknown()).default({}),
-    estimated_minutes: z.number().int().nullable().optional(),
-    target_minutes: z.number().int().nullable().optional(),
     created_at: timestampSchema,
     completed_at: timestampSchema.nullable().optional(),
-    items: z.array(WorkoutItemSchema).optional(),
+    items: z.array(BaselineItemSchema).optional(),
+    /** How many probes the plan holds in total, so the UI can render "3 of 6" without having to
+     * reverse-engineer it out of `rationale.plan`. */
+    planned_count: z.number().int().nonnegative().optional(),
   })
   .passthrough();
-export type Workout = z.infer<typeof WorkoutSchema>;
+export type BaselineSession = z.infer<typeof BaselineSessionSchema>;
 
-export const CreateWorkoutRequest = z.object({
-  target_minutes: z.number().int().positive().optional(),
-  focus_concept: z.string().optional(),
-  kind: WorkoutKind.optional(),
+export const StartBaselineResponse = z.object({
+  baseline: BaselineSessionSchema,
 });
-export type CreateWorkoutRequest = z.infer<typeof CreateWorkoutRequest>;
+export type StartBaselineResponse = z.infer<typeof StartBaselineResponse>;
 
-export const CreateWorkoutResponse = z.object({
-  workout: WorkoutSchema,
+export const GetCurrentBaselineResponse = z.object({
+  baseline: BaselineSessionSchema.nullable(),
 });
-export type CreateWorkoutResponse = z.infer<typeof CreateWorkoutResponse>;
+export type GetCurrentBaselineResponse = z.infer<typeof GetCurrentBaselineResponse>;
 
-// --- GET /api/workouts/current (M3) --------------------------------------------------------------
+// --- POST /api/baseline-items/:id/skip ----------------------------------------------------------
 
-export const GetCurrentWorkoutResponse = z.object({
-  workout: WorkoutSchema.nullable(),
-});
-export type GetCurrentWorkoutResponse = z.infer<typeof GetCurrentWorkoutResponse>;
-
-// --- POST /api/workout-items/:id/skip (M3) --------------------------------------------------------
-
-export const SkipWorkoutItemRequest = z.object({
+export const SkipBaselineItemRequest = z.object({
   reason: z.enum(["inability", "preference"]),
   active_ms: z.number().int().nonnegative().optional(),
 });
-export type SkipWorkoutItemRequest = z.infer<typeof SkipWorkoutItemRequest>;
+export type SkipBaselineItemRequest = z.infer<typeof SkipBaselineItemRequest>;
 
-export const SkipWorkoutItemResponse = z
+export const SkipBaselineItemResponse = z
   .object({
-    item: WorkoutItemSchema,
+    item: BaselineItemSchema,
     mastery_change: MasteryChangeSchema.optional(),
   })
   .passthrough();
-export type SkipWorkoutItemResponse = z.infer<typeof SkipWorkoutItemResponse>;
+export type SkipBaselineItemResponse = z.infer<typeof SkipBaselineItemResponse>;
 
-// --- POST /api/workout-items/:id/start (M3) -------------------------------------------------------
+// --- POST /api/baseline-items/:id/start ---------------------------------------------------------
 
-export const StartWorkoutItemResponse = z.object({
-  item: WorkoutItemSchema,
+export const StartBaselineItemResponse = z.object({
+  item: BaselineItemSchema,
 });
-export type StartWorkoutItemResponse = z.infer<typeof StartWorkoutItemResponse>;
+export type StartBaselineItemResponse = z.infer<typeof StartBaselineItemResponse>;
 
-// --- POST /api/diagnostic/start (M3) --------------------------------------------------------------
+// --- GET /api/practice/next ---------------------------------------------------------------------
+//
+// The iterative autogenerate loop. Exactly one of `problem` / `generating` is non-null: either a
+// problem is ready now, or generation for the user's current target band is in flight and the
+// client should poll. `needs_baseline` short-circuits both for a user who hasn't been probed yet.
 
-export const StartDiagnosticResponse = z.object({
-  workout: WorkoutSchema,
+export const PracticeGenerationSchema = z
+  .object({
+    job_id: z.string().nullable(),
+    concept_id: z.string(),
+    target_rating: z.number().int(),
+    /** Why generation was triggered rather than a problem served — surfaced verbatim in the UI so
+     * a waiting user always knows what is being made for them. */
+    reason: z.string(),
+  })
+  .passthrough();
+export type PracticeGeneration = z.infer<typeof PracticeGenerationSchema>;
+
+export const NextPracticeProblemResponse = z
+  .object({
+    problem: PublicProblemSchema.nullable(),
+    /** Non-null exactly when `problem` is null and generation is in flight. */
+    generating: PracticeGenerationSchema.nullable().default(null),
+    /** True when no baseline has been taken yet — the client should route to /baseline. */
+    needs_baseline: z.boolean().default(false),
+    rationale: z.string().default(""),
+    evidence: z.record(z.string(), z.unknown()).default({}),
+  })
+  .passthrough();
+export type NextPracticeProblemResponse = z.infer<typeof NextPracticeProblemResponse>;
+
+// --- GET /api/me --------------------------------------------------------------------------------
+
+export const MeResponse = z.object({
+  user: z.object({
+    id: z.string(),
+    handle: z.string(),
+    email: z.string().nullable(),
+  }),
+  has_baseline: z.boolean(),
 });
-export type StartDiagnosticResponse = z.infer<typeof StartDiagnosticResponse>;
+export type MeResponse = z.infer<typeof MeResponse>;
 
 // --- POST /api/generate-now (M3 escape hatch) -------------------------------------------------
 

@@ -8,7 +8,7 @@
 // the SAME transaction (CONTRACTS §4.5).
 import {
   completeSubmission,
-  completeWorkoutItem,
+  completeBaselineItem,
   getProblemVersion,
   getSubmission,
   hasGivenUp,
@@ -234,12 +234,12 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
         await applyMastery({ client, submission, content, verdict, now: new Date() });
       }
 
-      // No submission/acceptance ever transitioned a workout item (confirmed live,
-      // docs/QA-PLAN.md §1.2): items stayed "NOT STARTED"/pending forever, so the Today ladder
-      // never completed. `completeWorkoutItem` no-ops once the item is already terminal (its own
+      // No submission/acceptance ever transitioned a baseline item (confirmed live,
+      // docs/QA-PLAN.md §1.2): items stayed pending forever, so the baseline never advanced past
+      // its first probe. `completeBaselineItem` no-ops once the item is already terminal (its own
       // guard), so this is safe against a stale/duplicate delivery too.
-      if (mode === "submit" && verdict === "accepted" && submission.workout_item_id) {
-        await completeWorkoutItem(client, submission.workout_item_id, {
+      if (mode === "submit" && verdict === "accepted" && submission.baseline_item_id) {
+        await completeBaselineItem(client, submission.baseline_item_id, {
           state: "solved",
           active_ms: submission.active_ms ?? null,
         });

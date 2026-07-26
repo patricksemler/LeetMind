@@ -10,6 +10,7 @@ import {
   toErrorResponse,
   withContext,
 } from "@leetmind/shared";
+import { registerAuth } from "./auth.js";
 import type { Deps } from "./deps.js";
 import { registerRoutes } from "./routes/index.js";
 
@@ -27,6 +28,17 @@ declare module "fastify" {
 function resolveWebOrigins(): string[] {
   const port = process.env.WEB_PORT?.trim() || "5173";
   return [`http://localhost:${port}`, `http://127.0.0.1:${port}`];
+}
+
+/**
+ * Strips the value of any `access_token` query parameter before a URL is logged. The SSE stream is
+ * the one route that accepts a token this way (see `requestToken` in src/auth.ts, and the
+ * `EventSource` limitation it works around) — writing a live access token into the request log
+ * would turn every log shipper and log reader into a credential holder.
+ */
+export function redactUrl(url: string): string {
+  if (!url.includes("access_token=")) return url;
+  return url.replace(/([?&]access_token=)[^&]*/g, "$1REDACTED");
 }
 
 export function buildServer(deps: Deps): FastifyInstance {
@@ -58,7 +70,7 @@ export function buildServer(deps: Deps): FastifyInstance {
     logger.info(
       {
         method: request.method,
-        path: request.url,
+        path: redactUrl(request.url),
         status: reply.statusCode,
         duration_ms: durationMs === undefined ? undefined : Math.round(durationMs * 100) / 100,
       },
@@ -106,6 +118,11 @@ export function buildServer(deps: Deps): FastifyInstance {
     const appErr = new AppError("not_found", `No route: ${request.method} ${request.url}`, 404);
     reply.status(404).send(toErrorResponse(appErr, correlationId));
   });
+
+  // Before any route handler, after the correlation-id hook: resolves `request.userId` from the
+  // bearer token (or pins it to SINGLE_USER_ID when auth is off). Registered here rather than
+  // inside registerRoutes so no route can accidentally opt out of it.
+  registerAuth(fastify, deps);
 
   registerRoutes(fastify, deps);
 

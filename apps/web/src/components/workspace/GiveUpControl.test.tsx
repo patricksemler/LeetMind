@@ -61,7 +61,7 @@ describe("GiveUpControl", () => {
     const dialog = screen.getByRole("dialog", { name: /give up on this problem/i });
     await user.click(screen.getByRole("button", { name: /^give up$/i }));
 
-    expect(api.giveUp).toHaveBeenCalledWith("v1", { workout_item_id: undefined, active_ms: 12345 });
+    expect(api.giveUp).toHaveBeenCalledWith("v1", { baseline_item_id: undefined, active_ms: 12345 });
     expect(await screen.findByTestId("reveal")).toBeInTheDocument();
     expect(screen.getByTestId("editorial")).toHaveTextContent("Maintain a hash map");
     expect(screen.getByTestId("concepts")).toHaveTextContent("Arrays & Hashing");

@@ -89,7 +89,8 @@ describe.skipIf(!dbReachable)("security: server-only fields never leak", () => {
     await capture("GET", `/api/hints/${seeded.problemVersionId}`);
     await capture("GET", "/api/progress");
     await capture("GET", "/api/system/stats");
-    await capture("GET", "/api/workouts/current"); // new M3 GET — no active workout, must stay clean
+    await capture("GET", "/api/baseline/current"); // no active baseline, must stay clean
+    await capture("GET", "/api/practice/next"); // the practice loop serves a full public problem
 
     // Every sentinel except `editorialText` must NEVER appear anywhere, on any route: l3/outline
     // hint text, hidden-test expected values, reference/brute-force/generator/checker/mutant code.

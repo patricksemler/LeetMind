@@ -11,9 +11,8 @@ import type { Deps } from "../deps.js";
 const STALE_WORKER_SECONDS = 30;
 
 export function registerSystemRoutes(fastify: FastifyInstance, deps: Deps): void {
-  const userId = deps.config.singleUserId;
-
-  fastify.get("/api/system/stats", async (_request, reply) => {
+  fastify.get("/api/system/stats", async (request, reply) => {
+    const userId = request.userId;
     const [queueStats, workers, verdicts, bufferDepth, passRate, modelRuns] = await Promise.all([
       deps.queue.stats(),
       query<{ worker_id: string; kind: string; last_seen_at: Date; meta: Record<string, unknown>; stale: boolean }>(

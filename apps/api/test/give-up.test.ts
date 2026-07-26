@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { loadApiConfig } from "@leetmind/shared";
-import { insertSubmission, insertWorkout, insertWorkoutItem, withTransaction } from "@leetmind/db";
+import { insertSubmission, insertBaselineSession, insertBaselineItem, withTransaction } from "@leetmind/db";
 import { buildDeps, type Deps } from "../src/deps.js";
 import { buildServer } from "../src/server.js";
 import { cleanup, isDatabaseReachable, seedApprovedProblem, testPool } from "./helpers.js";
@@ -14,7 +14,7 @@ describe.skipIf(!dbReachable)("give-up idempotency", () => {
   const pool = testPool();
   const problemVersionIds: string[] = [];
   const problemIds: string[] = [];
-  const workoutIds: string[] = [];
+  const baselineSessionIds: string[] = [];
   const submissionIds: string[] = [];
 
   beforeAll(async () => {
@@ -26,7 +26,7 @@ describe.skipIf(!dbReachable)("give-up idempotency", () => {
     await cleanup(pool, {
       problemVersionIds: problemVersionIds.splice(0),
       problemIds: problemIds.splice(0),
-      workoutIds: workoutIds.splice(0),
+      baselineSessionIds: baselineSessionIds.splice(0),
       submissionIds: submissionIds.splice(0),
       userId: deps.config.singleUserId,
       conceptIds: ["arrays_hashing"],
@@ -93,19 +93,18 @@ describe.skipIf(!dbReachable)("give-up idempotency", () => {
     expect(revealed[0].name).toBe("Arrays & Hashing");
   });
 
-  it("completes the workout item as gave_up when workout_item_id is provided — previously parsed and ignored entirely", async () => {
+  it("completes the baseline item as gave_up when baseline_item_id is provided — previously parsed and ignored entirely", async () => {
     const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
 
     const item = await withTransaction(async (client) => {
-      const workout = await insertWorkout(client, { id: `wo_${seeded.problemVersionId}`, user_id: deps.config.singleUserId, kind: "standard" });
-      workoutIds.push(workout.id);
-      return insertWorkoutItem(client, {
-        id: `wi_${seeded.problemVersionId}`,
-        workout_id: workout.id,
+      const session = await insertBaselineSession(client, { id: `bs_${seeded.problemVersionId}`, user_id: deps.config.singleUserId });
+      baselineSessionIds.push(session.id);
+      return insertBaselineItem(client, {
+        id: `bi_${seeded.problemVersionId}`,
+        baseline_session_id: session.id,
         position: 0,
-        role: "working",
         problem_version_id: seeded.problemVersionId,
       });
     });
@@ -113,12 +112,12 @@ describe.skipIf(!dbReachable)("give-up idempotency", () => {
     const res = await server.inject({
       method: "POST",
       url: `/api/problems/${seeded.problemVersionId}/give-up`,
-      payload: { workout_item_id: item.id, active_ms: 30_000 },
+      payload: { baseline_item_id: item.id, active_ms: 30_000 },
     });
     expect(res.statusCode).toBe(200);
 
     const row = await pool.query<{ state: string; completed_at: Date | null }>(
-      "select state, completed_at from workout_items where id = $1",
+      "select state, completed_at from baseline_items where id = $1",
       [item.id],
     );
     expect(row.rows[0]?.state).toBe("gave_up");

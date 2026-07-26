@@ -1,12 +1,12 @@
 """Replenishment — the demand-predicting buffer worker (docs/CONTRACTS.md §11, PLAN.md §5
 "Replenishment").
 
-The user-facing workout assembler only ever reads from the `approved` pool; this worker's whole
+The user-facing practice loop only ever reads from the `approved` pool; this worker's whole
 job is to keep that pool ahead of demand so LLM downtime or verification failures degrade buffer
 *depth*, never a live practice session (PLAN.md §5).
 
 Three pieces:
-  - `compute_demand(user_id)` — predicts which concept x rating-band cells upcoming workouts are
+  - `compute_demand(user_id)` — predicts which concept x rating-band cells upcoming practice is
     likely to draw from (see its docstring for "decision #4", the prediction rule).
   - `replenish_once(...)` — one pass: for each predicted cell, count approved-and-unattempted
     inventory, and enqueue `generate` jobs for cells below `BUFFER_LOW_WATERMARK`, at the lowest
@@ -37,7 +37,7 @@ log = get_logger("content-replenish")
 BAND_WIDTH = 200
 
 #: How far above a concept's current band the "next overload step" cell sits (PLAN.md §8: the
-#: overload workout role deliberately targets a problem "slightly above band").
+#: practice deliberately reaches for a problem "slightly above band" to test the ceiling).
 OVERLOAD_STEP = BAND_WIDTH
 
 #: Ceiling on predicted bands, matching the taxonomy seed's `concepts.max_rating` convention
@@ -55,8 +55,8 @@ DEFAULT_MAX_ENQUEUE_PER_PASS = 20
 SIMILARITY_EXCLUSION_LIMIT = 5
 
 #: Default `expected_minutes` band handed to generation requests raised by replenishment. Kept
-#: modest/deliberately generic — replenishment doesn't know which workout role (warm-up, working,
-#: overload, recovery) will eventually consume the problem, only its concept and rating band.
+#: modest/deliberately generic — replenishment doesn't know whether the problem will eventually
+#: be served at level, above band, or as a spaced review; only its concept and rating band.
 DEFAULT_EXPECTED_MINUTES: tuple[int, int] = (8, 20)
 
 
@@ -80,7 +80,7 @@ class BandCell:
 
 
 def compute_demand(user_id: str, *, settings: Settings | None = None) -> list[BandCell]:
-    """Predicts the concept x rating-band cells upcoming workouts are likely to draw from.
+    """Predicts the concept x rating-band cells upcoming practice is likely to draw from.
 
     THE PREDICTION RULE (decision #4 — kept legible on purpose, this is the entire
     replenishment strategy):
@@ -92,14 +92,14 @@ def compute_demand(user_id: str, *, settings: Settings | None = None) -> list[Ba
 
       1. **weak** — the concept's own current band (`floor(rating/200)*200`) is always a target
          cell. PLAN.md §7's 65-80%-success-band "working set" problems for that concept live
-         here by construction; it is the band every future working-set workout item pulls from.
+         here by construction; it is the band every future at-level practice problem pulls from.
          Lower rating (weaker concept) sorts first — see the ordering note below.
       2. **due_review** — if `next_review_at` is set and `<= now()`, the SAME cell (current
          band) additionally carries this reason. A review reuses the concept's current band; it
          is not a different band, only an added urgency signal used for ordering.
       3. **overload** — the band one step above the concept's current band
          (`band + OVERLOAD_STEP`), capped at `MAX_BAND`, is always also a target cell —
-         PLAN.md §8's "overload" workout role (a problem slightly above where the user
+         PLAN.md §8's "above band" stretch (a problem slightly above where the user
          currently sits) needs a pre-approved supply ready the moment the user is due for one.
 
     Cells are deduplicated by `(concept_id, band)` — if one concept's overload band happens to

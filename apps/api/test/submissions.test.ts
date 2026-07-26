@@ -233,7 +233,7 @@ describe.skipIf(!dbReachable)("submissions", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("rejects an unknown workout_item_id with 400, not a raw FK-violation 500", async () => {
+  it("rejects an unknown baseline_item_id with 400, not a raw FK-violation 500", async () => {
     const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
@@ -246,7 +246,7 @@ describe.skipIf(!dbReachable)("submissions", () => {
         language: "python",
         source: "def solve(): pass",
         mode: "submit",
-        workout_item_id: "not-a-real-workout-item",
+        baseline_item_id: "not-a-real-baseline-item",
       },
     });
     expect(res.statusCode).toBe(400);

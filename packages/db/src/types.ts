@@ -8,6 +8,9 @@ export type Uuid = string; // ULID text, per CONTRACTS.md §1
 export interface UserRow {
   id: Uuid;
   handle: string;
+  /** Supabase Auth subject (JWT `sub`); null on the legacy pre-accounts row until claimed. */
+  auth_user_id: string | null;
+  email: string | null;
   created_at: Date;
   settings: Record<string, unknown>;
 }
@@ -101,23 +104,18 @@ export interface VerificationReportRow {
   created_at: Date;
 }
 
-export type WorkoutKind = 'standard' | 'diagnostic';
-export type WorkoutStatus = 'active' | 'completed' | 'abandoned';
+export type BaselineSessionStatus = 'active' | 'completed' | 'abandoned';
 
-export interface WorkoutRow {
+export interface BaselineSessionRow {
   id: Uuid;
   user_id: Uuid;
-  kind: WorkoutKind;
-  status: WorkoutStatus;
+  status: BaselineSessionStatus;
   rationale: Record<string, unknown>;
-  estimated_minutes: number | null;
-  target_minutes: number | null;
   created_at: Date;
   completed_at: Date | null;
 }
 
-export type WorkoutItemRole = 'warmup' | 'working' | 'overload' | 'recovery' | 'diagnostic';
-export type WorkoutItemState =
+export type BaselineItemState =
   | 'pending'
   | 'active'
   | 'solved'
@@ -125,15 +123,14 @@ export type WorkoutItemState =
   | 'skipped_preference'
   | 'gave_up';
 
-export interface WorkoutItemRow {
+export interface BaselineItemRow {
   id: Uuid;
-  workout_id: Uuid;
+  baseline_session_id: Uuid;
   position: number;
-  role: WorkoutItemRole;
   problem_version_id: Uuid;
   rationale: string;
   selection_evidence: Record<string, unknown>;
-  state: WorkoutItemState;
+  state: BaselineItemState;
   active_ms: number;
   started_at: Date | null;
   completed_at: Date | null;
@@ -174,7 +171,7 @@ export interface SubmissionRow {
   id: Uuid;
   user_id: Uuid;
   problem_version_id: Uuid;
-  workout_item_id: Uuid | null;
+  baseline_item_id: Uuid | null;
   mode: SubmissionMode;
   language: Language;
   source: string;

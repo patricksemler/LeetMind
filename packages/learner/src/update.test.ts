@@ -202,7 +202,7 @@ describe("updateConcepts — uncertainty update", () => {
 });
 
 describe("updateConcepts — explanation", () => {
-  it("names every concept, the direction of change, and the outcome", () => {
+  it("reads as prose: the setup, what the outcome meant, and where each concept moved", () => {
     const states = {
       sliding_window: makeState(1380, 142),
       arrays_hashing: makeState(1450, 100),
@@ -221,22 +221,29 @@ describe("updateConcepts — explanation", () => {
       highestHint: "l2_conceptual",
     });
 
+    expect(result.explanation).toContain("This problem was rated 1420");
     expect(result.explanation).toContain("sliding_window");
     expect(result.explanation).toContain("arrays_hashing");
-    expect(result.explanation).toContain("0.75");
-    expect(result.explanation).toMatch(/L2/);
+    // The hint is named — in the ladder's own words, not by rung number — because it is why this
+    // scored less than a clean solve.
+    expect(result.explanation).toContain("after a conceptual hint");
+    expect(result.explanation).not.toMatch(/\bL2\b/);
+    // The raw 0..1 evidence score is model-internal and must NOT leak into the prose — it is the
+    // single least interpretable thing the update produces.
+    expect(result.explanation).not.toContain("0.75");
 
     for (const change of result.changes) {
-      // The displayed delta is derived from the ROUNDED before/after ratings, not
-      // `change.delta` rounded independently — rounding all three separately can disagree (e.g.
-      // "+0 (1500→1501)"). This is the value the explanation string must show.
+      // The stated destination and magnitude are both derived from the ROUNDED before/after
+      // ratings, so the sentence can never disagree with the numbers rendered beside it.
       const roundedDelta = Math.round(change.after_rating) - Math.round(change.before_rating);
-      const sign = roundedDelta >= 0 ? "+" : "-";
-      expect(result.explanation).toContain(`${change.concept_id} ${sign}${Math.abs(roundedDelta)}`);
+      const direction = roundedDelta > 0 ? "up" : "down";
+      expect(result.explanation).toContain(
+        `${change.concept_id} ${direction} ${Math.abs(roundedDelta)} to ${Math.round(change.after_rating)}`,
+      );
     }
   });
 
-  it("reflects a losing outcome with negative deltas in the explanation", () => {
+  it("says plainly that the problem wasn't solved, and moves the concept down", () => {
     const states = { c1: makeState(1500, 200) };
     const result = updateConcepts({
       states,
@@ -248,13 +255,42 @@ describe("updateConcepts — explanation", () => {
     expect(result.changes[0]!.delta).toBeLessThan(0);
     const roundedDelta =
       Math.round(result.changes[0]!.after_rating) - Math.round(result.changes[0]!.before_rating);
-    expect(result.explanation).toContain(`c1 -${Math.abs(roundedDelta)}`);
+    expect(result.explanation).toContain("You didn't solve it this time.");
+    expect(result.explanation).toContain(
+      `c1 down ${Math.abs(roundedDelta)} to ${Math.round(result.changes[0]!.after_rating)}`,
+    );
+  });
+
+  it("frames a long-odds problem as odds rather than a bare percentage", () => {
+    const states = { c1: makeState(1200, 200) };
+    const result = updateConcepts({
+      states,
+      weights: [{ id: "c1", weight: 1 }],
+      problemRating: 1450,
+      outcome: 1,
+      evidenceWeight: 1,
+    });
+    expect(result.explanation).toMatch(/about a 1 in \d+ chance/);
+    expect(result.explanation).toContain("You solved it unaided.");
+  });
+
+  it("reports tightened uncertainty as confidence, not as a ± pair", () => {
+    const states = { c1: makeState(1200, 350) };
+    const result = updateConcepts({
+      states,
+      weights: [{ id: "c1", weight: 1 }],
+      problemRating: 1200,
+      outcome: 1,
+      evidenceWeight: 1,
+    });
+    expect(result.changes[0]!.after_uncertainty).toBeLessThan(result.changes[0]!.before_uncertainty);
+    expect(result.explanation).toContain("more confident than before");
+    expect(result.explanation).not.toContain("±");
   });
 
   it("QA-PLAN.md §3: the displayed delta always agrees with the displayed before/after ratings, even when rounding the raw delta independently would not", () => {
-    // Raw delta rounds to 0, but the endpoints (rounded independently) differ by 1 — exactly the
-    // "+0 (1500→1501)" bug: before=1500.0, after=1500.6 -> raw delta 0.6 rounds to 1 normally,
-    // but pick a before/after pair that straddles a rounding boundary asymmetrically.
+    // Raw delta rounds to 0, but the endpoints (rounded independently) could differ by 1 — exactly
+    // the "+0 (1500→1501)" bug. The sentence must describe the SAME rounded numbers.
     const states = { c1: makeState(1500.4, 200) };
     const result = updateConcepts({
       states,
@@ -267,9 +303,12 @@ describe("updateConcepts — explanation", () => {
     const roundedBefore = Math.round(change.before_rating);
     const roundedAfter = Math.round(change.after_rating);
     const roundedDelta = roundedAfter - roundedBefore;
-    const sign = roundedDelta >= 0 ? "+" : "";
-    expect(result.explanation).toContain(
-      `c1 ${sign}${roundedDelta} (${roundedBefore}→${roundedAfter}`,
-    );
+
+    if (roundedDelta === 0) {
+      expect(result.explanation).toContain(`c1 unchanged at ${roundedAfter}`);
+    } else {
+      const direction = roundedDelta > 0 ? "up" : "down";
+      expect(result.explanation).toContain(`c1 ${direction} ${Math.abs(roundedDelta)} to ${roundedAfter}`);
+    }
   });
 });

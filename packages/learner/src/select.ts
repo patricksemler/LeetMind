@@ -203,7 +203,9 @@ export function selectNext(
   return best as SelectNextResult;
 }
 
-// M3: assembleWorkout / assembleDiagnostic / nextDiagnosticStep (warm-up / working sets /
-// overload / recovery roles, duration budgeting, rationale per PLAN.md §8 "Workouts" /
-// "Diagnostic onboarding") live in ./workout.ts, built on top of `scoreCandidate`/`targetBand`
-// from this file plus `reviewsDue` from `src/review.ts`.
+// `assembleBaseline` / `nextBaselineStep` (the adaptive onboarding probe, PLAN.md §8) live in
+// ./baseline.ts. They plan concept+rating *targets* rather than calling `scoreCandidate` here,
+// because the API resolves each target against its own approved pool one item at a time.
+//
+// `scoreCandidate`/`selectNext` above are what the ongoing practice loop uses directly, once a
+// baseline has seeded per-concept ratings.

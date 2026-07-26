@@ -10,7 +10,7 @@ export * from "./outcome.js";
 export * from "./update.js";
 export * from "./review.js";
 export * from "./select.js";
-export * from "./workout.js";
+export * from "./baseline.js";
 
 import { HINT_PENALTY_CAPS } from "./types.js";
 import { BAND_HIGH_P, BAND_LOW_P, DEFAULT_SELECTION_WEIGHTS } from "./select.js";

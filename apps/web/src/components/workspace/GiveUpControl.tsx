@@ -13,20 +13,20 @@ import { Button, Dialog } from "../ui";
 export function GiveUpControl({
   versionId,
   activeMs,
-  workoutItemId,
+  baselineItemId,
   disabled,
   onGaveUp,
 }: {
   versionId: string;
   activeMs: number;
-  workoutItemId?: string;
+  baselineItemId?: string;
   disabled?: boolean;
   onGaveUp: (result: GiveUpResponse) => void;
 }) {
   const [open, setOpen] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: () => api.giveUp(versionId, { workout_item_id: workoutItemId, active_ms: activeMs }),
+    mutationFn: () => api.giveUp(versionId, { baseline_item_id: baselineItemId, active_ms: activeMs }),
     onSuccess: (res) => {
       setOpen(false);
       onGaveUp(res);

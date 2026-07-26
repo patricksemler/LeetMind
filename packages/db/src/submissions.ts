@@ -14,7 +14,7 @@ export interface NewSubmissionInput {
   id: string;
   user_id: string;
   problem_version_id: string;
-  workout_item_id?: string | null;
+  baseline_item_id?: string | null;
   mode: SubmissionMode;
   language: Language;
   source: string;
@@ -30,7 +30,7 @@ export interface NewSubmissionInput {
 export async function insertSubmission(client: PoolClient, row: NewSubmissionInput): Promise<SubmissionRow> {
   const sql = `
     insert into submissions (
-      id, user_id, problem_version_id, workout_item_id, mode, language, source, source_hash,
+      id, user_id, problem_version_id, baseline_item_id, mode, language, source, source_hash,
       status, custom_input, active_ms, idempotency_key, correlation_id
     ) values (
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
@@ -41,7 +41,7 @@ export async function insertSubmission(client: PoolClient, row: NewSubmissionInp
     row.id,
     row.user_id,
     row.problem_version_id,
-    row.workout_item_id ?? null,
+    row.baseline_item_id ?? null,
     row.mode,
     row.language,
     row.source,

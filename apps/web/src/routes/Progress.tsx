@@ -16,13 +16,22 @@ function asStr(v: unknown): string {
 const TREND_ICON: Record<string, string> = { up: "↑", flat: "→", down: "↓" };
 
 const HISTORY_KIND_LABEL: Record<string, string> = {
-  submission: "Submission",
-  skip: "Skipped",
-  give_up: "Gave up",
-  diagnostic: "Diagnostic",
-  review: "Review",
-  decay: "Decay",
+  submission: "Submitted a solution",
+  skip: "Skipped a problem",
+  give_up: "Gave up on a problem",
+  diagnostic: "Baseline probe",
+  review: "Spaced review",
+  decay: "Rating decayed from inactivity",
 };
+
+/** The 0..1 evidence score is model-internal (CONTRACTS.md §8). A row reading "outcome 1.00" tells
+ * the reader nothing they can act on; "full credit" does. */
+function outcomeLabel(outcome: number): string {
+  if (outcome >= 0.95) return "full credit";
+  if (outcome >= 0.6) return "most credit";
+  if (outcome > 0) return "partial credit";
+  return "no credit";
+}
 
 function formatDaysOverdue(days: number): string {
   if (days < 1) return "due today";
@@ -85,7 +94,15 @@ export function Progress() {
                     {Math.round(rating)} ± {Math.round(uncertainty)} {TREND_ICON[trend] ?? ""}
                   </span>
                 </div>
-                <RatingMeter rating={rating} uncertainty={uncertainty} />
+                {/* No scale endpoints here: this grid renders one card per concept, and repeating
+                    "800 … 2400" twenty times is noise. The exact numbers are already on the row
+                    above. */}
+                <RatingMeter
+                  rating={rating}
+                  uncertainty={uncertainty}
+                  showScale={false}
+                  label={`${asStr(c.name) || asStr(c.concept_id)} rating`}
+                />
                 <div className="mt-1.5 text-xs text-text-faint">
                   {asNum(c.attempts)} attempts · {asNum(c.solves)} solved · {asNum(c.unassisted_solves)} unassisted ·
                   streak {asNum(c.current_streak)} (best {asNum(c.best_streak)})
@@ -188,8 +205,8 @@ export function Progress() {
               return (
                 <div key={asStr(h.id) || i} className="flex items-center justify-between rounded-md border border-border bg-bg-raised px-3 py-2 text-sm">
                   <span className="text-text">{HISTORY_KIND_LABEL[kind] ?? kind}</span>
-                  <span className="text-text-faint">
-                    outcome {asNum(h.outcome).toFixed(2)} · {formatDate(h.created_at as string)}
+                  <span className="text-text-faint" title={`outcome ${asNum(h.outcome).toFixed(2)}`}>
+                    {outcomeLabel(asNum(h.outcome))} · {formatDate(h.created_at as string)}
                   </span>
                 </div>
               );

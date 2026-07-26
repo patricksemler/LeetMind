@@ -98,8 +98,8 @@ export function generateJobKey(conceptKey: string, ratingBand: number, slotIndex
 // has no natural single-use key.
 export type LearningEventKeyInput =
   | { kind: "submission"; submissionId: string }
-  | { kind: "skip"; workoutItemId: string }
-  | { kind: "diagnostic"; workoutItemId: string }
+  | { kind: "skip"; baselineItemId: string }
+  | { kind: "diagnostic"; baselineItemId: string }
   | { kind: "give_up"; userId: string; problemVersionId: string }
   | { kind: "review"; userId: string; conceptId: string; dueAt: string };
 
@@ -108,9 +108,9 @@ export function learningEventKey(input: LearningEventKeyInput): string {
     case "submission":
       return `le:${input.submissionId}`;
     case "skip":
-      return `le:skip:${input.workoutItemId}`;
+      return `le:skip:${input.baselineItemId}`;
     case "diagnostic":
-      return `le:diag:${input.workoutItemId}`;
+      return `le:diag:${input.baselineItemId}`;
     case "give_up":
       // one give-up per user per problem version, ever
       return `le:give_up:${input.userId}:${input.problemVersionId}`;

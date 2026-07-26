@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { up } from "./migrate.js";
 
 const EXPECTED_TABLES = [
+  "baseline_items",
+  "baseline_sessions",
   "concept_edges",
   "concepts",
   "execution_attempts",
@@ -20,8 +22,6 @@ const EXPECTED_TABLES = [
   "users",
   "verification_reports",
   "worker_heartbeats",
-  "workout_items",
-  "workouts",
 ];
 
 async function isDatabaseReachable(): Promise<boolean> {
@@ -59,7 +59,7 @@ describe.skipIf(!dbReachable)("live database: migrations + seed", () => {
     }
   });
 
-  it("is idempotent: re-running the full migration set (001 + 002) twice is a safe no-op", async () => {
+  it("is idempotent: re-running the full migration set twice is a safe no-op", async () => {
     await up();
     await up();
 
@@ -85,7 +85,14 @@ describe.skipIf(!dbReachable)("live database: migrations + seed", () => {
       const migrations = await client.query<{ version: string }>(
         "select version from schema_migrations order by version",
       );
-      expect(migrations.rows.map((r) => r.version)).toEqual(["001_init", "002_seed_taxonomy"]);
+      // Asserted as a prefix-free exact list on purpose: a migration that ran but wasn't
+      // recorded (or vice versa) is exactly the failure this catches.
+      expect(migrations.rows.map((r) => r.version)).toEqual([
+        "001_init",
+        "002_seed_taxonomy",
+        "003_baseline_replaces_workouts",
+        "004_accounts",
+      ]);
     } finally {
       await client.end();
     }

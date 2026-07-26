@@ -4,16 +4,16 @@ import { createJudgeHandler } from "../src/handler.js";
 import {
   countExecutionAttempts,
   countLearningEvents,
-  deleteTestWorkout,
+  deleteTestBaselineSession,
   insertTestSubmission,
-  insertTestWorkoutItem,
+  insertTestBaselineItem,
   isDatabaseReachable,
   isDockerReachable,
   makeCtx,
   makeLeasedJudgeJob,
   recordGiveUp,
   reloadSubmission,
-  reloadWorkoutItem,
+  reloadBaselineItem,
   restoreConceptState,
   seedApprovedProblem,
   snapshotConceptState,
@@ -329,14 +329,14 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     expect(after.rating).toBe(before.rating);
   });
 
-  it("8. accepted submit completes its workout item as solved — confirmed live, this never happened before", async () => {
+  it("8. accepted submit completes its baseline item as solved — confirmed live, this never happened before", async () => {
     const problem = await seed();
-    const item = await insertTestWorkoutItem(problem.versionId);
+    const item = await insertTestBaselineItem(problem.versionId);
     const submission = await insertTestSubmission({
       versionId: problem.versionId,
       source: "def solve(a, b):\n    return a + b\n",
       mode: "submit",
-      workoutItemId: item.id,
+      baselineItemId: item.id,
     });
 
     try {
@@ -354,11 +354,11 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
       const reloaded = await reloadSubmission(submission.id);
       expect(reloaded.verdict).toBe("accepted");
 
-      const reloadedItem = await reloadWorkoutItem(item.id);
+      const reloadedItem = await reloadBaselineItem(item.id);
       expect(reloadedItem.state).toBe("solved");
       expect(reloadedItem.completed_at).not.toBeNull();
     } finally {
-      await deleteTestWorkout(item.workout_id);
+      await deleteTestBaselineSession(item.baseline_session_id);
     }
   });
 

@@ -2,8 +2,13 @@
 
 **Progressive overload for problem solving.** LeetMind generates original, deterministically
 verified algorithm problems on your own machine, judges your code in sandboxed containers, and
-models your mastery per concept so every session targets the edge of your ability — covering the
+models your mastery per concept so every problem targets the edge of your ability — covering the
 pattern families of the NeetCode 150.
+
+Two surfaces, and only two. A short **baseline** seeds honest per-concept ratings, with skipping
+treated as real evidence rather than failure. After that, **practice** serves one problem at a time
+forever — and when nothing verified is left at your current level, it generates one and tells you
+it's doing so.
 
 It is built first as a daily-use tool for its author, and second as a portfolio artifact. The
 engineering that earns the second is engineering the first genuinely needs: a hand-built job queue,
@@ -17,19 +22,19 @@ decision is explainable.
 
 ## Status
 
-All six milestones (M0–M5) are implemented and test-covered. **549 tests** across the workspace:
+All six milestones (M0–M5) are implemented and test-covered. **637 tests** across the workspace:
 
 | Package | Tests | What it covers |
 |---|---:|---|
-| `@leetmind/shared` | 35 | zod contracts, `toPublicProblem` leak-proofing, tree/list codecs |
+| `@leetmind/shared` | 39 | zod contracts, `toPublicProblem` leak-proofing, tree/list codecs |
 | `@leetmind/db` | 26 | pool, migrations, bigint parsing, test-DB guard |
 | `@leetmind/queue` | 14 | claim/lease/heartbeat/reaper, priority, idempotency, poison jobs |
-| `@leetmind/sandbox` | 102 | isolation flags, harness protocol, C++ codegen, **cross-language parity** |
-| `@leetmind/learner` | 87 | Glicko-lite, outcome scoring, SM-2, workout assembly, convergence |
-| `apps/web` | 24 | SSE lifecycle, active-time, hint penalties, verdict-leak safety |
-| `apps/api` | 46 | transactional enqueue, SSE races, give-up idempotency, sentinel leaks |
-| `apps/judge` | 21 | state machine, exactly-once mastery, **7 chaos scenarios** |
-| `content/` (Python) | 194 | six-stage gate, generation envelope, replenishment, DB nesting |
+| `@leetmind/sandbox` | 112 | isolation flags, harness protocol, C++ codegen, **cross-language parity** |
+| `@leetmind/learner` | 85 | Glicko-lite, outcome scoring, SM-2, baseline planning, convergence |
+| `apps/web` | 52 | SSE lifecycle, practice loop, baseline skip flow, hint penalties, verdict-leak safety |
+| `apps/api` | 81 | auth + token verification, practice selection/generation, baseline stepping, transactional enqueue, SSE races, sentinel leaks |
+| `apps/judge` | 29 | state machine, exactly-once mastery, **7 chaos scenarios** |
+| `content/` (Python) | 199 | six-stage gate, generation envelope, replenishment, DB nesting |
 
 Notable verified properties:
 
@@ -46,6 +51,7 @@ Notable verified properties:
 
 ```bash
 pnpm install
+cp .env.example .env               # then edit: at minimum DATABASE_URL
 docker compose up -d db
 pnpm db:migrate
 ./scripts/build-images.sh          # sandbox runner images (python + c++)
@@ -64,6 +70,32 @@ pnpm dev:web                       # :5173
 Walks weakness → generation → verification (with a visible rejection) → sandboxed judging with
 streamed verdicts → explainable mastery update → next workout → dashboards. Add `--live` to call the
 real model for generation, `--keep` to leave the seeded data in place.
+
+## Accounts
+
+Authentication is **Supabase Auth** (email + password). LeetMind's own database never stores a
+credential — it stores only the binding between a verified Supabase subject and the local `users`
+row that owns the practice history, so every existing `user_id` foreign key kept working.
+
+```bash
+supabase start                     # local: db + auth on :54321
+supabase status -o env             # copy API_URL and ANON_KEY into .env
+```
+
+Set `SUPABASE_URL` (API) and `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (web). Tokens are
+verified against the project's published JWKS; leave `SUPABASE_JWT_SECRET` **unset** unless the
+project is a legacy one that still signs HS256. Which path a given token takes is decided by the
+token's own header, so a project mid-rotation works either way.
+
+Pointing at a hosted project instead is a change of those env vars and nothing else.
+
+- **Single-user mode still works.** With no `SUPABASE_URL` and `NODE_ENV != production`, every
+  request is pinned to `SINGLE_USER_ID` — the pre-accounts behaviour, which is what the test suites
+  and `pnpm dev:mock` run against. In production, booting without a Supabase project is a hard
+  failure rather than a silently shared account.
+- **Claiming the pre-accounts history.** Set `LEGACY_CLAIM_EMAIL` to the address that should adopt
+  the `SINGLE_USER_ID` row. The first account signing in with exactly that address takes ownership
+  of it; nobody else ever can, and unset means nobody does.
 
 ## Architecture
 

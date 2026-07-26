@@ -12,14 +12,13 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import {
   ConceptSchema,
   CreateSubmissionRequest,
-  CreateWorkoutRequest,
   GenerateNowRequest,
   GiveUpRequest,
   HINT_PENALTY_CAPS,
   HintLevel,
   newId,
   ProblemVersionSchema,
-  SkipWorkoutItemRequest,
+  SkipBaselineItemRequest,
   type Submission,
   TakeHintRequest,
   toPublicProblem,
@@ -38,10 +37,12 @@ import {
   problemsById,
   submissions,
   USER_ID,
-  workoutItems,
-  workoutState,
+  advanceMockBaseline,
+  buildBaseline,
+  resetBaseline,
+  baselineItems,
+  baselineState,
 } from "./state.js";
-import { buildDiagnosticWorkout, buildStandardWorkout } from "./state.js";
 
 // Sanity-check every fixture against the full, server-only schema at boot — catches fixture
 // authoring mistakes before they can produce a broken PublicProblem.
@@ -136,6 +137,69 @@ app.get(
   }),
 );
 
+// --- GET /api/practice/next ----------------------------------------------------------------------
+//
+// The mock's job here is to exercise all three branches the real endpoint can return, since two of
+// them (needs_baseline, generating) are otherwise only reachable against a live stack with an
+// empty content pool. `?mock=generating` forces the generating branch so the polling UI can be
+// developed and tested without waiting on a real `claude -p` run.
+
+app.get(
+  "/api/practice/next",
+  handle((req, res) => {
+    if (!baselineState.everStarted) {
+      res.json({
+        problem: null,
+        generating: null,
+        needs_baseline: true,
+        rationale: "Take the short baseline first — it seeds honest starting ratings so practice can target your edge.",
+        evidence: {},
+      });
+      return;
+    }
+
+    const weakest = [...conceptState.entries()].sort((a, b) => a[1].rating - b[1].rating)[0];
+    const conceptId = weakest?.[0] ?? "arrays_hashing";
+
+    const unsolved = problemFixtures.filter((p) => !getProblemUserState(p.problemVersionId).solved);
+    const forceGenerating = req.query.mock === "generating";
+
+    if (forceGenerating || unsolved.length === 0) {
+      res.json({
+        problem: null,
+        generating: {
+          job_id: "job_mock_generate",
+          concept_id: conceptId,
+          target_rating: Math.round(weakest?.[1].rating ?? 1200),
+          reason: `${conceptId} is your weakest concept. Nothing verified is left in that range, so a new problem is being generated and verified for you.`,
+        },
+        needs_baseline: false,
+        rationale: "Generating your next problem.",
+        evidence: { concept: conceptId },
+      });
+      return;
+    }
+
+    const targetRating = weakest?.[1].rating ?? 1200;
+    const chosen = [...unsolved].sort(
+      (a, b) => Math.abs(a.content.difficulty.rating - targetRating) - Math.abs(b.content.difficulty.rating - targetRating),
+    )[0]!;
+
+    res.json({
+      problem: toPublicProblem({
+        problemVersionId: chosen.problemVersionId,
+        content: chosen.content,
+        hintsTaken: getProblemUserState(chosen.problemVersionId).hintsTaken,
+        revealConcepts: hasSolvedOrGivenUp(chosen.problemVersionId),
+      }),
+      generating: null,
+      needs_baseline: false,
+      rationale: `${conceptId} is your weakest concept (rating ${Math.round(targetRating)}); this problem sits in the 65-80% band.`,
+      evidence: { concept: conceptId, candidate_count: unsolved.length },
+    });
+  }),
+);
+
 // --- GET /api/problems/:versionId ----------------------------------------------------------
 
 app.get(
@@ -170,7 +234,7 @@ app.post(
       id,
       user_id: USER_ID,
       problem_version_id: body.problem_version_id,
-      workout_item_id: body.workout_item_id ?? null,
+      baseline_item_id: body.baseline_item_id ?? null,
       mode: body.mode,
       language: body.language,
       source: body.source,
@@ -194,12 +258,12 @@ app.post(
       language: body.language,
       source: body.source,
       customInput: body.custom_input,
-      workoutItemId: body.workout_item_id,
+      baselineItemId: body.baseline_item_id,
       activeMs: body.active_ms ?? 0,
     });
 
-    if (body.workout_item_id) {
-      const item = workoutItems.get(body.workout_item_id);
+    if (body.baseline_item_id) {
+      const item = baselineItems.get(body.baseline_item_id);
       if (item && item.state === "pending") {
         item.state = "active";
         item.started_at = new Date().toISOString();
@@ -364,8 +428,8 @@ app.post(
       created_at: new Date().toISOString(),
     });
 
-    if (body.workout_item_id) {
-      const item = workoutItems.get(body.workout_item_id);
+    if (body.baseline_item_id) {
+      const item = baselineItems.get(body.baseline_item_id);
       if (item) {
         item.state = "gave_up";
         item.completed_at = new Date().toISOString();
@@ -537,35 +601,45 @@ app.get(
   }),
 );
 
-// --- POST /api/workouts (M3) --------------------------------------------------------------------
-
-app.post(
-  "/api/workouts",
-  handle((req, res) => {
-    const parsed = CreateWorkoutRequest.safeParse(req.body ?? {});
-    if (!parsed.success) return badRequest(res, "invalid workout request", parsed.error.flatten());
-    const workout = buildStandardWorkout();
-    res.json({ workout });
-  }),
-);
-
-// --- GET /api/workouts/current (M3) ---------------------------------------------------------
+// --- GET /api/me --------------------------------------------------------------------------------
 
 app.get(
-  "/api/workouts/current",
+  "/api/me",
   handle((_req, res) => {
-    res.json({ workout: workoutState.workout });
+    res.json({
+      user: { id: USER_ID, handle: "local", email: null },
+      has_baseline: baselineState.everStarted,
+    });
   }),
 );
 
-// --- POST /api/workout-items/:id/skip (M3) -----------------------------------------------------
+// --- POST /api/baseline/start --------------------------------------------------------------------
 
 app.post(
-  "/api/workout-items/:id/skip",
+  "/api/baseline/start",
+  handle((_req, res) => {
+    res.json({ baseline: buildBaseline() });
+  }),
+);
+
+// --- GET /api/baseline/current -------------------------------------------------------------------
+
+app.get(
+  "/api/baseline/current",
+  handle((_req, res) => {
+    // Same adaptive side effect the real endpoint has: reading it is what appends the next probe.
+    res.json({ baseline: advanceMockBaseline() });
+  }),
+);
+
+// --- POST /api/baseline-items/:id/skip -----------------------------------------------------------
+
+app.post(
+  "/api/baseline-items/:id/skip",
   handle((req, res) => {
-    const item = workoutItems.get(pparam(req.params.id));
-    if (!item) return notFound(res, `no workout item ${pparam(req.params.id)}`);
-    const parsed = SkipWorkoutItemRequest.safeParse(req.body);
+    const item = baselineItems.get(pparam(req.params.id));
+    if (!item) return notFound(res, `no baseline item ${pparam(req.params.id)}`);
+    const parsed = SkipBaselineItemRequest.safeParse(req.body);
     if (!parsed.success) return badRequest(res, "invalid skip request", parsed.error.flatten());
     const { reason, active_ms } = parsed.data;
 
@@ -633,16 +707,16 @@ app.post(
   }),
 );
 
-// --- POST /api/workout-items/:id/start (M3) ---------------------------------------------------
+// --- POST /api/baseline-items/:id/start ----------------------------------------------------------
 
 app.post(
-  "/api/workout-items/:id/start",
+  "/api/baseline-items/:id/start",
   handle((req, res) => {
-    const item = workoutItems.get(pparam(req.params.id));
-    if (!item) return notFound(res, `no workout item ${pparam(req.params.id)}`);
-    // Mirrors the real API's guard (packages/db/src/workouts.ts startWorkoutItem): only
+    const item = baselineItems.get(pparam(req.params.id));
+    if (!item) return notFound(res, `no baseline item ${pparam(req.params.id)}`);
+    // Mirrors the real API's guard (packages/db/src/baseline.ts startBaselineItem): only
     // `pending -> active`. Unconditionally setting `active` un-completed already-terminal items
-    // (solved/skipped/gave_up) every time the client revisited via a workout ladder's "Review"
+    // (solved/skipped/gave_up) every time the client revisited via the baseline list's "Review"
     // link — the item mount effect fires this unconditionally, assuming idempotence.
     if (item.state === "pending") {
       item.state = "active";
@@ -652,13 +726,15 @@ app.post(
   }),
 );
 
-// --- POST /api/diagnostic/start (M3) -----------------------------------------------------------
+// --- POST /api/mock/reset-baseline ---------------------------------------------------------------
+// Mock-only: puts the fixture back into the never-onboarded state so the first-run flow can be
+// driven from a browser (or an e2e run) without restarting the process.
 
 app.post(
-  "/api/diagnostic/start",
+  "/api/mock/reset-baseline",
   handle((_req, res) => {
-    const workout = buildDiagnosticWorkout();
-    res.json({ workout });
+    resetBaseline();
+    res.json({ ok: true });
   }),
 );
 

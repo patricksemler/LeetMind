@@ -8,6 +8,13 @@ learner/db/content) plus three live browser-testing agents driving a fully isola
 **Baseline: every automated check is green** — `pnpm -w typecheck`, all 549 TS tests, all 194
 Python tests. Everything below is therefore a gap the suites don't cover.
 
+> **Historical record (2026-07-23).** Kept as written — it is the audit trail for a set of real,
+> confirmed-live defects and the fixes they drove. Some of it now describes code that no longer
+> exists: the workout ladder was removed after this sweep (see PLAN.md §8 "Cut: workouts"), so
+> §1.2's workout-item lifecycle findings apply to the baseline flow that replaced it, and the
+> `workouts` / `workout_items` tables are now `baseline_sessions` / `baseline_items`
+> (migration 003). The reproduction recipe at the bottom is current.
+
 ## The headline
 
 The frontend was developed against the mock server, and the mock's response shapes drifted from

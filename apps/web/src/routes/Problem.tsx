@@ -9,6 +9,7 @@ import { useConcepts } from "../hooks/useConcepts";
 import { useHotkeys } from "../hooks/useHotkeys";
 import { useSubmissionEvents } from "../hooks/useSubmissionEvents";
 import { Badge, Panel, Tabs, tabPanelProps } from "../components/ui";
+import { buttonClassName } from "../components/ui/Button";
 import { ActionBar } from "../components/workspace/ActionBar";
 import { ConceptTags } from "../components/workspace/ConceptTags";
 import { CustomInputDialog } from "../components/workspace/CustomInputDialog";
@@ -24,7 +25,7 @@ import { StatementPane } from "../components/workspace/StatementPane";
 export function Problem() {
   const { versionId } = useParams<{ versionId: string }>();
   const [searchParams] = useSearchParams();
-  const workoutItemId = searchParams.get("item") ?? undefined;
+  const baselineItemId = searchParams.get("item") ?? undefined;
   const queryClient = useQueryClient();
   const { namesById } = useConcepts();
 
@@ -90,15 +91,15 @@ export function Problem() {
     };
   }, [versionId]);
 
-  // Reaching this problem via a workout/diagnostic item (`?item=`) never itself transitioned the
-  // item to 'active' — nothing downstream (the Today ladder, "workout exhausted" screen,
-  // diagnostic completion) ever advanced past "NOT STARTED" (confirmed live, docs/QA-PLAN.md
-  // §1.2). `startWorkoutItem` is idempotent (only flips `pending -> active`, stamps `started_at`
-  // once), so firing it unconditionally on mount is safe even on a revisit.
+  // Reaching this problem via a baseline item (`?item=`) never itself transitioned the item to
+  // 'active' — nothing downstream (the baseline list, its completion panel) ever advanced past
+  // "not started" (confirmed live, docs/QA-PLAN.md §1.2). `startBaselineItem` is idempotent (only
+  // flips `pending -> active`, stamps `started_at` once), so firing it unconditionally on mount is
+  // safe even on a revisit.
   useEffect(() => {
-    if (!workoutItemId) return;
-    void api.startWorkoutItem(workoutItemId);
-  }, [workoutItemId]);
+    if (!baselineItemId) return;
+    void api.startBaselineItem(baselineItemId);
+  }, [baselineItemId]);
 
   // Load starter code / draft once the problem and language are known.
   useEffect(() => {
@@ -130,7 +131,7 @@ export function Problem() {
         source,
         mode: input.mode,
         custom_input: input.customInput,
-        workout_item_id: workoutItemId,
+        baseline_item_id: baselineItemId,
         active_ms: activeTime.activeMs,
       }),
     onSuccess: (res, variables) => {
@@ -170,14 +171,20 @@ export function Problem() {
     [versionId, language, source],
   );
 
+  const solved = activeMode === "submit" && events.verdict?.verdict === "accepted";
+
   // Once a submit-mode submission is accepted, the problem becomes "solved" server-side —
-  // refetch so `concepts_revealed` (and the taken hint ladder) reflect that.
+  // refetch so `concepts_revealed` (and the taken hint ladder) reflect that. The practice and
+  // baseline queries are invalidated too: this problem is now attempted, so "what's next" has a
+  // different answer, and the baseline's next probe is only appended on its next fetch.
   useEffect(() => {
-    if (activeMode === "submit" && events.verdict?.verdict === "accepted" && versionId) {
-      void queryClient.invalidateQueries({ queryKey: ["problem", versionId] });
-      void queryClient.invalidateQueries({ queryKey: ["hints", versionId] });
-    }
-  }, [activeMode, events.verdict, versionId, queryClient]);
+    if (!solved || !versionId) return;
+    void queryClient.invalidateQueries({ queryKey: ["problem", versionId] });
+    void queryClient.invalidateQueries({ queryKey: ["hints", versionId] });
+    void queryClient.invalidateQueries({ queryKey: ["practice", "next"] });
+    void queryClient.invalidateQueries({ queryKey: ["baseline", "current"] });
+    void queryClient.invalidateQueries({ queryKey: ["progress"] });
+  }, [solved, versionId, queryClient]);
 
   if (!versionId) return null;
 
@@ -190,25 +197,33 @@ export function Problem() {
       <div className="flex h-full flex-col items-center justify-center gap-3 text-text-dim">
         <p>Couldn't load that problem.</p>
         <Link to="/" className="text-accent underline">
-          Back to Today
+          Back to practice
         </Link>
       </div>
     );
   }
 
   const revealed = problem.concepts_revealed !== null || !!gaveUpResult;
+  // A verdict (or a give-up) turns this page into a dead end otherwise: the workspace has nothing
+  // left to do and nothing on it routes onward. In the baseline that means back to the remaining
+  // probes; in practice it means straight to the next problem, which is the loop.
+  const finished = solved || !!gaveUpResult;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Reaching this problem via a workout/diagnostic item is otherwise a dead end once a
-          verdict lands — nothing else on this route routes back to the ladder. */}
-      {workoutItemId && (
-        <div className="shrink-0 border-b border-border px-4 py-1.5">
-          <Link to="/" className="text-xs text-text-faint underline hover:text-text-dim">
-            ← Back to workout
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-1.5">
+        <Link to={baselineItemId ? "/baseline" : "/"} className="text-xs text-text-faint underline hover:text-text-dim">
+          {baselineItemId ? "← Back to baseline" : "← Back to practice"}
+        </Link>
+        {finished && (
+          <Link
+            to={baselineItemId ? "/baseline" : "/"}
+            className={buttonClassName({ variant: "primary", size: "sm" })}
+          >
+            {baselineItemId ? "Next baseline question" : "Next problem"}
           </Link>
-        </div>
-      )}
+        )}
+      </div>
       <div className="min-h-0 flex-1">
         <SplitPane
           left={
@@ -236,7 +251,7 @@ export function Problem() {
                   <GiveUpControl
                     versionId={versionId}
                     activeMs={activeTime.activeMs}
-                    workoutItemId={workoutItemId}
+                    baselineItemId={baselineItemId}
                     disabled={revealed}
                     onGaveUp={(result) => {
                       setGaveUpResult(result);

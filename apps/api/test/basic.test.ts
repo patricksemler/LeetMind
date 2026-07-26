@@ -46,18 +46,18 @@ describe.skipIf(!dbReachable)("basic routes", () => {
     expect(typeof body.correlation_id).toBe("string");
   });
 
-  it("POST /api/workout-items/:id/start 404s for an unknown item id rather than 501 (M3 implemented)", async () => {
+  it("POST /api/baseline-items/:id/start 404s for an unknown item id", async () => {
     const res = await server.inject({
       method: "POST",
-      url: "/api/workout-items/01ARZ3NDEKTSV4RRFFQ69G5FAV/start",
+      url: "/api/baseline-items/01ARZ3NDEKTSV4RRFFQ69G5FAV/start",
     });
     expect(res.statusCode).toBe(404);
   });
 
-  it("POST /api/workout-items/:id/skip 404s for an unknown item id rather than 501 (M3 implemented)", async () => {
+  it("POST /api/baseline-items/:id/skip 404s for an unknown item id", async () => {
     const res = await server.inject({
       method: "POST",
-      url: "/api/workout-items/01ARZ3NDEKTSV4RRFFQ69G5FAV/skip",
+      url: "/api/baseline-items/01ARZ3NDEKTSV4RRFFQ69G5FAV/skip",
       payload: { reason: "preference" },
     });
     expect(res.statusCode).toBe(404);

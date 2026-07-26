@@ -8,8 +8,8 @@ import type {
   Submission,
   SubmissionMode,
   Verdict,
-  Workout,
-  WorkoutItem,
+  BaselineSession,
+  BaselineItem,
 } from "@leetmind/shared";
 import { newId } from "@leetmind/shared";
 import { CONCEPTS } from "./fixtures/concepts.js";
@@ -88,9 +88,10 @@ for (const c of CONCEPTS) {
   });
 }
 
-// Seed a little pre-existing progress so `/` offers a workout by default instead of always
-// pointing a fresh visitor at the diagnostic — `/diagnostic` is still fully implemented and
-// directly reachable via nav.
+// Seed a little pre-existing progress so `/` can serve a practice problem straight away instead
+// of routing every fresh visitor into the baseline. `/baseline` stays fully implemented and
+// directly reachable, and `resetBaseline()` (below) puts the mock back into the never-onboarded
+// state the first-run flow needs to be exercised from.
 (function seedInitialProgress() {
   const arrays = conceptState.get("arrays_hashing");
   const bsearch = conceptState.get("binary_search");
@@ -109,7 +110,7 @@ export interface InternalSubmission {
   language: Language;
   source: string;
   customInput: unknown;
-  workoutItemId?: string;
+  baselineItemId?: string;
   activeMs: number;
 }
 
@@ -122,30 +123,41 @@ export function bumpSubmissionCount(versionId: string): number {
   return n;
 }
 
-// --- workouts --------------------------------------------------------------------------------
+// --- baseline ---------------------------------------------------------------------------------
 
-interface WorkoutState {
-  workout: Workout | null;
+interface BaselineState {
+  session: BaselineSession | null;
+  /** Whether a baseline has EVER been started, which is what `/api/me`'s `has_baseline` and the
+   * practice route's `needs_baseline` gate on — distinct from "one is in progress". */
+  everStarted: boolean;
 }
-export const workoutState: WorkoutState = { workout: null };
+export const baselineState: BaselineState = { session: null, everStarted: false };
 
-export const workoutItems = new Map<string, WorkoutItem>();
+export const baselineItems = new Map<string, BaselineItem>();
 
-function makeItem(
-  workoutId: string,
+const BASELINE_PLAN: Array<{ concept: string; label: string }> = [
+  { concept: "arrays_hashing", label: "arrays & hashing" },
+  { concept: "binary_search", label: "binary search" },
+  { concept: "sliding_window", label: "sliding window" },
+  { concept: "trees_bst", label: "trees" },
+];
+
+function makeBaselineItem(
+  sessionId: string,
   position: number,
-  role: WorkoutItem["role"],
   problem: ProblemFixture,
+  conceptId: string,
   rationale: string,
-): WorkoutItem {
-  const item: WorkoutItem = {
-    id: fixedId(`${workoutId}:item:${position}`),
-    workout_id: workoutId,
+): BaselineItem {
+  const item: BaselineItem = {
+    id: fixedId(`${sessionId}:item:${position}`),
+    baseline_session_id: sessionId,
     position,
-    role,
     problem_version_id: problem.problemVersionId,
     rationale,
     selection_evidence: {
+      concept_id: conceptId,
+      target_rating: 1050,
       difficulty_rating: problem.content.difficulty.rating,
       expected_active_minutes: problem.content.expected_active_minutes,
       title: problem.content.title,
@@ -155,60 +167,67 @@ function makeItem(
     started_at: null,
     completed_at: null,
   };
-  workoutItems.set(item.id, item);
+  baselineItems.set(item.id, item);
   return item;
 }
 
-export function buildStandardWorkout(): Workout {
-  const [pairSum, longestDistinctRun, findInsertionBand, treeHeight] = problemFixtures;
-  const workoutId = fixedId(`workout:${Date.now()}`);
-  const items = [
-    makeItem(workoutId, 0, "warmup", pairSum!, "Warm-up: arrays & hashing, high P(success) — loosens up before the working set."),
-    makeItem(workoutId, 1, "working", findInsertionBand!, "Targets binary_search: mastery 42%, review due in 3 days — squarely in the 65–80% band."),
-    makeItem(workoutId, 2, "working", longestDistinctRun!, "Targets sliding_window: mastery 26%, only 2 attempts logged — needs more evidence."),
-    makeItem(workoutId, 3, "overload", treeHeight!, "Overload: one band above your strongest concept (arrays_hashing) to test the ceiling."),
-  ];
-  const workout: Workout = {
-    id: workoutId,
+/** Starts a baseline seeded with only its first probe, exactly like the real API — the rest are
+ * appended one at a time by `advanceMockBaseline` as each is resolved. */
+export function buildBaseline(): BaselineSession {
+  const sessionId = fixedId(`baseline:${Date.now()}`);
+  baselineItems.clear();
+  const first = problemFixtures[0]!;
+  const session: BaselineSession = {
+    id: sessionId,
     user_id: USER_ID,
-    kind: "standard",
     status: "active",
     rationale: {
-      summary: "Two working-set problems on your weakest active concepts, bracketed by a warm-up and an overload rep.",
+      summary: `Short adaptive baseline across ${BASELINE_PLAN.length} concepts. Skip anything unfamiliar — that's useful signal, not a failure.`,
+      plan: BASELINE_PLAN.map((p) => ({ concept_id: p.concept, target_rating: 1050 })),
     },
-    estimated_minutes: 38,
-    target_minutes: 40,
     created_at: new Date().toISOString(),
     completed_at: null,
-    items,
+    planned_count: BASELINE_PLAN.length,
+    items: [
+      makeBaselineItem(sessionId, 0, first, BASELINE_PLAN[0]!.concept, `Baseline: ${BASELINE_PLAN[0]!.label}, low-mid difficulty.`),
+    ],
   };
-  workoutState.workout = workout;
-  return workout;
+  baselineState.session = session;
+  baselineState.everStarted = true;
+  return session;
 }
 
-export function buildDiagnosticWorkout(): Workout {
-  const [pairSum, longestDistinctRun, findInsertionBand, treeHeight] = problemFixtures;
-  const workoutId = fixedId(`diagnostic:${Date.now()}`);
-  const items = [
-    makeItem(workoutId, 0, "diagnostic", pairSum!, "Baseline: arrays & hashing, low-mid band."),
-    makeItem(workoutId, 1, "diagnostic", findInsertionBand!, "Baseline: binary search, low-mid band."),
-    makeItem(workoutId, 2, "diagnostic", longestDistinctRun!, "Baseline: sliding window, low-mid band."),
-    makeItem(workoutId, 3, "diagnostic", treeHeight!, "Baseline: trees, low-mid band."),
+/** Mirrors `advanceBaseline` in apps/api: once every current item is resolved, append the next
+ * planned probe, or complete the session when the plan runs out. */
+export function advanceMockBaseline(): BaselineSession | null {
+  const session = baselineState.session;
+  if (!session || session.status !== "active") return session;
+
+  const items = session.items ?? [];
+  if (items.some((i) => i.state === "pending" || i.state === "active")) return session;
+
+  const position = items.length;
+  const plan = BASELINE_PLAN[position];
+  const problem = problemFixtures[position];
+  if (!plan || !problem) {
+    session.status = "completed";
+    session.completed_at = new Date().toISOString();
+    return session;
+  }
+
+  session.items = [
+    ...items,
+    makeBaselineItem(session.id, position, problem, plan.concept, `Baseline: ${plan.label}, low-mid difficulty.`),
   ];
-  const workout: Workout = {
-    id: workoutId,
-    user_id: USER_ID,
-    kind: "diagnostic",
-    status: "active",
-    rationale: { summary: "Short adaptive baseline — skip anything unfamiliar, that's a signal too." },
-    estimated_minutes: 20,
-    target_minutes: 20,
-    created_at: new Date().toISOString(),
-    completed_at: null,
-    items,
-  };
-  workoutState.workout = workout;
-  return workout;
+  return session;
+}
+
+/** Puts the mock back into the never-onboarded state, so the first-run flow can be exercised
+ * without restarting the process. */
+export function resetBaseline(): void {
+  baselineState.session = null;
+  baselineState.everStarted = false;
+  baselineItems.clear();
 }
 
 // --- learning event log (drives /progress and /system) --------------------------------------

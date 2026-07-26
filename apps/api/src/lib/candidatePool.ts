@@ -1,14 +1,14 @@
-// DB-integration glue for M3 workout assembly (docs/CONTRACTS.md §9, PLAN.md §8). Keeps
-// routes/workouts.ts focused on HTTP concerns; everything here bridges `@leetmind/db` rows to the
-// pure `@leetmind/learner` shapes and back, mirroring the pattern already established in
-// routes/problems.ts (`defaultConceptState`, the widen-band search).
+// DB-integration glue between `@leetmind/db` rows and the pure `@leetmind/learner` shapes
+// (docs/CONTRACTS.md §9). Shared by the baseline route (which resolves one planned concept+rating
+// target at a time) and the practice route (which selects from a band around the user's edge), so
+// neither has to re-implement the widen-band search or the row-to-candidate parse.
 import {
   listApprovedUnattempted,
   listConceptStates,
   type ProblemVersionRow,
 } from "@leetmind/db";
 import { ProblemVersionSchema } from "@leetmind/shared";
-import type { ConceptState, WorkoutCandidateProblem } from "@leetmind/learner";
+import type { CandidateProblem, ConceptState } from "@leetmind/learner";
 
 export const DEFAULT_RATING = 1200;
 export const DEFAULT_UNCERTAINTY = 350;
@@ -35,10 +35,17 @@ export async function loadConceptStates(userId: string): Promise<Record<string, 
   return states;
 }
 
-/** Parses a `problem_versions` row into the shape `assembleWorkout`/`assembleDiagnostic` need.
- * Returns `null` for rows with unusable concept weights, same defensive stance as
- * routes/problems.ts's `toCandidateProblem`. */
-export function toWorkoutCandidate(row: ProblemVersionRow): WorkoutCandidateProblem | null {
+/** The selectable shape plus the two presentation fields the API surfaces in `selection_evidence`
+ * (so the UI can say "~12 min · Sliding Window Maximum" without a second fetch). */
+export interface PoolCandidate extends CandidateProblem {
+  expected_active_minutes: [number, number];
+  title?: string;
+}
+
+/** Parses a `problem_versions` row into the candidate shape the learner selects over. Returns
+ * `null` for rows with unusable concept weights — a generated problem that somehow lost its
+ * concept weights is unselectable, not a crash. */
+export function toPoolCandidate(row: ProblemVersionRow): PoolCandidate | null {
   const content = row.content as {
     concepts?: Array<{ id?: unknown; weight?: unknown }>;
     expected_active_minutes?: unknown;
@@ -63,26 +70,15 @@ export function toWorkoutCandidate(row: ProblemVersionRow): WorkoutCandidateProb
   };
 }
 
-/** A broad approved-and-unattempted pool for workout assembly: unlike `GET /api/problems/next`
- * (which searches a tight band around one target), `assembleWorkout` needs candidates spanning
- * "very easy" (warm-up) through "above the working band" (overload) simultaneously, so this pulls
- * a wide, unfiltered-by-rating slice (optionally scoped to `conceptId`) and lets the pure
- * assembler pick from it. */
-export async function loadWorkoutCandidatePool(
-  userId: string,
-  opts: { conceptId?: string; limit?: number } = {},
-): Promise<WorkoutCandidateProblem[]> {
-  const rows = await listApprovedUnattempted(userId, { conceptId: opts.conceptId, limit: opts.limit ?? 300 });
-  return rows.map(toWorkoutCandidate).filter((c): c is WorkoutCandidateProblem => c !== null);
-}
-
 const WIDEN_STEPS = [0, 150, 300, 600, 1200];
 
 /**
  * Finds the approved-and-unattempted candidate for `conceptId` closest to `targetRating`,
- * widening the search window progressively (same shape as `GET /api/problems/next`'s widen
- * ladder) rather than failing outright on a thin pool. Used to resolve a diagnostic plan step
- * (concept + target rating) into a real problem to serve.
+ * widening the search window progressively rather than failing outright on a thin pool. Used to
+ * resolve a baseline plan step (concept + target rating) into a real problem to serve.
+ *
+ * Returns `null` only when the concept has no usable candidate at ANY distance — which is the
+ * signal the practice route turns into "generate one".
  */
 export async function findCandidateNear(
   userId: string,
@@ -106,7 +102,7 @@ export async function findCandidateNear(
 }
 
 /** Validates+parses `row.content` once, for callers that need the full `ProblemVersion` (title,
- * expected_active_minutes) rather than just the candidate-shaped subset. */
+ * concepts with roles, expected_active_minutes) rather than just the candidate-shaped subset. */
 export function parseContent(row: ProblemVersionRow) {
   return ProblemVersionSchema.parse(row.content);
 }

@@ -9,20 +9,20 @@ import { Client } from "pg";
 import {
   getConceptState,
   getSubmission,
-  getWorkoutItem,
+  getBaselineItem,
   insertHintEvent,
   insertProblemConcepts,
   insertProblemVersion,
   insertSubmission,
-  insertWorkout,
-  insertWorkoutItem,
+  insertBaselineSession,
+  insertBaselineItem,
   query,
   upsertConceptState,
   withTransaction,
   type SubmissionRow,
   type SubmissionStatus,
   type UserConceptStateRow,
-  type WorkoutItemRow,
+  type BaselineItemRow,
 } from "@leetmind/db";
 import {
   DEFAULT_SINGLE_USER_ID,
@@ -183,7 +183,7 @@ export interface InsertSubmissionOpts {
   customInput?: unknown;
   activeMs?: number;
   correlationId?: string;
-  workoutItemId?: string;
+  baselineItemId?: string;
 }
 
 /** Inserts a submission the way apps/api's POST /api/submissions does: status defaults to
@@ -204,7 +204,7 @@ export async function insertTestSubmission(opts: InsertSubmissionOpts): Promise<
       custom_input: opts.customInput ?? null,
       active_ms: opts.activeMs ?? 0,
       correlation_id: opts.correlationId ?? null,
-      workout_item_id: opts.workoutItemId ?? null,
+      baseline_item_id: opts.baselineItemId ?? null,
     }),
   );
 }
@@ -240,30 +240,32 @@ export async function countExecutionAttempts(submissionId: string): Promise<numb
   return Number(rows[0]?.count ?? 0);
 }
 
-/** Inserts a standalone `workouts` + `workout_items` row for `versionId`, torn down by the
- * caller via its returned `workoutId` (no cascade from `teardownProblem`, which only knows about
- * the problem/submission tables). */
-export async function insertTestWorkoutItem(versionId: string, role: "working" | "warmup" | "overload" | "diagnostic" = "working"): Promise<WorkoutItemRow> {
+/** Inserts a standalone `baseline_sessions` + `baseline_items` row for `versionId`, torn down by
+ * the caller via `deleteTestBaselineSession` (no cascade from `teardownProblem`, which only knows
+ * about the problem/submission tables). */
+export async function insertTestBaselineItem(versionId: string): Promise<BaselineItemRow> {
   return withTransaction(async (client) => {
-    const workout = await insertWorkout(client, { id: newId(), user_id: TEST_USER_ID, kind: "standard" });
-    return insertWorkoutItem(client, {
+    const session = await insertBaselineSession(client, { id: newId(), user_id: TEST_USER_ID });
+    return insertBaselineItem(client, {
       id: newId(),
-      workout_id: workout.id,
+      baseline_session_id: session.id,
       position: 0,
-      role,
       problem_version_id: versionId,
     });
   });
 }
 
-export async function deleteTestWorkout(workoutId: string): Promise<void> {
-  await query("update submissions set workout_item_id = null where workout_item_id in (select id from workout_items where workout_id = $1)", [workoutId]);
-  await query("delete from workouts where id = $1", [workoutId]);
+export async function deleteTestBaselineSession(sessionId: string): Promise<void> {
+  await query(
+    "update submissions set baseline_item_id = null where baseline_item_id in (select id from baseline_items where baseline_session_id = $1)",
+    [sessionId],
+  );
+  await query("delete from baseline_sessions where id = $1", [sessionId]);
 }
 
-export async function reloadWorkoutItem(id: string): Promise<WorkoutItemRow> {
-  const row = await getWorkoutItem(id);
-  if (!row) throw new Error(`test fixture: workout item ${id} vanished`);
+export async function reloadBaselineItem(id: string): Promise<BaselineItemRow> {
+  const row = await getBaselineItem(id);
+  if (!row) throw new Error(`test fixture: baseline item ${id} vanished`);
   return row;
 }
 

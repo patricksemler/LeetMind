@@ -110,6 +110,11 @@ async function loadLatencyHistogram(): Promise<{ buckets: { le: number; count: n
 }
 
 export function registerMetricsRoutes(fastify: FastifyInstance, deps: Deps): void {
+  // `/metrics` is a Prometheus scrape target, not an in-app view: it is reached by the scraper on
+  // the compose network with no session, so it stays unauthenticated (see `PUBLIC_PATHS` in
+  // src/auth.ts) and reports buffer depth for the instance owner (`SINGLE_USER_ID`) rather than
+  // for whoever happens to be calling. Per-account buffer depth belongs on `/api/system/stats`,
+  // which IS authenticated.
   const userId = deps.config.singleUserId;
 
   fastify.get("/metrics", async (_request, reply) => {

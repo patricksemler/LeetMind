@@ -3,7 +3,7 @@ import {
   getApprovedProblemVersion,
   getLatestSubmission,
   getSubmission,
-  getWorkoutItem,
+  getBaselineItem,
   insertSubmission,
   listHintEvents,
   notify,
@@ -106,9 +106,8 @@ async function verdictEventPayload(
 }
 
 export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): void {
-  const userId = deps.config.singleUserId;
-
   fastify.post("/api/submissions", async (request, reply) => {
+    const userId = request.userId;
     const body = CreateSubmissionRequest.parse(request.body);
 
     if (!SUPPORTED_LANGUAGES.has(body.language)) {
@@ -127,11 +126,11 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
     if (!versionRow) throw notFound("Problem version not found or not approved");
 
     // Validated up front rather than left to the DB's foreign key — an unknown/bogus
-    // `workout_item_id` used to surface as a raw FK-violation 500 (confirmed live), not the 400 a
+    // `baseline_item_id` used to surface as a raw FK-violation 500 (confirmed live), not the 400 a
     // client-supplied bad id should produce.
-    if (body.workout_item_id) {
-      const item = await getWorkoutItem(body.workout_item_id);
-      if (!item) throw badRequest("Unknown workout_item_id", { workout_item_id: body.workout_item_id });
+    if (body.baseline_item_id) {
+      const item = await getBaselineItem(body.baseline_item_id);
+      if (!item) throw badRequest("Unknown baseline_item_id", { baseline_item_id: body.baseline_item_id });
     }
 
     const sourceHash = sha256Hex(body.source);
@@ -142,7 +141,7 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
         id: newId(),
         user_id: userId,
         problem_version_id: body.problem_version_id,
-        workout_item_id: body.workout_item_id ?? null,
+        baseline_item_id: body.baseline_item_id ?? null,
         mode: body.mode,
         language: body.language,
         source: body.source,
@@ -183,6 +182,7 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
   });
 
   fastify.get<{ Params: { id: string } }>("/api/submissions/:id", async (request, reply) => {
+    const userId = request.userId;
     const id = requireId(request.params.id);
     const row = await getSubmission(id);
     if (!row || row.user_id !== userId) throw notFound("Submission not found");
@@ -196,6 +196,7 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
   fastify.get<{ Params: { versionId: string } }>(
     "/api/problems/:versionId/submissions/latest",
     async (request, reply) => {
+      const userId = request.userId;
       const versionId = requireId(request.params.versionId, "versionId");
       const row = await getLatestSubmission(userId, versionId);
       reply.send({ submission: row ? await enrichSubmission(userId, row) : null });
@@ -203,6 +204,7 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
   );
 
   fastify.get<{ Params: { id: string } }>("/api/submissions/:id/events", async (request, reply) => {
+    const userId = request.userId;
     const id = requireId(request.params.id);
     const submission = await getSubmission(id);
     if (!submission || submission.user_id !== userId) throw notFound("Submission not found");

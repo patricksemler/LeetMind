@@ -36,7 +36,7 @@ import {
   type VerdictEvent,
   VerdictEventSchema,
 } from "@leetmind/shared";
-import { api, submissionEventsUrl } from "../lib/api";
+import { api, submissionEventsUrlWithAuth } from "../lib/api";
 
 export type SSEConnectionState = "idle" | "connecting" | "open" | "reconnecting" | "closed";
 
@@ -166,17 +166,23 @@ export function useSubmissionEvents(
       attemptRef.current += 1;
       const delay = Math.min(maxBackoffRef.current, baseBackoffRef.current * 2 ** attempt);
       setState((prev) => ({ ...prev, connectionState: "reconnecting", reconnectAttempts: attempt + 1 }));
-      timerRef.current = setTimeout(() => connect(id), delay);
+      timerRef.current = setTimeout(() => void connect(id), delay);
     }
 
-    function connect(id: string) {
+    async function connect(id: string) {
       if (stoppedRef.current || terminalRef.current) return;
       setState((prev) => ({
         ...prev,
         connectionState: attemptRef.current === 0 ? "connecting" : "reconnecting",
       }));
 
-      const es = createEventSourceRef.current(submissionEventsUrl(id));
+      // Awaited because the access token is resolved from the Supabase client, which may still be
+      // restoring a persisted session. Re-check the stop flags afterwards: the component can unmount
+      // (or the verdict can land) during that await, and opening a stream after teardown leaks it.
+      const url = await submissionEventsUrlWithAuth(id);
+      if (stoppedRef.current || terminalRef.current) return;
+
+      const es = createEventSourceRef.current(url);
       esRef.current = es;
 
       es.addEventListener("open", () => {
@@ -228,7 +234,7 @@ export function useSubmissionEvents(
       });
     }
 
-    connect(submissionId);
+    void connect(submissionId);
 
     return () => {
       stoppedRef.current = true;

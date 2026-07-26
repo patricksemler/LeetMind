@@ -51,19 +51,55 @@ export function loadBaseConfig(env: NodeJS.ProcessEnv = process.env): BaseConfig
 const ApiEnvSchema = BaseEnvSchema.extend({
   API_PORT: z.coerce.number().int().positive().default(8080),
   API_HOST: z.string().min(1).default("0.0.0.0"),
+  /** Supabase project URL, e.g. `https://<ref>.supabase.co` or `http://127.0.0.1:54321` locally.
+   * Its presence is what turns authentication on outside production. */
+  SUPABASE_URL: z.string().url().optional(),
+  /** Symmetric (HS256) JWT secret. Legacy and local projects sign with this; newer hosted projects
+   * use asymmetric keys, in which case leave it unset and the API verifies against the project's
+   * published JWKS instead. */
+  SUPABASE_JWT_SECRET: z.string().min(1).optional(),
+  /** Explicit override. Unset means "on in production, and on anywhere SUPABASE_URL is configured". */
+  AUTH_REQUIRED: z
+    .enum(["true", "false"])
+    .transform((v) => v === "true")
+    .optional(),
+  /** Opt-in claim of the pre-accounts `SINGLE_USER_ID` practice history by the first account that
+   * signs in with exactly this address. Unset means nobody ever claims it. */
+  LEGACY_CLAIM_EMAIL: z.string().email().optional(),
 });
 
 export interface ApiConfig extends BaseConfig {
   apiPort: number;
   apiHost: string;
+  supabaseUrl?: string;
+  supabaseJwtSecret?: string;
+  authRequired: boolean;
+  legacyClaimEmail?: string;
 }
 
 export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const parsed = parseEnv(ApiEnvSchema, env);
+  const base = loadBaseConfig(env);
+
+  // Default: authentication follows configuration. Production is the exception — there it is
+  // mandatory, and booting without a Supabase project is a misconfiguration worth failing on
+  // rather than silently serving one shared anonymous account to the whole internet.
+  const authRequired = parsed.AUTH_REQUIRED ?? (base.nodeEnv === "production" || Boolean(parsed.SUPABASE_URL));
+  if (authRequired && !parsed.SUPABASE_URL) {
+    throw new Error(
+      "Authentication is required (AUTH_REQUIRED=true, or NODE_ENV=production) but SUPABASE_URL is not set. " +
+        "Set SUPABASE_URL to your Supabase project URL, or set AUTH_REQUIRED=false for a single-user local stack.",
+    );
+  }
+
   return {
-    ...loadBaseConfig(env),
+    ...base,
     apiPort: parsed.API_PORT,
     apiHost: parsed.API_HOST,
+    supabaseUrl: parsed.SUPABASE_URL,
+    supabaseJwtSecret: parsed.SUPABASE_JWT_SECRET,
+    authRequired,
+    legacyClaimEmail: parsed.LEGACY_CLAIM_EMAIL,
   };
 }
 

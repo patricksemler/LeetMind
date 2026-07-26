@@ -46,10 +46,9 @@ function averageRating(states: UserConceptStateRow[]): number {
   return states.reduce((sum, s) => sum + s.rating, 0) / states.length;
 }
 
-export function registerProblemRoutes(fastify: FastifyInstance, deps: Deps): void {
-  const userId = deps.config.singleUserId;
-
+export function registerProblemRoutes(fastify: FastifyInstance, _deps: Deps): void {
   fastify.get("/api/problems/next", async (request, reply) => {
+    const userId = request.userId;
     const parsedQuery = NextProblemQuery.parse(request.query);
 
     const conceptStateRows = await listConceptStates(userId);
@@ -143,6 +142,7 @@ export function registerProblemRoutes(fastify: FastifyInstance, deps: Deps): voi
   });
 
   fastify.get<{ Params: { versionId: string } }>("/api/problems/:versionId", async (request, reply) => {
+    const userId = request.userId;
     const versionId = requireId(request.params.versionId, "versionId");
     const versionRow = await getApprovedProblemVersion(versionId);
     if (!versionRow) throw notFound("Problem version not found or not approved");

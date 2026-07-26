@@ -31,9 +31,9 @@ The plan is **milestone-shaped, not calendar-shaped**: a walking skeleton proves
 | 10 | Learner model | **Glicko-lite per-concept Elo**: rating + uncertainty per user×concept, logistic success prediction, bounded outcome score (hints/time/attempts), K scaled by uncertainty, evidence split by concept weights, immutable LearningEvents. SM-2-style spaced review. No IRT/BKT (unfittable with one user and fresh problems) |
 | 11 | Verification gate | **Six blocking deterministic stages**: schema, compile, differential, boundary, example-consistency, **mutation**. Deferred: complexity validation, novelty. Cut: cross-model review, quality-score thresholds, admin quarantine UI |
 | 12 | Hints | **Fully pre-generated** ladder stored with the problem (orientation → conceptual → structural → outline → editorial). Fixed, visible penalty schedule. No runtime LLM tutoring (backlog only) |
-| 13 | Workouts | **Full structure in v1** (M3): warm-up / working sets / overload / recovery, rationale, skip/replace tracking. **Diagnostic onboarding** with a first-class "I don't know how to approach this" skip that counts as calibration evidence |
+| 13 | Session structure | **Baseline onboarding** with a first-class "I haven't learned this yet" skip that counts as calibration evidence, then a **stateless practice loop** that serves (and, when the pool is thin, generates) one problem at a time. The v1 workout ladder — warm-up / working sets / overload / recovery, duration budgeting — was built and then **cut**; see §8 for why |
 | 14 | Observability | Correlation IDs + structured JSON logs from day 1; metrics as SQL over existing tables; in-app **/system** stats page. Prometheus + Grafana + load-test harness deferred to M5 |
-| 15 | Auth | None in v1; `user_id` on every table so multi-user is a migration, not a rewrite |
+| 15 | Auth | **Supabase Auth** (email + password), verified per-request as a JWT; this database stores only the auth-subject binding, never a credential. `user_id` was on every table from v1 precisely so this was a migration rather than a rewrite — it was. A single-user local stack still runs with `AUTH_REQUIRED=false` |
 
 **Standing assumptions:** React + Vite + Monaco + Tailwind frontend; single Postgres instance for app state, queue, and metrics; pnpm workspaces for TS, `uv` for Python.
 
@@ -64,8 +64,8 @@ The plan is **milestone-shaped, not calendar-shaped**: a walking skeleton proves
 
 **Services** (each its own process, all talking to the same Postgres):
 
-- **web** — workout view, problem workspace (Monaco), progress dashboard, /system stats.
-- **api** (TS) — HTTP + SSE. Owns request validation, problem delivery (public fields only), submission creation, workout endpoints, learner-state reads. Transactionally writes domain rows + queue jobs. Fans out job/submission state changes to SSE via Postgres `LISTEN/NOTIFY`.
+- **web** — practice loop, baseline onboarding, problem workspace (Monaco), progress dashboard, /system stats.
+- **api** (TS) — HTTP + SSE. Owns token verification, request validation, problem delivery (public fields only), submission creation, baseline/practice endpoints, learner-state reads. Transactionally writes domain rows + queue jobs. Fans out job/submission state changes to SSE via Postgres `LISTEN/NOTIFY`.
 - **judge coordinator + workers** (TS) — claims `judge` jobs from the queue, drives the submission state machine, launches sandbox containers, applies results idempotently, emits `NOTIFY`.
 - **content worker** (Python) — claims `generate` and `verify` jobs (lower priority class), invokes `claude -p` with structured prompts, runs the six-stage verification gate (executing all generated code inside the same sandbox substrate), writes approved problems + verification reports.
 
@@ -153,8 +153,8 @@ Failures → `rejected` with a stored `verification_reports` row (stage results,
 
 ### Replenishment (background prefetch)
 
-- Predict demand from the learner profile: for each concept×rating band likely to appear in upcoming workouts (weak concepts, due reviews, next overload steps), maintain a **low-watermark buffer** (e.g., 3 unattempted approved problems per active band).
-- When below watermark → enqueue `generate` jobs (lowest priority). The user-facing workout assembler only ever reads from the approved pool, so LLM downtime or verification failures degrade buffer depth, never the practice session.
+- Predict demand from the learner profile: for each concept×rating band practice is likely to draw from (weak concepts, due reviews, the next step above band), maintain a **low-watermark buffer** (e.g., 3 unattempted approved problems per active band).
+- When below watermark → enqueue `generate` jobs (lowest priority). The user-facing practice loop only ever reads from the approved pool, so LLM downtime or verification failures degrade buffer depth, never correctness. `GET /api/practice/next` additionally commissions on demand when the buffer has run dry at the user's own level, and reports the wait rather than showing an empty state.
 - Escape hatch (M3+): "generate me a problem about X now" — an explicit synchronous request where waiting is expected.
 
 ---
@@ -178,27 +178,33 @@ Failures → `rejected` with a stored `verification_reports` row (stage results,
 - Base: Accepted = 1.0, give-up/abandon = 0.0.
 - Hint cap (visible before each hint is taken): L1 → 0.9, L2 → 0.75, L3 → 0.6, outline → 0.4.
 - Modifiers within ±0.1: active time vs expected band; substantive submission count. Compilation errors are excluded from mastery impact unless recurrent (tracked as language-level error category instead).
-- **Diagnostic/workout skip ("I don't know how to approach this")** = 0.0 outcome at reduced evidence weight — it lowers the estimate *and* the uncertainty without a demoralizing forced failure. Skip-for-preference (replace) is recorded separately and does **not** count as inability.
+- **Baseline skip ("I haven't learned this yet")** = 0.0 outcome at reduced evidence weight — it lowers the estimate *and* the uncertainty without a demoralizing forced failure. Skip-for-preference (replace) is recorded separately and does **not** count as inability.
 
 **Update:** Elo delta = K × (outcome − expected), K scaled by uncertainty (fast early calibration, stable later), delta split across concepts by weight, per-problem swing capped. Uncertainty shrinks with evidence and grows slowly with inactivity. Problem ratings drift only marginally from single-user data; difficulty quality is owned by generation-time estimation (concept depth, constraints, brute/optimal gap observed during verification).
 
-**Review scheduler:** SM-2-style per concept — interval grows with successful review outcomes, shrinks on failure; `next_review_at` feeds workout assembly urgency. Deliberately boring in v1.
+**Review scheduler:** SM-2-style per concept — interval grows with successful review outcomes, shrinks on failure; `next_review_at` feeds practice-selection urgency. Deliberately boring in v1.
 
 ---
 
 ## 8. Product surface
 
-### Diagnostic onboarding (M3)
-Short adaptive baseline (~4–6 problems): starts low-mid per concept cluster, steps difficulty on success, drops fast on skip/failure. The skip button is prominent and judgment-free — skipping is expected for unknown topics and is exactly what makes the diagnostic short. Output: seeded ratings with honest uncertainty. Optional config self-seed remains available; self-ratings only seed, never establish mastery.
+### Baseline onboarding
+Short adaptive baseline (~4–6 problems): starts low-mid per concept cluster, steps difficulty up on success, drops fast on skip/failure, one problem at a time. The skip button sits beside the start button at equal weight and its copy is judgment-free — skipping is *expected* for unknown topics and is exactly what keeps the baseline short. A baseline where skipping feels like failure produces dishonest ratings, because a user who doesn't recognise a topic will guess or grind rather than admit it. Output: seeded ratings with honest uncertainty. Optional config self-seed remains available; self-ratings only seed, never establish mastery.
 
-### Workouts (M3)
-Assembled from the approved pool: **warm-up** (prerequisite/recent concept, high P(success)) → **working sets** (1–2 problems in the 65–80% band on target weakness) → **overload** (slightly above band or concept combination) → **recovery** (spaced review when due). Each workout shows rationale ("targets union-find: mastery 41%; reviews sorting: 9 days idle"), estimated duration, and challenge level. Session-length and topic-focus requests honored; replace vs can't-solve tracked distinctly. Concept/algorithm tags stay hidden until solve or give-up.
+### Practice — the iterative autogenerate loop
+Everything after the baseline. One endpoint, `GET /api/practice/next`, answers "what should I do right now?" with exactly one of: *take the baseline first*, *here is a problem*, or *a problem is being generated for you*. There is no session to start, nothing to plan, and nothing to persist between problems — practice is stateless, and the learner state IS the plan.
+
+The third answer is what makes it *autogenerate* rather than merely adaptive: when the verified pool can't cover the user's current edge, the API commissions the missing problem (a `generate` job at elevated priority) and reports the wait, instead of showing an empty state. At most one generation is in flight per (user, concept, band) cell, so a client polling every two seconds during a two-minute generation enqueues one job, not sixty. On every successful serve it also tops the buffer up in the background when the current band is thin, so the common case never reaches the waiting state at all.
+
+Concept/algorithm tags stay hidden until solve or give-up.
+
+**Cut: workouts.** The v1 design assembled a session ladder — warm-up → working sets → overload → recovery, with duration budgeting and a session-level rationale. It was removed. The ladder's value was entirely in *which problem comes next*, which the learner model already decides on its own, one problem at a time; the session container around it added planning ceremony (start a workout, finish a workout, abandon a workout, honour a target-minutes budget) without adding information. A stateless loop that always serves the single best next problem is strictly more responsive to the evidence, because it re-decides after every solve instead of committing to four problems chosen before the first one was attempted.
 
 ### Workspace (M1, grows through M3)
 Statement/examples/constraints; Monaco with language select; Run (custom input) and Submit; live state + per-test progress via SSE; verdict with runtime/memory and safe diagnostics; hint ladder with visible penalty; give-up → editorial; post-solve editorial + complexity; active-time tracking with focus/blur pause (timer display can be hidden; measurement continues).
 
 ### Progress (M3)
-Mastery + uncertainty per concept (with trend), review-due list, solve stats by difficulty (with/without hints), median active time, error-category recurrences, personal records (highest unassisted difficulty; comparable-time improvements — not raw counts), workout history.
+Mastery + uncertainty per concept (with trend), review-due list, solve stats by difficulty (with/without hints), median active time, error-category recurrences, personal records (highest unassisted difficulty; comparable-time improvements — not raw counts), recent learning-event history.
 
 ### /system (M1, grows)
 Queue depth + wait percentiles, worker liveness/leases, verdict distribution, buffer depth per band, generation pass rate by stage, model-run latency/cost, recent dead jobs — all SQL over existing tables.
@@ -207,7 +213,7 @@ Queue depth + wait percentiles, worker liveness/leases, verdict distribution, bu
 
 ## 9. Data model (Postgres, single instance)
 
-`users` · `concepts` · `concept_edges` · `user_concept_state` · `problems` · `problem_versions` (immutable content JSON + state) · `problem_concepts` · `verification_reports` · `workouts` · `workout_items` (role, rationale, selection evidence, completion/skip state) · `submissions` (source hash, language, lifecycle, verdict, idempotency key) · `execution_attempts` (worker, image digest, limits, usage, per-test results) · `hint_events` · `learning_events` (append-only) · `model_runs` · `jobs` (queue).
+`users` (incl. the Supabase Auth binding) · `concepts` · `concept_edges` · `user_concept_state` · `problems` · `problem_versions` (immutable content JSON + state) · `problem_concepts` · `verification_reports` · `baseline_sessions` · `baseline_items` (rationale, selection evidence, completion/skip state) · `submissions` (source hash, language, lifecycle, verdict, idempotency key) · `execution_attempts` (worker, image digest, limits, usage, per-test results) · `hint_events` · `learning_events` (append-only) · `model_runs` · `jobs` (queue).
 
 Conventions: ULID keys; `correlation_id` propagated request→job→execution→event; `user_id` on every user-owned table; migrations from M0; server-only columns never serialized to the client.
 
@@ -231,12 +237,14 @@ Full six-stage verification gate (differential + boundary + mutation, sandboxed,
 Diagnostic onboarding with skip-as-signal; full workout assembly (roles, rationale, duration budgeting, replace-vs-inability tracking); SM-2 review scheduling feeding recovery items; hint ladder UI with visible penalties + give-up/editorial flow; progress dashboard; tree/linked-list types in the Python harness (tree-pattern problems enter the pool); focused-workout and synchronous-generation escape hatches.
 **Done when:** a fresh user goes diagnostic → explained workout → full session daily, with tree problems in rotation and every mastery change explainable from LearningEvents.
 
+*(Post-M5: the workout half of this milestone was cut and replaced by the stateless practice loop — see §8. The diagnostic half survives as the baseline. Milestone text left as-shipped, since it records what was actually built.)*
+
 ### M4 · Judge Hardening + C++
 C++20 pipeline (pinned toolchain image, compile stage with error surfacing, harness codegen + type mapping incl. trees/lists); Rejudge against pinned versions; duplicate-delivery and idempotency test suite; poison-job parking + /system surfacing; automated worker-kill recovery test (< 10 s requeue) in CI.
 **Done when:** the same problem passes in Python and C++; a rejudged historical submission reproduces its verdict; chaos tests pass repeatedly.
 
 ### M5 · Ops & Evidence (portfolio)
-Prometheus + Grafana (compose profile); load-test harness with documented profile (concurrent sessions, submission mix, language mix) producing p50/p95/p99 queue + judge latency, throughput, and lease-recovery time; threat-model document (Docker-in-VM boundary, single-user assumptions, what public deployment would require); architecture README + demo script walking the full loop: weakness → objective → generation → verification (incl. a visible rejection) → sandboxed judging with streamed results → hint → explainable mastery update → next-workout change → dashboards.
+Prometheus + Grafana (compose profile); load-test harness with documented profile (concurrent sessions, submission mix, language mix) producing p50/p95/p99 queue + judge latency, throughput, and lease-recovery time; threat-model document (Docker-in-VM boundary, single-user assumptions, what public deployment would require); architecture README + demo script walking the full loop: weakness → objective → generation → verification (incl. a visible rejection) → sandboxed judging with streamed results → hint → explainable mastery update → next problem chosen from the change → dashboards.
 **Done when:** the demo runs start-to-finish from a clean `docker compose up`, and the measured numbers live in the repo.
 
 ### M6 · Backlog (unscheduled, in rough order)

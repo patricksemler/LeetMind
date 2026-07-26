@@ -1,6 +1,6 @@
 /**
  * The one signature device in this UI: a small "weight plate" ring. Size encodes load, fill
- * encodes completion. Reused for workout-item roles (warm-up/working/overload/recovery) and for
+ * encodes completion. Reused for baseline probes and for
  * hint-ladder rungs (l1 → outline), so the same glyph vocabulary means "how much load / how far
  * down the ladder" everywhere it appears.
  */

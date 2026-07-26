@@ -23,7 +23,7 @@ export * from "./events.js";
 export * from "./verification.js";
 export * from "./modelRuns.js";
 export * from "./notify.js";
-export * from "./workouts.js";
+export * from "./baseline.js";
 export * from "./testDb.js";
 export * from "./testSchema.js";
 

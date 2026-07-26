@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import {
-  completeWorkoutItem,
+  completeBaselineItem,
   getApprovedProblemVersion,
   getConceptStateForUpdate,
-  getWorkoutItem,
+  getBaselineItem,
+  getBaselineSession,
   hasAcceptedSubmission,
   hasInFlightSubmission,
   insertHintEvent,
@@ -85,10 +86,10 @@ function snapshotStates(states: Record<string, UserConceptStateRow>): Record<str
   );
 }
 
-export function registerHintRoutes(fastify: FastifyInstance, deps: Deps): void {
-  const userId = deps.config.singleUserId;
+export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void {
 
   fastify.post("/api/hints", async (request, reply) => {
+    const userId = request.userId;
     const body = TakeHintRequest.parse(request.body);
 
     if (body.level === "editorial") {
@@ -137,6 +138,7 @@ export function registerHintRoutes(fastify: FastifyInstance, deps: Deps): void {
   });
 
   fastify.get<{ Params: { versionId: string } }>("/api/hints/:versionId", async (request, reply) => {
+    const userId = request.userId;
     const versionId = requireId(request.params.versionId, "versionId");
     const versionRow = await getApprovedProblemVersion(versionId);
     if (!versionRow) throw notFound("Problem version not found or not approved");
@@ -155,6 +157,7 @@ export function registerHintRoutes(fastify: FastifyInstance, deps: Deps): void {
   fastify.post<{ Params: { versionId: string } }>(
     "/api/problems/:versionId/give-up",
     async (request, reply) => {
+      const userId = request.userId;
       const versionId = requireId(request.params.versionId, "versionId");
       const body = GiveUpRequest.parse(request.body ?? {});
       const correlationId = request.correlationId;
@@ -187,9 +190,13 @@ export function registerHintRoutes(fastify: FastifyInstance, deps: Deps): void {
         throw conflict("Already solved — there's nothing to give up.");
       }
 
-      if (body.workout_item_id) {
-        const item = await getWorkoutItem(body.workout_item_id);
-        if (!item) throw notFound("Workout item not found");
+      if (body.baseline_item_id) {
+        // Ownership, not just existence: with real accounts an item id is no longer implicitly
+        // the caller's, and completing someone else's baseline item would corrupt their probe
+        // sequence. 404 rather than 403 so an id can't be probed for existence.
+        const item = await getBaselineItem(body.baseline_item_id);
+        const session = item ? await getBaselineSession(item.baseline_session_id) : null;
+        if (!item || !session || session.user_id !== userId) throw notFound("Baseline item not found");
       }
 
       const result = await withTransaction(async (client) => {
@@ -200,13 +207,13 @@ export function registerHintRoutes(fastify: FastifyInstance, deps: Deps): void {
           level: "editorial",
         });
 
-        // Completes the item even on an idempotent replay — `completeWorkoutItem` no-ops once
-        // already terminal, so this is safe to call unconditionally. Previously `workout_item_id`
+        // Completes the item even on an idempotent replay — `completeBaselineItem` no-ops once
+        // already terminal, so this is safe to call unconditionally. Previously `baseline_item_id`
         // was parsed and never used at all: the item never reached `gave_up`, which meant the
-        // diagnostic's pending-items guard could never pass and the flow stalled permanently
+        // baseline's pending-items guard could never pass and the flow stalled permanently
         // (confirmed live).
-        if (body.workout_item_id) {
-          await completeWorkoutItem(client, body.workout_item_id, {
+        if (body.baseline_item_id) {
+          await completeBaselineItem(client, body.baseline_item_id, {
             state: "gave_up",
             active_ms: body.active_ms ?? null,
           });

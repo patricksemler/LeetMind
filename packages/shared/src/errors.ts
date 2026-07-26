@@ -30,6 +30,11 @@ export function conflict(message = "Conflict", details?: unknown): AppError {
   return new AppError("conflict", message, 409, details);
 }
 
+/** No usable session: the client should sign in (or refresh an expired token) and retry. */
+export function unauthorized(message = "Sign in to continue.", details?: unknown): AppError {
+  return new AppError("unauthorized", message, 401, details);
+}
+
 export function internal(message = "Internal error", details?: unknown): AppError {
   return new AppError("internal_error", message, 500, details);
 }

@@ -13,7 +13,7 @@ import {
   learningEvents,
   problemsById,
   submissions,
-  workoutItems,
+  baselineItems,
 } from "./state.js";
 import { outcomeScore, scheduleReview, updateConcepts } from "./mastery.js";
 import { buildMockReveal } from "./reveal.js";
@@ -174,8 +174,8 @@ export async function runLifecycle(submissionId: string): Promise<void> {
     created_at: new Date().toISOString(),
   });
 
-  if (sub.workoutItemId) {
-    const item = workoutItems.get(sub.workoutItemId);
+  if (sub.baselineItemId) {
+    const item = baselineItems.get(sub.baselineItemId);
     if (item && grade.verdict === "accepted") {
       item.state = "solved";
       item.completed_at = new Date().toISOString();

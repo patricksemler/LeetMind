@@ -1,14 +1,14 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Real-stack e2e smoke (QA-PLAN.md "Prevent recurrence" §2): diagnostic → workout item → solve →
- * live verdict visible → item completes → progress reflects it. Run against a REAL api + judge +
- * web (never the mock server) — see playwright.config.ts's header comment for how to bring that
- * stack up.
+ * Real-stack e2e smoke (QA-PLAN.md "Prevent recurrence" §2): sign in → baseline → solve → live
+ * verdict visible → item completes → practice serves the next problem → progress reflects it. Run
+ * against a REAL api + judge + web (never the mock server) — see playwright.config.ts's header
+ * comment for how to bring that stack up.
  *
  * The QA fixture pool's approved problems are all the same underlying problem ("Maximum Sum of a
  * Length-K Subarray") seeded multiple times across different concepts/rating bands, so a single
- * hardcoded correct solution below covers whichever one the diagnostic picks.
+ * hardcoded correct solution below covers whichever one the baseline picks.
  */
 const CORRECT_SOLUTION = `from typing import List, Optional
 
@@ -22,38 +22,40 @@ def maxSumSubarray(nums: List[int], k: int) -> int:
     return best
 `;
 
-test("diagnostic -> solve -> live verdict -> item completes -> progress reflects it", async ({ page }) => {
-  await page.goto("/diagnostic");
+/** Set when the stack under test has auth enabled (SUPABASE_URL configured). Left unset for a
+ * single-user stack, where these steps are skipped entirely. */
+const E2E_EMAIL = process.env.E2E_EMAIL;
+const E2E_PASSWORD = process.env.E2E_PASSWORD;
+
+async function signInIfRequired(page: import("@playwright/test").Page) {
+  if (!E2E_EMAIL || !E2E_PASSWORD) return;
+  await page.goto("/login");
+  // Already signed in from a previous run: the guard bounces straight back to practice.
+  if (!(await page.getByLabel("Email").isVisible({ timeout: 3000 }).catch(() => false))) return;
+  await page.getByLabel("Email").fill(E2E_EMAIL);
+  await page.getByLabel("Password").fill(E2E_PASSWORD);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/(?!login)/, { timeout: 15_000 });
+}
+
+test("baseline -> solve -> live verdict -> item completes -> practice serves next -> progress reflects it", async ({ page }) => {
+  await signInIfRequired(page);
+
+  await page.goto("/baseline");
 
   // Idempotent against whatever state this account is already in: a fresh account sees the
-  // "Start diagnostic" prompt; an account with an already-active diagnostic (e.g. a previous
-  // partial run of this same test) sees the ladder directly. Either way, end up looking at the
-  // ladder with an item to open.
-  const startDiagnosticButton = page.getByRole("button", { name: "Start diagnostic" });
-  if (await startDiagnosticButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await startDiagnosticButton.click();
-    // Starting a diagnostic abandons any other active workout — confirm if that dialog appears.
-    const abandonButton = page.getByRole("button", { name: "Abandon & start diagnostic" });
-    if (await abandonButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await abandonButton.click();
-    }
+  // "Start baseline" prompt; an account with one already running sees the probe list directly.
+  const startBaselineButton = page.getByRole("button", { name: "Start baseline" });
+  if (await startBaselineButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await startBaselineButton.click();
   }
 
-  // The diagnostic's first not-yet-resolved item card, with a Start/Continue link into the
-  // workspace — "Start" the first time, "Continue" if `?item=` already flipped it to active on a
-  // prior visit (QA-PLAN.md §1.2).
-  const startLink = page
-    .getByRole("link")
-    .filter({ has: page.getByRole("button", { name: /^(Start|Continue)$/ }) })
-    .first();
+  // The first not-yet-resolved probe, with a "Try it"/"Continue" link into the workspace —
+  // "Continue" if `?item=` already flipped it to active on a prior visit (QA-PLAN.md §1.2).
+  const startLink = page.getByRole("link", { name: /^(Try it|Continue)$/ }).first();
   await expect(startLink).toBeVisible({ timeout: 15_000 });
-
   await startLink.click();
   await expect(page).toHaveURL(/\/problem\//);
-
-  // Reaching the problem via ?item= must have transitioned the workout item to 'active'
-  // (QA-PLAN.md §1.2) — confirmed by the diagnostic ladder showing it "in progress" once we go
-  // back to check, done later in this test.
 
   // Not keyboard.type(): Monaco's own smart-indent rewrites whatever we type as we type it (an
   // auto-inserted indent after `:` collides with our own leading whitespace, corrupting the
@@ -72,18 +74,26 @@ test("diagnostic -> solve -> live verdict -> item completes -> progress reflects
 
   // Live verdict, delivered over SSE without a reload (QA-PLAN.md §1.1 — the exact P0 this test
   // is named for: a live verdict that never reached the client, only visible after a manual
-  // refresh, would time out here instead).
+  // refresh, would time out here instead). With auth on, this also proves the SSE stream's
+  // query-parameter token is accepted, since EventSource cannot send a header.
   const verdictPanel = page.locator('[data-testid="verdict-panel"]');
   await expect(verdictPanel).toBeVisible({ timeout: 30_000 });
   await expect(verdictPanel.getByText(/accepted/i)).toBeVisible({ timeout: 10_000 });
 
-  // The accepted verdict must complete the workout item (QA-PLAN.md §1.2) — go back to the
-  // diagnostic and confirm the item that used to be "NOT STARTED" is now resolved.
-  await page.goto("/diagnostic");
+  // The accepted verdict must complete the baseline item (QA-PLAN.md §1.2) — go back and confirm
+  // the probe that used to be "up next" is now resolved.
+  await page.goto("/baseline");
   await expect(page.locator("text=solved").first()).toBeVisible({ timeout: 15_000 });
 
-  // And Progress must reflect it — at least one concept now shows a non-default rating badge
-  // instead of "No submissions yet" (QA-PLAN.md §1.4).
+  // Practice must have something to say afterwards — either the next problem, or a visible
+  // "generating" state. What it must NOT do is dead-end.
+  await page.goto("/");
+  await expect(
+    page.getByRole("link", { name: "Start" }).or(page.getByText(/Writing you a new problem/i)).first(),
+  ).toBeVisible({ timeout: 20_000 });
+
+  // And Progress must reflect the solve — at least one concept now shows a non-default rating
+  // badge instead of "No submissions yet" (QA-PLAN.md §1.4).
   await page.goto("/progress");
   await expect(page.getByText(/no submissions yet/i)).not.toBeVisible();
   await expect(page.getByText(/attempts?/).first()).toBeVisible({ timeout: 15_000 });

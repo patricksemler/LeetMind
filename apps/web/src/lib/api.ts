@@ -4,32 +4,32 @@
  * shape, it only calls fetch and hands the JSON to the shared schema.
  *
  * Talks to `/api/...` (and `/health`), which Vite proxies to `VITE_API_BASE` — the mock server in
- * dev, the real `apps/api` once it exists. Nothing here needs to change to switch between them.
+ * dev, the real `apps/api` in a live stack. Nothing here needs to change to switch between them.
  */
 import {
-  type CreateSubmissionRequest,
   CreateSubmissionResponse,
-  type CreateWorkoutRequest,
-  CreateWorkoutResponse,
-  type GenerateNowRequest,
-  GenerateNowResponse,
   GetConceptsResponse,
-  GetCurrentWorkoutResponse,
-  type GiveUpRequest,
-  GiveUpResponse,
+  GetCurrentBaselineResponse,
   GetHintsResponse,
   GetLatestSubmissionResponse,
   GetProblemResponse,
   GetSubmissionResponse,
+  GenerateNowResponse,
   HealthResponse,
+  MeResponse,
+  NextPracticeProblemResponse,
   NextProblemResponse,
   ProgressResponse,
-  type SkipWorkoutItemRequest,
-  SkipWorkoutItemResponse,
-  StartDiagnosticResponse,
-  StartWorkoutItemResponse,
-  type TakeHintRequest,
+  SkipBaselineItemResponse,
+  StartBaselineItemResponse,
+  StartBaselineResponse,
   TakeHintResponse,
+  GiveUpResponse,
+  type CreateSubmissionRequest,
+  type GenerateNowRequest,
+  type GiveUpRequest,
+  type SkipBaselineItemRequest,
+  type TakeHintRequest,
 } from "@leetmind/shared";
 
 export class ApiError extends Error {
@@ -46,14 +46,44 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Set by `AuthProvider`. Deliberately **async**, and deliberately a getter rather than a stored
+ * token.
+ *
+ * Async because the session is not synchronously available at the moments that matter: right after
+ * `signUp`/`signIn` resolves, React has not yet processed the `onAuthStateChange` state update, and
+ * on a cold load Supabase restores the persisted session asynchronously. A synchronous getter
+ * reading React state returns `null` in both windows, and every query fired in them 401s —
+ * observed live as a freshly-created account landing on an empty practice page. Awaiting the
+ * Supabase client instead means a request simply waits for the session rather than racing it.
+ *
+ * A getter rather than a stored token because Supabase refreshes access tokens in the background,
+ * so any copy we hold goes stale.
+ */
+type AccessTokenGetter = () => Promise<string | null>;
+let accessTokenGetter: AccessTokenGetter | null = null;
+
+export function setAccessTokenGetter(getter: AccessTokenGetter | null): void {
+  accessTokenGetter = getter;
+}
+
+export async function currentAccessToken(): Promise<string | null> {
+  return (await accessTokenGetter?.()) ?? null;
+}
+
 interface Schema<T> {
   parse: (value: unknown) => T;
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await currentAccessToken();
+  return token ? { authorization: `Bearer ${token}` } : {};
 }
 
 async function request<T>(path: string, schema: Schema<T>, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
-    headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
+    headers: { "content-type": "application/json", ...(await authHeaders()), ...(init?.headers ?? {}) },
   });
 
   const correlationId = res.headers.get("x-correlation-id") ?? undefined;
@@ -83,6 +113,11 @@ function postJson<T>(path: string, body: unknown, schema: Schema<T>): Promise<T>
 export const api = {
   health: () => request("/health", HealthResponse),
 
+  me: () => request("/api/me", MeResponse),
+
+  /** The practice loop's single endpoint: next problem, or the generation in flight for it. */
+  nextPracticeProblem: () => request("/api/practice/next", NextPracticeProblemResponse),
+
   nextProblem: (params: { concept?: string; rating?: number } = {}) => {
     const qs = new URLSearchParams();
     if (params.concept) qs.set("concept", params.concept);
@@ -110,18 +145,15 @@ export const api = {
 
   progress: () => request("/api/progress", ProgressResponse),
 
+  startBaseline: () => postJson("/api/baseline/start", {}, StartBaselineResponse),
 
-  createWorkout: (body: CreateWorkoutRequest) => postJson("/api/workouts", body, CreateWorkoutResponse),
+  currentBaseline: () => request("/api/baseline/current", GetCurrentBaselineResponse),
 
-  currentWorkout: () => request("/api/workouts/current", GetCurrentWorkoutResponse),
+  skipBaselineItem: (id: string, body: SkipBaselineItemRequest) =>
+    postJson(`/api/baseline-items/${id}/skip`, body, SkipBaselineItemResponse),
 
-  skipWorkoutItem: (id: string, body: SkipWorkoutItemRequest) =>
-    postJson(`/api/workout-items/${id}/skip`, body, SkipWorkoutItemResponse),
-
-  startWorkoutItem: (id: string) =>
-    postJson(`/api/workout-items/${id}/start`, {}, StartWorkoutItemResponse),
-
-  startDiagnostic: () => postJson("/api/diagnostic/start", {}, StartDiagnosticResponse),
+  startBaselineItem: (id: string) =>
+    postJson(`/api/baseline-items/${id}/start`, {}, StartBaselineItemResponse),
 
   generateNow: (body: GenerateNowRequest) => postJson("/api/generate-now", body, GenerateNowResponse),
 
@@ -130,4 +162,16 @@ export const api = {
 
 export function submissionEventsUrl(submissionId: string): string {
   return `/api/submissions/${submissionId}/events`;
+}
+
+/**
+ * `EventSource` cannot send an `Authorization` header, so the SSE stream authenticates with the
+ * access token as a query parameter instead. This is the one place a token appears in a URL; it is
+ * a same-origin request to our own API over the Vite proxy (or TLS in a deployed stack), and the
+ * alternative — a cookie — would mean giving up the stateless bearer model everywhere else.
+ */
+export async function submissionEventsUrlWithAuth(submissionId: string): Promise<string> {
+  const token = await currentAccessToken();
+  const base = submissionEventsUrl(submissionId);
+  return token ? `${base}?access_token=${encodeURIComponent(token)}` : base;
 }

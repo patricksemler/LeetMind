@@ -40,6 +40,23 @@ function lastES(): FakeEventSource {
   return inst;
 }
 
+/**
+ * The hook resolves an access token (async, from the Supabase client) before opening the stream,
+ * so the EventSource is created a microtask after render rather than synchronously. Every
+ * assertion about instance count has to wait for that.
+ */
+async function waitForInstances(n: number): Promise<void> {
+  await waitFor(() => expect(FakeEventSource.instances).toHaveLength(n));
+}
+
+/** Same, under fake timers: `waitFor` polls on real timers, so flush microtasks by hand instead. */
+async function flushConnect(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 beforeEach(() => {
   FakeEventSource.instances = [];
 });
@@ -63,7 +80,7 @@ describe("useSubmissionEvents", () => {
 
     const { result } = renderHook(() => useSubmissionEvents("sub_1", { createEventSource, fetchSubmission }));
 
-    expect(FakeEventSource.instances).toHaveLength(1);
+    await waitForInstances(1);
     const es = lastES();
 
     act(() => es.emit("open"));
@@ -121,6 +138,7 @@ describe("useSubmissionEvents", () => {
       useSubmissionEvents("sub_2", { createEventSource, fetchSubmission, baseBackoffMs: 1000, maxBackoffMs: 8000 }),
     );
 
+    await flushConnect();
     expect(FakeEventSource.instances).toHaveLength(1);
 
     // first drop -> reconnect after 1000ms
@@ -166,6 +184,7 @@ describe("useSubmissionEvents", () => {
 
     const { result } = renderHook(() => useSubmissionEvents("sub_3", { createEventSource, fetchSubmission }));
 
+    await waitForInstances(1);
     // stream drops before any verdict event ever arrived
     act(() => lastES().emit("error"));
 
@@ -181,6 +200,7 @@ describe("useSubmissionEvents", () => {
     const { result } = renderHook(() =>
       useSubmissionEvents("sub_4", { createEventSource, fetchSubmission: vi.fn(), postVerdictGraceMs: 500 }),
     );
+    await flushConnect();
     const es = lastES();
 
     act(() =>

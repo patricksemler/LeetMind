@@ -22,7 +22,7 @@ export function toSafeSubmission(row: SubmissionRow): Submission {
     id: row.id,
     user_id: row.user_id,
     problem_version_id: row.problem_version_id,
-    workout_item_id: row.workout_item_id,
+    baseline_item_id: row.baseline_item_id,
     mode: row.mode,
     language: row.language,
     source: row.source,

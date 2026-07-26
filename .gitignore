@@ -12,3 +12,7 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+# Scratch artifacts from browser-driven QA runs.
+.playwright-cli/
+output/
+supabase/.temp/

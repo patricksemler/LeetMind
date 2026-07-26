@@ -180,9 +180,9 @@ export interface CleanupScope {
   problemIds?: string[];
   problemVersionIds?: string[];
   submissionIds?: string[];
-  /** `workouts` rows a test created — deleting these cascades to their `workout_items`
-   * (`on delete cascade`, docs/CONTRACTS.md §3), so no separate workout-item cleanup is needed. */
-  workoutIds?: string[];
+  /** `baseline_sessions` rows a test created — deleting these cascades to their `baseline_items`
+   * (`on delete cascade`, docs/CONTRACTS.md §3), so no separate item cleanup is needed. */
+  baselineSessionIds?: string[];
   userId?: string;
   conceptIds?: string[];
 }
@@ -194,14 +194,14 @@ export async function cleanup(pool: Pool, scope: CleanupScope): Promise<void> {
   const submissionIds = scope.submissionIds ?? [];
   const problemVersionIds = scope.problemVersionIds ?? [];
   const problemIds = scope.problemIds ?? [];
-  const workoutIds = scope.workoutIds ?? [];
+  const baselineSessionIds = scope.baselineSessionIds ?? [];
 
-  if (workoutIds.length > 0) {
-    // Submissions may reference a workout_item without `on delete cascade` — null the FK first so
+  if (baselineSessionIds.length > 0) {
+    // Submissions may reference a baseline_item without `on delete cascade` — null the FK first so
     // the cascade delete below never trips it (none of this suite's tests create such a
     // submission, but this keeps the helper correct if a future one does).
-    await pool.query("update submissions set workout_item_id = null where workout_item_id in (select id from workout_items where workout_id = any($1))", [workoutIds]);
-    await pool.query("delete from workouts where id = any($1)", [workoutIds]);
+    await pool.query("update submissions set baseline_item_id = null where baseline_item_id in (select id from baseline_items where baseline_session_id = any($1))", [baselineSessionIds]);
+    await pool.query("delete from baseline_sessions where id = any($1)", [baselineSessionIds]);
   }
 
   if (submissionIds.length > 0) {

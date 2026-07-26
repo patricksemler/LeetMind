@@ -26,9 +26,8 @@ interface ErrorCategoryRow {
 }
 
 export function registerProgressRoutes(fastify: FastifyInstance, deps: Deps): void {
-  const userId = deps.config.singleUserId;
-
-  fastify.get("/api/progress", async (_request, reply) => {
+  fastify.get("/api/progress", async (request, reply) => {
+    const userId = request.userId;
     const [conceptRows, trendRows, solveBandRows, errorRows, medianRow, bestUnassistedRow, historyRows] =
       await Promise.all([
         query<{

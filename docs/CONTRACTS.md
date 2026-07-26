@@ -137,7 +137,9 @@ SQL + `pg`.
 
 Tables and their columns (types are Postgres; `not null` unless marked `?`):
 
-- **users**: `id pk`, `handle unique`, `created_at`, `settings jsonb default '{}'`
+- **users**: `id pk`, `handle unique`, `auth_user_id text unique?` (Supabase Auth subject; null on
+  the legacy pre-accounts row until claimed), `email text?`, `created_at`,
+  `settings jsonb default '{}'`
 - **concepts**: `id pk` (slug), `name`, `description default ''`, `misconceptions jsonb default '[]'`,
   `min_rating int default 800`, `max_rating int default 2400`, `sort_order int default 0`
 - **concept_edges**: `parent_id fk concepts`, `child_id fk concepts`, pk(parent,child)
@@ -160,7 +162,7 @@ Tables and their columns (types are Postgres; `not null` unless marked `?`):
 - **verification_reports**: `id pk`, `problem_version_id fk cascade`, `passed bool`, `failed_stage?`,
   `stages jsonb`, `seeds jsonb default '[]'`, `counterexample jsonb?`,
   `solution_hashes jsonb default '{}'`, `duration_ms int?`, `correlation_id?`, `created_at`
-- **submissions**: `id pk`, `user_id fk`, `problem_version_id fk`, `workout_item_id?`, `mode`
+- **submissions**: `id pk`, `user_id fk`, `problem_version_id fk`, `baseline_item_id?`, `mode`
   (`run|submit`), `language` (`python|cpp`), `source`, `source_hash`, `status`
   (`created|queued|assigned|compiling|running|completed|cancelled`), `verdict?`,
   `passed_tests int default 0`, `total_tests int default 0`, `runtime_ms int?`, `memory_kb int?`,
@@ -176,14 +178,14 @@ Tables and their columns (types are Postgres; `not null` unless marked `?`):
   (`submission|skip|give_up|diagnostic|review|decay`), `outcome double precision`, `evidence jsonb`,
   `before_state jsonb`, `after_state jsonb`, `idempotency_key text unique?`, `correlation_id?`,
   `created_at`
-- **workouts**: `id pk`, `user_id fk`, `kind default 'standard'` (`standard|diagnostic`),
-  `status default 'active'` (`active|completed|abandoned`), `rationale jsonb default '{}'`,
-  `estimated_minutes int?`, `target_minutes int?`, `created_at`, `completed_at?`
-- **workout_items**: `id pk`, `workout_id fk cascade`, `position int`, `role`
-  (`warmup|working|overload|recovery|diagnostic`), `problem_version_id fk`, `rationale default ''`,
+- **baseline_sessions**: `id pk`, `user_id fk`,
+  `status default 'active'` (`active|completed|abandoned`), `rationale jsonb default '{}'`
+  (holds `summary` and the `plan` of concept+target-rating steps), `created_at`, `completed_at?`
+- **baseline_items**: `id pk`, `baseline_session_id fk cascade`, `position int`,
+  `problem_version_id fk`, `rationale default ''`,
   `selection_evidence jsonb default '{}'`, `state default 'pending'`
   (`pending|active|solved|skipped_inability|skipped_preference|gave_up`), `active_ms int default 0`,
-  `started_at?`, `completed_at?`; unique(`workout_id`,`position`)
+  `started_at?`, `completed_at?`; unique(`baseline_session_id`,`position`)
 - **model_runs**: `id pk`, `kind` (`generate|repair`), `invoker`, `model?`, `prompt_version`,
   `request jsonb`, `duration_ms int?`, `output_hash?`, `input_tokens int?`, `output_tokens int?`,
   `cost_usd double precision?`, `problem_version_id?`, `status` (`ok|schema_error|invoke_error`),
@@ -323,7 +325,7 @@ Idempotency keys:
 - judge job: `judge:<submission_id>`
 - verify job: `verify:<problem_version_id>`
 - generate job: `generate:<concept_key>:<rating_band>:<slot_index>`
-- learning event: `le:<submission_id>` / `le:skip:<workout_item_id>` / `le:diag:<workout_item_id>`
+- learning event: `le:<submission_id>` / `le:skip:<baseline_item_id>` / `le:diag:<baseline_item_id>`
 
 ### 4.5 SSE events
 
@@ -622,19 +624,20 @@ All routes are JSON, prefix `/api`, and every response carries `x-correlation-id
 | GET | `/health` | | `{ ok, version, db: 'up'|'down' }` |
 | GET | `/api/problems/next` | `?concept=&rating=` | `{ problem: PublicProblem, rationale: string, evidence: object }` |
 | GET | `/api/problems/:versionId` | | `{ problem: PublicProblem }` |
-| POST | `/api/submissions` | `{ problem_version_id, language, source, mode, custom_input?, workout_item_id?, active_ms? }` | `{ submission_id, status }` |
+| POST | `/api/submissions` | `{ problem_version_id, language, source, mode, custom_input?, baseline_item_id?, active_ms? }` | `{ submission_id, status }` |
 | GET | `/api/submissions/:id` | | `{ submission }` (safe projection) |
 | GET | `/api/submissions/:id/events` | | SSE |
 | POST | `/api/hints` | `{ problem_version_id, level }` | `{ level, text, penalty_cap, next_level_penalty }` |
 | GET | `/api/hints/:versionId` | | `{ taken: [...], available: [...], penalties: {...} }` |
-| POST | `/api/problems/:versionId/give-up` | `{ workout_item_id?, active_ms? }` | `{ editorial_md, concepts, mastery_change }` |
+| POST | `/api/problems/:versionId/give-up` | `{ baseline_item_id?, active_ms? }` | `{ editorial_md, concepts, mastery_change }` |
 | GET | `/api/progress` | | concept mastery, reviews due, stats, records, history |
 | GET | `/api/system/stats` | | queue depth/waits, workers, verdicts, buffer depth, gen pass rate, dead jobs |
-| POST | `/api/workouts` | `{ target_minutes?, focus_concept?, kind? }` | `{ workout }` (M3) |
-| GET | `/api/workouts/current` | | `{ workout | null }` (M3) |
-| POST | `/api/workout-items/:id/skip` | `{ reason: 'inability'|'preference', active_ms? }` | `{ item, mastery_change? }` (M3) |
-| POST | `/api/workout-items/:id/start` | | `{ item }` (M3) |
-| POST | `/api/diagnostic/start` | | `{ workout }` (M3) |
+| GET | `/api/me` | | `{ user: { id, handle, email }, has_baseline }` |
+| GET | `/api/practice/next` | | `{ problem \| null, generating \| null, needs_baseline, rationale, evidence }` |
+| POST | `/api/baseline/start` | | `{ baseline }` |
+| GET | `/api/baseline/current` | | `{ baseline \| null }` |
+| POST | `/api/baseline-items/:id/skip` | `{ reason: 'inability'|'preference', active_ms? }` | `{ item, mastery_change? }` |
+| POST | `/api/baseline-items/:id/start` | | `{ item }` |
 | POST | `/api/generate-now` | `{ concepts, target_rating }` | `{ job_id }` (M3 escape hatch) |
 | GET | `/api/concepts` | | `{ concepts, edges }` |
 
@@ -697,7 +700,7 @@ pile up duplicates. Bands are 200-wide, keyed by floor(rating/200)*200.
 ## 12. Web (`apps/web`)
 
 React 19 + Vite + TypeScript + Tailwind v4 + `@monaco-editor/react`. Routes (react-router):
-`/` (today / workout), `/problem/:versionId`, `/progress`, `/system`, `/diagnostic`.
+`/` (practice), `/baseline`, `/problem/:versionId`, `/progress`, `/concepts`, `/login`, `/signup`.
 State: TanStack Query for reads, plain `EventSource` for SSE.
 Shared types imported from `@leetmind/shared` — the web app must never redeclare API shapes.
 
