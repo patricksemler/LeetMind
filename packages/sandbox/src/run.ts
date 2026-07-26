@@ -8,94 +8,13 @@
 import { spawn } from "node:child_process";
 import { mkdir, writeFile, rm } from "node:fs/promises";
 import path from "node:path";
-import { newId, createLogger, loadSandboxConfig } from "@leetmind/shared";
+import { newId, createLogger } from "@leetmind/shared";
+import { buildDockerArgs, resolveDockerBin, resolveWorkDir } from "./dockerArgs.js";
 import { resolveImageDigest } from "./images.js";
+import { looksLikeOomFallback, watchForOomEvent } from "./oomWatcher.js";
 import type { SandboxLimits, SandboxRequest, SandboxResult } from "./types.js";
 
 const logger = createLogger("sandbox");
-
-// ---------------------------------------------------------------------------
-// Config resolution
-// ---------------------------------------------------------------------------
-
-/**
- * `loadSandboxConfig` reads SANDBOX_* env vars via zod and every field has a documented default
- * (CONTRACTS §2), so it never throws for a missing var — but it's still wrapped defensively in
- * case that ever changes, so a `runSandboxed` call whose `req.limits` already fully specifies
- * what it needs can't be broken by config loading.
- */
-function resolveWorkDir(): string {
-  try {
-    return loadSandboxConfig().workDir;
-  } catch {
-    return process.env.SANDBOX_WORK_DIR ?? "/tmp/leetmind-sandbox";
-  }
-}
-
-function resolveDockerBin(): string {
-  try {
-    return loadSandboxConfig().dockerBin;
-  } catch {
-    return process.env.DOCKER_BIN ?? "docker";
-  }
-}
-
-// ---------------------------------------------------------------------------
-// docker argv construction (CONTRACTS §6 — exact flag list, exact order)
-// ---------------------------------------------------------------------------
-
-export interface BuildDockerArgsInput {
-  image: string;
-  bundleDir: string;
-  argv: string[];
-  limits: SandboxLimits;
-  /** unique per-run container name so the wall-timeout backstop can `docker kill` by name */
-  name: string;
-}
-
-/**
- * Pure function so the exact flag list/order can be snapshot-tested without spawning docker.
- * Deviations from CONTRACTS §6's mandatory list: `--name <name>` is appended after
- * `--label leetmind.sandbox=1` (not specified by the contract, added so the host's wall-timeout
- * backstop can target this exact container instead of relying on the label alone, which could
- * match multiple concurrently-running sandboxes).
- */
-export function buildDockerArgs(input: BuildDockerArgsInput): string[] {
-  const { image, bundleDir, argv, limits, name } = input;
-  return [
-    "run",
-    "--rm",
-    "--network",
-    "none",
-    "--read-only",
-    "--tmpfs",
-    "/work:rw,size=64m,mode=1777,exec",
-    "-v",
-    `${bundleDir}:/bundle:ro`,
-    "--memory",
-    `${limits.memoryMb}m`,
-    "--memory-swap",
-    `${limits.memoryMb}m`,
-    "--cpus",
-    `${limits.cpus}`,
-    "--pids-limit",
-    `${limits.pidsLimit}`,
-    "--cap-drop",
-    "ALL",
-    "--security-opt",
-    "no-new-privileges",
-    "-u",
-    "65534:65534",
-    "-w",
-    "/work",
-    "--label",
-    "leetmind.sandbox=1",
-    "--name",
-    name,
-    image,
-    ...argv,
-  ];
-}
 
 // ---------------------------------------------------------------------------
 // Bundle materialization
@@ -234,98 +153,6 @@ function runDockerChild(
       });
     });
   });
-}
-
-/**
- * Fallback heuristic OOM detector, used only if `watchForOomEvent` below (the real signal)
- * somehow saw nothing — exit code 137 (128 + SIGKILL) combined with a stderr string a Python
- * process typically produces when the OS kills it for memory pressure. This alone was the ONLY
- * signal previously, and it is nearly always wrong: a cgroup OOM-kill is a raw SIGKILL from the
- * kernel with no chance for the process to print anything, so this pattern essentially never
- * matches a real one — `memory_limit` was effectively unreachable. Kept only as a last resort;
- * 137 alone can also mean "we killed it for the wall timeout" (ruled out via `!timedOut`) or an
- * unrelated SIGKILL.
- */
-function looksLikeOomFallback(exitCode: number | null, stderr: string, timedOut: boolean): boolean {
-  if (timedOut) return false;
-  if (exitCode !== 137) return false;
-  return /MemoryError|Killed|Out of memory|Cannot allocate memory|OOM/i.test(stderr);
-}
-
-/**
- * The real OOM signal: subscribes to `docker events --filter container=<name> --filter event=oom`
- * for the container's own name (assigned via `--name` in `buildDockerArgs`, before `docker run`
- * even starts) and watches for ANY output — Docker's daemon emits an `oom` event the instant the
- * container's cgroup is OOM-killed, well before the container exits/is removed. This is what
- * `docker inspect .State.OOMKilled` would tell you too, but without needing to inspect an already-
- * `--rm`-removed container (CONTRACTS §6 mandates `--rm` in the exact flag list; this sidesteps
- * that entirely rather than fighting it). Call `start()` BEFORE `docker run`, `stop()` after it
- * exits.
- */
-function watchForOomEvent(dockerBin: string, containerName: string): { stop: () => Promise<boolean> } {
-  let oomSeen = false;
-  let spawnFailed = false;
-
-  const child = spawn(dockerBin, ["events", "--filter", `container=${containerName}`, "--filter", "event=oom"], {
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-  child.stdout.on("data", () => {
-    oomSeen = true;
-  });
-  child.on("error", (err) => {
-    spawnFailed = true;
-    logger.warn({ err: String(err), containerName }, "docker events OOM watcher failed to spawn; falling back to the stderr heuristic");
-  });
-
-  return {
-    stop: () =>
-      new Promise((resolve) => {
-        if (spawnFailed) {
-          resolve(false);
-          return;
-        }
-        let settled = false;
-        const timers: ReturnType<typeof setTimeout>[] = [];
-        const finish = () => {
-          if (settled) return;
-          settled = true;
-          for (const t of timers) clearTimeout(t);
-          resolve(oomSeen);
-        };
-        // The child may already be gone (a bounced Docker daemon closes every `docker events`
-        // stream): its `close` fired before stop() was called, so listeners registered below
-        // would never run and this promise would hang the handler forever — before its terminal
-        // write, with the per-job heartbeat still extending the lease, so neither the reaper nor
-        // the stranded-submission reconciler would ever recover it.
-        if (child.exitCode !== null || child.signalCode !== null) {
-          finish();
-          return;
-        }
-        child.once("close", finish);
-        child.once("error", finish);
-        // `docker events` streams forever until told to stop; SIGTERM is usually enough, but it
-        // doesn't always land promptly, so force it shortly after if `close` hasn't fired yet —
-        // and resolve unconditionally after that as a last-resort backstop, because a wedged
-        // watcher must never outrank delivering the verdict.
-        try {
-          child.kill("SIGTERM");
-        } catch {
-          finish();
-          return;
-        }
-        timers.push(
-          setTimeout(() => {
-            try {
-              child.kill("SIGKILL");
-            } catch {
-              // already dead
-            }
-          }, 500),
-        );
-        timers.push(setTimeout(finish, 2000));
-        for (const t of timers) t.unref?.();
-      }),
-  };
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDockerArgs } from "./run.js";
+import { buildDockerArgs } from "./dockerArgs.js";
 
 describe("buildDockerArgs", () => {
   it("produces the exact mandatory flag list and order from CONTRACTS.md §6, plus --name", () => {
