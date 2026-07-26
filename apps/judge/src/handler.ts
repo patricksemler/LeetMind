@@ -22,7 +22,14 @@ import {
 import type { JobHandler, WorkerContext } from "@leetmind/queue";
 import { newId, ProblemVersionSchema, type JudgeJobPayload, type SubmissionStatus } from "@leetmind/shared";
 import type { JudgeDeps } from "./deps.js";
-import { buildComparatorSpec, buildLimits, executeSubmission, selectTests } from "./execution.js";
+import {
+  buildComparatorSpec,
+  buildLimits,
+  executeSubmission,
+  publicResults,
+  selectTests,
+  summarizeTestOrigins,
+} from "./execution.js";
 import { applyMastery } from "./mastery.js";
 
 /**
@@ -85,7 +92,7 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
       return;
     }
 
-    const { tests, revealInputs } = selectTests(content, mode, submission.custom_input);
+    const { tests, revealInputs } = selectTests(content, mode);
 
     // CONTRACTS §6 Judge flow, step 3: the harness returns per-test results in one shot, so we
     // can only ever emit a true `{passed, total}` at the very start (0/n) and at completion — no
@@ -141,7 +148,19 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
       return;
     }
 
-    const { verdict, passedTests, totalTests, runtimeMs, memoryKb, failure, perTest, raw, compile } = executionResult;
+    const { verdict, passedTests, totalTests, runtimeMs, memoryKb, perTest, raw, compile } = executionResult;
+
+    // The public/hidden split rides along on `failure` rather than in its own column: it is only
+    // ever needed when something failed, and `submissions.failure` is already a jsonb the API
+    // projects (and sanitizes) on the way out.
+    const failure = executionResult.failure
+      ? { ...executionResult.failure, tests: summarizeTestOrigins(tests, perTest) }
+      : executionResult.failure;
+
+    // Every public test's outcome, so the workspace can colour the whole case list rather than
+    // naming only the first failure. Built for accepted submissions too — a green case list is
+    // exactly as useful as a red one.
+    const publicTestResults = publicResults(tests, perTest);
 
     await withTransaction(async (client) => {
       // `ctx.signal.aborted` (checked above) is an in-memory flag on THIS process — by the time
@@ -201,6 +220,7 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
         runtime_ms: runtimeMs != null ? Math.round(runtimeMs) : null,
         memory_kb: memoryKb,
         failure: failure ?? null,
+        public_results: publicTestResults,
       });
 
       // A recorded give-up on this problem version means every later submission is practice —

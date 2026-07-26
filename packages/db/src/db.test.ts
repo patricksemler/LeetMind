@@ -93,6 +93,7 @@ describe.skipIf(!dbReachable)("live database: migrations + seed", () => {
         "003_baseline_replaces_workouts",
         "004_accounts",
         "005_rename_baseline_constraints",
+        "006_submission_public_results",
       ]);
     } finally {
       await client.end();

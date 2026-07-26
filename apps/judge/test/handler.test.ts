@@ -93,7 +93,7 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     expect(after.rating).toBeGreaterThan(before.rating);
   });
 
-  it("2. wrong answer: verdict wrong_answer, rating moves down, failure never leaks the hidden expected value", async () => {
+  it("2. wrong answer on the public example: rating moves down, and the preview shows the PUBLIC values only", async () => {
     const SECRET_EXPECTED = 918273645;
     const problem = await seed({
       // None of these are origin:"example" — this test is specifically about a GENUINELY hidden
@@ -129,16 +129,58 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     expect(reloaded.status).toBe("completed");
     expect(reloaded.verdict).toBe("wrong_answer");
 
-    // Safe-diagnostics-only for `submit` mode (CONTRACTS §4.5): no preview fields at all, and —
-    // belt and suspenders — the specific hidden expected value never appears anywhere in the
-    // serialized failure, however it might have been (mis)represented.
-    expect(reloaded.failure?.expected_preview).toBeUndefined();
-    expect(reloaded.failure?.input_preview).toBeUndefined();
-    expect(reloaded.failure?.actual_preview).toBeUndefined();
+    // Submit now runs the public examples first, so `a - b` breaks on example #1 — and THAT
+    // test's input/expected are printed in the problem statement, so revealing them hides
+    // nothing. What must never appear is the genuinely hidden expected value.
+    expect(reloaded.failure?.first_failing_test_index).toBe(0);
+    expect(reloaded.failure?.tests).toMatchObject({ public_passed: 0, public_total: 1 });
+    expect(reloaded.failure?.expected_preview).toBe(3);
     expect(JSON.stringify(reloaded.failure ?? {})).not.toContain(String(SECRET_EXPECTED));
 
     const after = await snapshotConceptState();
     expect(after.rating).toBeLessThan(before.rating);
+  });
+
+  it("2a. a solution that hard-codes the examples fails a hidden test, and its values stay hidden", async () => {
+    const SECRET_EXPECTED = 918273645;
+    const problem = await seed({
+      hiddenTests: [
+        { args: [500000, 500000], expected: SECRET_EXPECTED, origin: "random" },
+        { args: [0, 0], expected: 0, origin: "adversarial" },
+      ],
+    });
+    const submission = await insertTestSubmission({
+      versionId: problem.versionId,
+      // Passes the public example by special-casing it; wrong everywhere else. Exactly the
+      // behaviour hidden tests exist to catch, and exactly the case where the user needs to be
+      // told WHICH test failed without being told what it contains.
+      source: "def solve(a, b):\n    if a == 1 and b == 2:\n        return 3\n    return a - b\n",
+      mode: "submit",
+    });
+
+    await handler(
+      await makeLeasedJudgeJob(deps, {
+        submission_id: submission.id,
+        mode: "submit",
+        language: "python",
+        problem_version_id: problem.versionId,
+        user_id: TEST_USER_ID,
+      }),
+      makeCtx(),
+    );
+
+    const reloaded = await reloadSubmission(submission.id);
+    expect(reloaded.verdict).toBe("wrong_answer");
+
+    // Every public example passed; the failure is in the hidden suite.
+    expect(reloaded.failure?.tests).toMatchObject({ public_passed: 1, public_total: 1 });
+    expect(reloaded.failure!.first_failing_test_index!).toBeGreaterThanOrEqual(1);
+
+    // No preview fields, and the secret never appears however it might have been represented.
+    expect(reloaded.failure?.expected_preview).toBeUndefined();
+    expect(reloaded.failure?.input_preview).toBeUndefined();
+    expect(reloaded.failure?.actual_preview).toBeUndefined();
+    expect(JSON.stringify(reloaded.failure ?? {})).not.toContain(String(SECRET_EXPECTED));
   });
 
   it("2b. wrong answer on an origin:'example' hidden test DOES reveal its preview, even in submit mode (CONTRACTS §4.5)", async () => {

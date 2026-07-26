@@ -77,6 +77,8 @@ function baseVerdictEventPayload(row: SubmissionRow) {
     runtime_ms: row.runtime_ms,
     memory_kb: row.memory_kb,
     ...(row.failure ? { failure: sanitizeFailure(row.failure, row.mode) } : {}),
+    // Public tests only (see toSafeSubmission) — the workspace colours its case list from this.
+    ...(row.public_results ? { public_results: row.public_results } : {}),
   };
 }
 
@@ -147,7 +149,6 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
         source: body.source,
         source_hash: sourceHash,
         status: "queued",
-        custom_input: body.custom_input ?? null,
         active_ms: body.active_ms ?? null,
         correlation_id: correlationId,
       });

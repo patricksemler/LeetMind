@@ -6,12 +6,30 @@ import { getProblemVersion, query, type ConceptRow, type SubmissionFailure, type
 import { ProblemVersionSchema, type Submission } from "@leetmind/shared";
 import { hasEarnedReveal } from "./publicProblem.js";
 
-/** Strips `expected_preview`/`input_preview`/`actual_preview` from a failure object when
- * `mode === 'submit'` — CONTRACTS.md §4.5 lists all three as populated "only for `run` mode and
- * for example-derived tests"; `actual_preview` was previously left in place, contra this file's
- * own doc comment above. */
+/**
+ * Strips `input_preview` / `expected_preview` / `actual_preview` when the failing test is one the
+ * user is not allowed to see.
+ *
+ * CONTRACTS.md §4.5 populates previews "only for `run` mode and for example-derived tests". The
+ * second clause matters and this function used to ignore it, blanket-stripping every submit-mode
+ * preview: failing public example #2 on a submit told you only "failed test 2", with the values
+ * withheld as though they were secret — while sitting in plain text on the same page.
+ *
+ * The rule is about the TEST, not the mode. `failure.tests` carries the public/hidden split and
+ * `selectTests` (apps/judge) always orders public tests first, so an index below `public_total` is
+ * a public case and keeps its previews; anything else is hidden and loses them. With no split
+ * recorded (older rows, or a failure with no test index at all) this falls back to the old
+ * strip-everything-on-submit behaviour, because guessing wrong in that direction leaks.
+ */
 export function sanitizeFailure(failure: SubmissionFailure, mode: SubmissionMode): SubmissionFailure {
   if (mode !== "submit") return failure;
+
+  const split = (failure as { tests?: { public_total?: number } }).tests;
+  const index = failure.first_failing_test_index;
+  const isPublicFailure =
+    typeof index === "number" && typeof split?.public_total === "number" && index < split.public_total;
+  if (isPublicFailure) return failure;
+
   const { expected_preview: _expectedPreview, input_preview: _inputPreview, actual_preview: _actualPreview, ...rest } = failure;
   return rest;
 }
@@ -36,6 +54,12 @@ export function toSafeSubmission(row: SubmissionRow): Submission {
     // inferred `Submission['failure']` (which additionally carries an index signature) are
     // structurally identical in every field that matters; only the index signature differs.
     failure: (row.failure ? sanitizeFailure(row.failure, row.mode) : null) as Submission["failure"],
+    // No sanitization: `public_results` covers PUBLIC tests only, by construction in the judge
+    // (`publicResults` filters on test origin). There is nothing here that isn't already printed
+    // on the problem page, plus the user's own output.
+    // Cast for the same reason as `failure` above: the zod-`.passthrough()`-inferred type carries
+    // an index signature the plain @leetmind/db interface doesn't.
+    public_results: row.public_results as Submission["public_results"],
     active_ms: row.active_ms,
     correlation_id: row.correlation_id,
     created_at: row.created_at,

@@ -54,7 +54,7 @@ export async function runLifecycle(submissionId: string): Promise<void> {
   const grade =
     sub.mode === "submit"
       ? gradeSubmit(problem, sub.language, sub.source)
-      : gradeRun(problem, sub.language, sub.source, sub.customInput);
+      : gradeRun(problem, sub.language, sub.source);
 
   const total = grade.totalTests;
   const steps = Math.max(1, Math.min(total, 5));
@@ -74,6 +74,7 @@ export async function runLifecycle(submissionId: string): Promise<void> {
   sub.row.runtime_ms = grade.runtimeMs;
   sub.row.memory_kb = grade.memoryKb;
   sub.row.failure = grade.failure ?? null;
+  sub.row.public_results = grade.publicResults ?? null;
   sub.row.completed_at = new Date().toISOString();
 
   const justEarnedReveal = sub.mode === "submit" && grade.verdict === "accepted";
@@ -94,6 +95,7 @@ export async function runLifecycle(submissionId: string): Promise<void> {
     runtime_ms: grade.runtimeMs,
     memory_kb: grade.memoryKb,
     failure: grade.failure,
+    ...(grade.publicResults ? { public_results: grade.publicResults } : {}),
     ...(reveal ? { reveal } : {}),
     ...(gaveUpAlready ? { practice: true } : {}),
   });

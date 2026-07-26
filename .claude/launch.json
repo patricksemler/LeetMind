@@ -3,8 +3,15 @@
   "configurations": [
     {
       "name": "web",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@leetmind/web", "dev:mock"],
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "MOCK_PORT=8085",
+        "VITE_API_BASE=http://localhost:8085",
+        "pnpm",
+        "--filter",
+        "@leetmind/web",
+        "dev:mock"
+      ],
       "port": 5173
     },
     {

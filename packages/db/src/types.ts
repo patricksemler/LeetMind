@@ -161,10 +161,21 @@ export interface SubmissionFailure {
   kind: string;
   message: string;
   first_failing_test_index?: number;
+  /** Pass counts split by whether the user can see the test (written by the judge). */
+  tests?: { public_passed: number; public_total: number; hidden_passed: number; hidden_total: number };
   stderr_tail?: string;
   input_preview?: unknown;
   expected_preview?: unknown;
   actual_preview?: unknown;
+}
+
+/** One public test's outcome, as stored on `submissions.public_results` (migration 006). Safe to
+ * serve verbatim — the input and expected value are printed in the problem statement. */
+export interface PublicTestResult {
+  index: number;
+  status: string;
+  passed: boolean;
+  actual?: unknown;
 }
 
 export interface SubmissionRow {
@@ -185,6 +196,7 @@ export interface SubmissionRow {
   failure: SubmissionFailure | null;
   active_ms: number | null;
   custom_input: unknown | null;
+  public_results: PublicTestResult[] | null;
   idempotency_key: string | null;
   correlation_id: string | null;
   created_at: Date;

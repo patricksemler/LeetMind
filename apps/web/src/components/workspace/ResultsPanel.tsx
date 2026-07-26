@@ -50,13 +50,16 @@ export function ResultsPanel({
   verdict: VerdictEvent | null;
   connectionState: string;
 }) {
-  if (!status && !verdict) {
-    return (
-      <div className="flex h-full items-center justify-center p-6 text-center text-sm text-text-faint">
-        Run against custom input or submit to see results here.
-      </div>
-    );
-  }
+  // Nothing has run: render nothing at all. The test-case list below is the panel's content in
+  // that state, and an empty-state card stacked on top of it would just push the cases off-screen
+  // to say "no results yet" — which the absence of any marks already says.
+  if (!status && !verdict) return null;
+
+  // A graded run says everything it has to say through the per-case marks. A verdict badge, a
+  // pass count, a restatement of which example failed and a paragraph about what Run means are
+  // all noise stacked on top of a ✓ and an ✗ that already carry it.
+  const gradedRun = mode === "run" && verdict !== null && (verdict.verdict === "accepted" || verdict.verdict === "wrong_answer");
+  if (gradedRun) return null;
 
   if (!verdict) {
     return (
@@ -94,22 +97,39 @@ export function ResultsPanel({
         input_preview?: unknown;
         expected_preview?: unknown;
         actual_preview?: unknown;
+        tests?: { public_passed: number; public_total: number; hidden_passed: number; hidden_total: number };
       })
     | undefined;
 
-  const showPreviews = mode === "run";
+  const split = failure?.tests;
+  // Public tests are listed first by `selectTests`, so an index inside the public range names an
+  // example the user can read on this very page.
+  const failedIndex = failure?.first_failing_test_index;
+  const failedPublic =
+    failedIndex !== undefined && split !== undefined && failedIndex < split.public_total;
 
   return (
     <div className="space-y-4 p-4" data-testid="verdict-panel" data-mode={mode ?? undefined}>
       <div className="flex flex-wrap items-center gap-3">
         <Badge tone={tone.badge} className="text-sm normal-case">
-          {/* Run mode never grades anything (CONTRACTS §4.5) — "accepted" implies a pass/fail
-              judgment that didn't happen; "ran" says what actually occurred. */}
+          {/* A run grades the public examples, but it must never read as "solved": the problem is
+              only finished when the hidden tests pass too. "ran" says what happened without
+              implying completion; the pass count beside it carries the actual result. */}
           {mode === "run" && verdict.verdict === "accepted" ? "ran" : friendlyVerdict(verdict.verdict)}
         </Badge>
-        {!(mode === "run" && verdict.verdict === "accepted") && (
+        {/* Gated on there being something graded, not on the mode: a run now grades the public
+            examples, so hiding its count would be hiding real information. Only a submission that
+            graded nothing at all has no count to report. */}
+        {verdict.total_tests > 0 && (
           <span className="font-mono text-xs text-text-dim">
             {verdict.passed_tests}/{verdict.total_tests} passed
+          </span>
+        )}
+        {split && split.hidden_total > 0 && (
+          // The split is the point: "4/5" does not say whether the missing one is an example you
+          // can read or a hidden case you have to reason about.
+          <span className="font-mono text-xs text-text-faint">
+            public {split.public_passed}/{split.public_total} · hidden {split.hidden_passed}/{split.hidden_total}
           </span>
         )}
         {verdict.runtime_ms != null && <span className="font-mono text-xs text-text-faint">{verdict.runtime_ms} ms</span>}
@@ -118,10 +138,11 @@ export function ResultsPanel({
         )}
       </div>
 
-      <Meter value={verdict.passed_tests} max={Math.max(1, verdict.total_tests)} tone={tone.meter} />
-
       {mode === "run" && (
-        <p className="text-xs text-text-faint">Run mode — checked against custom input only. This does not affect mastery.</p>
+        <p className="text-xs text-text-faint">
+          Run checks the public examples only, and never affects mastery. Submit also runs the hidden tests — those are
+          what decide whether the problem counts as solved.
+        </p>
       )}
 
       {mode === "submit" && verdict.practice && (
@@ -132,34 +153,24 @@ export function ResultsPanel({
 
       {failure?.message && verdict.verdict !== "accepted" && <p className="text-sm text-text-dim">{failure.message}</p>}
 
-      {verdict.verdict === "wrong_answer" && mode === "submit" && failure?.first_failing_test_index !== undefined && (
+      {/* Nothing here for a public failure: the case list below marks it and shows its input,
+          expected and actual. This paragraph exists for the case the list CANNOT show — a hidden
+          test — where "which one" and "why you can't see it" are the only things left to say. */}
+      {failedIndex !== undefined && verdict.verdict !== "accepted" && !failedPublic && (
         <p className="text-sm text-text-dim">
-          Failed on hidden test <span className="font-mono">#{failure.first_failing_test_index + 1}</span>. Expected
-          output for hidden tests is never shown.
+          {split ? (
+            <>
+              Every public example passed. First failure:{" "}
+              <span className="font-mono">hidden test #{failedIndex - split.public_total + 1}</span> of{" "}
+              {split.hidden_total}. Hidden inputs stay hidden — otherwise the answer could just be hard-coded — so this
+              one is on you to reason about: think about what the examples <em>don't</em> cover.
+            </>
+          ) : (
+            <>
+              First failure: test <span className="font-mono">#{failedIndex + 1}</span>.
+            </>
+          )}
         </p>
-      )}
-
-      {showPreviews && failure && (failure.input_preview !== undefined || failure.expected_preview !== undefined) && (
-        <div className="space-y-1.5 rounded-md border border-border bg-bg-inset p-3 font-mono text-xs">
-          {failure.input_preview !== undefined && (
-            <div>
-              <span className="text-text-faint">input: </span>
-              {JSON.stringify(failure.input_preview)}
-            </div>
-          )}
-          {failure.expected_preview !== undefined && (
-            <div>
-              <span className="text-text-faint">expected: </span>
-              {JSON.stringify(failure.expected_preview)}
-            </div>
-          )}
-          {failure.actual_preview !== undefined && (
-            <div>
-              <span className="text-text-faint">actual: </span>
-              {JSON.stringify(failure.actual_preview)}
-            </div>
-          )}
-        </div>
       )}
 
       {failure?.stderr_tail && (

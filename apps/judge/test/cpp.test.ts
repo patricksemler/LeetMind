@@ -105,10 +105,10 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
     expect(after.rating).toBeGreaterThan(before.rating);
   }, 60_000);
 
-  it("2. wrong answer: C++ solution -> wrong_answer, rating moves down, no hidden expected leaked", async () => {
-    // Not the default hidden_tests fixture: its first test is origin:"example", which (correctly,
-    // per CONTRACTS §4.5 — see handler.test.ts's tests 2/2b) reveals its own preview even in
-    // submit mode. This test is specifically about a GENUINELY hidden test never leaking.
+  it("2. wrong answer: C++ solution -> wrong_answer, rating moves down, public preview only", async () => {
+    // Submit runs the public examples first, so a uniformly-wrong solution breaks on example #1 —
+    // whose values are on the problem page anyway. What must never appear is a genuinely hidden
+    // test's expected value; see handler.test.ts test 2a for the hard-coding case.
     const problem = await seed({
       hiddenTests: [
         { args: [1, 2], expected: 3, origin: "boundary" },
@@ -138,8 +138,11 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
     const reloaded = await reloadSubmission(submission.id);
     expect(reloaded.status).toBe("completed");
     expect(reloaded.verdict).toBe("wrong_answer");
-    expect(reloaded.failure?.expected_preview).toBeUndefined();
-    expect(reloaded.failure?.input_preview).toBeUndefined();
+    // The failure is on the public example, so its (already-visible) values are shown, and the
+    // split confirms which half of the suite broke.
+    expect(reloaded.failure?.first_failing_test_index).toBe(0);
+    expect(reloaded.failure?.tests).toMatchObject({ public_passed: 0, public_total: 1 });
+    expect(reloaded.failure?.expected_preview).toBe(3);
 
     const after = await snapshotConceptState();
     expect(after.rating).toBeLessThan(before.rating);
@@ -180,13 +183,12 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
     expect(after.rating).toBe(before.rating);
   }, 60_000);
 
-  it("4. run mode with custom_input: no expected value, no learning event, verdict accepted iff it ran cleanly", async () => {
+  it("4. run mode grades the public examples and writes no learning event (C++)", async () => {
     const problem = await seed();
     const submission = await insertCppSubmission({
       versionId: problem.versionId,
       source: CORRECT_CPP,
       mode: "run",
-      customInput: { args: [10, 5] },
     });
 
     await handler(
@@ -203,8 +205,10 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
     const reloaded = await reloadSubmission(submission.id);
     expect(reloaded.status).toBe("completed");
     expect(reloaded.verdict).toBe("accepted");
-    expect(reloaded.passed_tests).toBe(0);
-    expect(reloaded.total_tests).toBe(0);
+    // A run is graded now — against the public examples — so it reports a real count rather than
+    // the 0/0 the old custom-input mode produced. It still writes no learning event.
+    expect(reloaded.total_tests).toBeGreaterThan(0);
+    expect(reloaded.passed_tests).toBe(reloaded.total_tests);
     expect(await countLearningEvents(submission.id)).toBe(0);
   }, 60_000);
 

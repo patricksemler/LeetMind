@@ -109,7 +109,6 @@ export interface InternalSubmission {
   mode: SubmissionMode;
   language: Language;
   source: string;
-  customInput: unknown;
   baselineItemId?: string;
   activeMs: number;
 }

@@ -143,6 +143,10 @@ export interface ExecutionPerTestResult {
   timeMs: number;
   memoryKb: number;
   passed: boolean;
+  /** What the solution actually returned, as decoded by the harness. Server-side only: the caller
+   * decides which of these are safe to serve (only PUBLIC tests are — see `publicResults` in
+   * apps/judge). Absent when the test errored or timed out before producing a value. */
+  output?: unknown;
 }
 
 /** Safe diagnostics only — CONTRACTS §4.5. Never leaks hidden expected values for `submit`. */

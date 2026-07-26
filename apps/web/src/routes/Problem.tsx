@@ -12,7 +12,6 @@ import { Badge, Panel, Tabs, tabPanelProps } from "../components/ui";
 import { buttonClassName } from "../components/ui/Button";
 import { ActionBar } from "../components/workspace/ActionBar";
 import { ConceptTags } from "../components/workspace/ConceptTags";
-import { CustomInputDialog } from "../components/workspace/CustomInputDialog";
 import { EditorPane } from "../components/workspace/EditorPane";
 import { GiveUpControl } from "../components/workspace/GiveUpControl";
 import { HintLadder } from "../components/workspace/HintLadder";
@@ -21,6 +20,7 @@ import { MasteryDelta } from "../components/workspace/MasteryDelta";
 import { ResultsPanel } from "../components/workspace/ResultsPanel";
 import { SplitPane } from "../components/workspace/SplitPane";
 import { StatementPane } from "../components/workspace/StatementPane";
+import { TestCasePanel } from "../components/workspace/TestCasePanel";
 
 export function Problem() {
   const { versionId } = useParams<{ versionId: string }>();
@@ -40,7 +40,6 @@ export function Problem() {
   const [language, setLanguage] = useState<Language>("python");
   const [source, setSource] = useState("");
   const [timerHidden, setTimerHidden] = useState(false);
-  const [customInputOpen, setCustomInputOpen] = useState(false);
   const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(null);
   const [activeMode, setActiveMode] = useState<SubmissionMode | null>(null);
   const [gaveUpResult, setGaveUpResult] = useState<GiveUpResponse | null>(null);
@@ -124,13 +123,12 @@ export function Problem() {
   const submitInFlightRef = useRef(false);
 
   const submitMutation = useMutation({
-    mutationFn: (input: { mode: SubmissionMode; customInput?: unknown }) =>
+    mutationFn: (input: { mode: SubmissionMode }) =>
       api.createSubmission({
         problem_version_id: versionId!,
         language,
         source,
         mode: input.mode,
-        custom_input: input.customInput,
         baseline_item_id: baselineItemId,
         active_ms: activeTime.activeMs,
       }),
@@ -138,23 +136,20 @@ export function Problem() {
       hasLocalSubmissionRef.current = true;
       setActiveSubmissionId(res.submission_id);
       setActiveMode(variables.mode);
-      // A "run" (custom input) submission closes its own dialog once it's actually in flight —
-      // "submit" has no dialog to close.
-      if (variables.mode === "run") setCustomInputOpen(false);
     },
     onSettled: () => {
       submitInFlightRef.current = false;
     },
   });
 
-  // The single submitMutation backs both Submit and custom-input Run — `isPending` alone doesn't
-  // say which, so a Run left Submit's button reading "Submitting…" with Run itself showing
-  // nothing (confirmed live). Split by `variables.mode`, the mode of whichever call is actually
-  // in flight, so each button only ever reflects its own request.
+  // The single submitMutation backs both Run and Submit — `isPending` alone doesn't say which, so
+  // a Run left Submit's button reading "Submitting…" with Run itself showing nothing (confirmed
+  // live). Split by `variables.mode`, the mode of whichever call is actually in flight, so each
+  // button only ever reflects its own request.
   const submitPending = submitMutation.isPending && submitMutation.variables?.mode === "submit";
   const runPending = submitMutation.isPending && submitMutation.variables?.mode === "run";
 
-  function triggerSubmit(input: { mode: SubmissionMode; customInput?: unknown }) {
+  function triggerSubmit(input: { mode: SubmissionMode }) {
     if (submitInFlightRef.current) return;
     submitInFlightRef.current = true;
     submitMutation.mutate(input);
@@ -166,7 +161,7 @@ export function Problem() {
   useHotkeys(
     [
       { key: "Enter", meta: true, allowInInputs: true, handler: () => triggerSubmit({ mode: "submit" }) },
-      { key: "'", meta: true, allowInInputs: true, handler: () => setCustomInputOpen(true) },
+      { key: "'", meta: true, allowInInputs: true, handler: () => triggerSubmit({ mode: "run" }) },
     ],
     [versionId, language, source],
   );
@@ -285,8 +280,9 @@ export function Problem() {
               <ActionBar
                 language={language}
                 onLanguageChange={setLanguage}
-                onRun={() => setCustomInputOpen(true)}
+                onRun={() => triggerSubmit({ mode: "run" })}
                 onSubmit={() => triggerSubmit({ mode: "submit" })}
+                running={runPending}
                 submitting={submitPending}
                 activeMs={activeTime.activeMs}
                 timerHidden={timerHidden}
@@ -305,6 +301,10 @@ export function Problem() {
               <div className="min-h-0 flex-1">
                 <EditorPane language={language} value={source} onChange={handleSourceChange} />
               </div>
+              {/* One panel, not a Result tab beside a Testcase tab: the cases ARE the result.
+                  Each one carries its own mark once a run lands, and the summary above it only
+                  adds what a per-case mark cannot say — the verdict, the timings, and how the
+                  hidden suite went. */}
               <div className="max-h-[45%] min-h-[180px] overflow-y-auto border-t border-border">
                 <ResultsPanel
                   mode={activeMode}
@@ -313,6 +313,7 @@ export function Problem() {
                   verdict={events.verdict}
                   connectionState={events.connectionState}
                 />
+                <TestCasePanel problem={problem} results={events.verdict?.public_results} />
                 {events.mastery && (
                   <div className="px-4 pb-4">
                     <MasteryDelta
@@ -328,14 +329,6 @@ export function Problem() {
           }
         />
       </div>
-
-      <CustomInputDialog
-        open={customInputOpen}
-        onClose={() => setCustomInputOpen(false)}
-        initialArgs={problem.examples[0]?.args ?? []}
-        pending={runPending}
-        onRun={(args) => triggerSubmit({ mode: "run", customInput: args })}
-      />
     </div>
   );
 }

@@ -44,7 +44,7 @@ export async function rejudgeSubmission(submissionId: string, deps: JudgeDeps): 
   }
   const content = ProblemVersionSchema.parse(versionRow.content);
 
-  const { tests, revealInputs } = selectTests(content, submission.mode, submission.custom_input);
+  const { tests, revealInputs } = selectTests(content, submission.mode);
   const limits = buildLimits(deps.sandbox);
 
   const { result: executionResult, languageVersion, flags } = await executeSubmission({

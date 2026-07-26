@@ -7,6 +7,7 @@ export function ActionBar({
   onLanguageChange,
   onRun,
   onSubmit,
+  running,
   submitting,
   activeMs,
   timerHidden,
@@ -16,6 +17,7 @@ export function ActionBar({
   onLanguageChange: (l: Language) => void;
   onRun: () => void;
   onSubmit: () => void;
+  running: boolean;
   submitting: boolean;
   activeMs: number;
   timerHidden: boolean;
@@ -33,10 +35,25 @@ export function ActionBar({
           <option value="python">Python</option>
           <option value="cpp">C++</option>
         </select>
-        <Button size="sm" variant="secondary" onClick={onRun} title="Cmd/Ctrl + '">
-          Run
+        {/* Run and Submit differ only in which tests they execute — Run the public examples,
+            Submit those plus the hidden suite. The titles say so, because "Run" vs "Submit" on
+            their own does not. */}
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={onRun}
+          disabled={running || submitting}
+          title="Run against the public example tests (Cmd/Ctrl + ')"
+        >
+          {running ? "Running…" : "Run"}
         </Button>
-        <Button size="sm" variant="primary" onClick={onSubmit} disabled={submitting} title="Cmd/Ctrl + Enter">
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={onSubmit}
+          disabled={running || submitting}
+          title="Submit against the public examples AND the hidden tests (Cmd/Ctrl + Enter)"
+        >
           {submitting ? "Submitting…" : "Submit"}
         </Button>
       </div>

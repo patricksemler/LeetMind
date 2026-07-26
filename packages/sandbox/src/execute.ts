@@ -57,6 +57,11 @@ export function classifyPythonOpaqueFailure(sandboxResult: SandboxResult): { ver
   };
 }
 
+/** Origins whose input/expected are already visible to the user on the problem page. */
+function isPublicOrigin(origin: string | undefined): boolean {
+  return origin === "public" || origin === "example";
+}
+
 function previewFields(
   tests: BundleTestCase[],
   harness: HarnessResult,
@@ -65,12 +70,11 @@ function previewFields(
 ): Pick<ExecutionFailure, "input_preview" | "expected_preview" | "actual_preview"> {
   const test = tests[index];
   // CONTRACTS §4.5: preview fields are populated "only for run mode and for example-derived
-  // tests" — the second half was never implemented; `revealInputs` was a single flag for the
-  // whole submission (true only in `run` mode), so a `submit`-mode failure on a hidden test whose
-  // `origin` is `"example"` (the SAME input/expected already shown in the problem statement, not
-  // actually hidden) still carried only `first_failing_test_index`, nothing the user couldn't
-  // already see on the page anyway.
-  if (!revealInputs && test?.origin !== "example") return {};
+  // tests". A PUBLIC test's input and expected output are printed in the problem statement, so
+  // withholding them on a submit-mode failure hides nothing — it just leaves the user staring at
+  // "failed test 2" with no way to know which of the two examples broke. `"example"` is the
+  // origin the generated hidden suite uses for the same thing; both reveal.
+  if (!revealInputs && !isPublicOrigin(test?.origin)) return {};
   const harnessTest = harness.tests.find((t) => t.index === index);
   const preview: Pick<ExecutionFailure, "input_preview" | "expected_preview" | "actual_preview"> =
     {};
@@ -216,6 +220,7 @@ export function buildExecutionResult(input: BuildExecutionResultInput): Executio
     timeMs: t.time_ms,
     memoryKb: t.memory_kb,
     passed: t.status === "passed",
+    ...("output" in t ? { output: t.output } : {}),
   }));
 
   const passedTests = perTest.filter((t) => t.passed).length;

@@ -3,6 +3,7 @@ import { query, queryOne, queryOneWith } from "./pool.js";
 import type {
   ExecutionAttemptRow,
   Language,
+  PublicTestResult,
   SubmissionFailure,
   SubmissionMode,
   SubmissionRow,
@@ -129,6 +130,8 @@ export interface CompleteSubmissionResult {
   runtime_ms?: number | null;
   memory_kb?: number | null;
   failure?: SubmissionFailure | null;
+  /** Per-test outcomes for the PUBLIC tests only (migration 006). */
+  public_results?: PublicTestResult[] | null;
 }
 
 /** Terminal write for a judged submission: sets status='completed', the verdict, and completed_at. */
@@ -146,6 +149,7 @@ export async function completeSubmission(
         runtime_ms = $5,
         memory_kb = $6,
         failure = $7,
+        public_results = $8,
         completed_at = now()
     where id = $1
     returning *
@@ -158,6 +162,7 @@ export async function completeSubmission(
     result.runtime_ms ?? null,
     result.memory_kb ?? null,
     result.failure ? JSON.stringify(result.failure) : null,
+    result.public_results ? JSON.stringify(result.public_results) : null,
   ]);
   if (!row) {
     throw new Error(`completeSubmission: no submission with id ${id}`);

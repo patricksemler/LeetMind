@@ -1,5 +1,5 @@
 // Shared plumbing between src/handler.ts and src/rejudge.ts: picking which tests to run for a
-// given (mode, content, custom_input) combination, turning judge/sandbox config into the
+// given (mode, content) pair, turning judge/sandbox config into the
 // @leetmind/sandbox request shapes, and dispatching to the right language's executor. Kept
 // separate so rejudge.ts (which must reproduce the exact same test selection AND execution path
 // against a submission's ORIGINAL pinned content) never drifts from the judge's own logic.
@@ -8,61 +8,135 @@ import type { Language, ProblemVersion, SandboxConfig, SubmissionMode } from "@l
 
 export interface SelectedTests {
   tests: BundleTestCase[];
-  /** true only for `run` mode / example-derived tests — CONTRACTS §4.5. */
+  /** Kept for the sandbox's preview gate. Public tests reveal themselves via `origin` now, so
+   * this is only ever true for a `run` — see `previewFields` in @leetmind/sandbox. */
   revealInputs: boolean;
+  publicCount: number;
+  hiddenCount: number;
+}
+
+/** Two tests are the same case if they take the same arguments. The generated hidden suite
+ * deliberately includes the statement's own examples (`origin: "example"`), so concatenating
+ * examples + hidden tests without this would run — and count — some of them twice. */
+function argsKey(args: unknown[]): string {
+  return JSON.stringify(args);
 }
 
 /**
- * Best-effort normalization of `submissions.custom_input` into an argument list. The column is
- * declared `jsonb?` with no fixed shape in CONTRACTS.md beyond "the submission's custom_input
- * when present" (§6 Judge flow); this accepts either `{ args: [...] }` (the natural shape given
- * `Signature.params`) or a bare JSON array used directly as the argument list.
- */
-function customInputToArgs(customInput: unknown): unknown[] | null {
-  if (Array.isArray(customInput)) return customInput;
-  if (customInput && typeof customInput === "object" && Array.isArray((customInput as { args?: unknown }).args)) {
-    return (customInput as { args: unknown[] }).args;
-  }
-  return null;
-}
-
-/**
- * CONTRACTS.md §6 Judge flow, step 3: `mode:'submit'` -> `content.hidden_tests`; `mode:'run'` ->
- * `content.examples` mapped to test cases, or the submission's `custom_input` when present.
+ * Which tests a submission runs.
  *
- * CONTRACTS §4.5: "Run mode with `custom_input` has no expected value" — there is nothing to
- * compare against, so that test case is built WITHOUT an `expected` key at all (not
- * `expected: null`, which is itself a legitimate — if unusual — expected value). Both harnesses
- * (`runner.py`, the generated C++ main.cpp) key off presence of the key, never off its value, and
- * report that test `status: "completed"` instead of `passed`/`failed`; `buildExecutionResult`
- * (packages/sandbox) then excludes it from `passed_tests`/`total_tests` entirely, and the overall
- * verdict is `accepted` iff nothing errored/timed out — never a spurious `wrong_answer`.
+ *   run    → the problem's public examples, exactly as printed in the statement.
+ *   submit → those same public examples PLUS the hidden suite.
+ *
+ * Submit is a strict superset on purpose: "passed" has to mean passed everything the user can see
+ * *and* everything they can't, and the totals have to make that visible. Submit previously ran
+ * only `hidden_tests`, so a problem with 2 examples and 5 hidden tests reported "5/5" for a
+ * submission and "2/2" for a run — two unrelated denominators, neither of which was the number of
+ * test cases the solution had actually satisfied.
+ *
+ * Public tests come first so `first_failing_test_index` points at a case the user can actually
+ * look at whenever one of those is what broke.
  */
-export function selectTests(
-  content: ProblemVersion,
-  mode: SubmissionMode,
-  customInput: unknown | null | undefined,
-): SelectedTests {
-  if (mode === "submit") {
-    return {
-      // `origin` is carried through so `buildExecutionResult` (packages/sandbox) can reveal
-      // preview fields for a failing test whose origin is `"example"` even in submit mode
-      // (CONTRACTS §4.5) — those inputs/expected values are already shown in the problem
-      // statement, not actually hidden from the user.
-      tests: content.hidden_tests.map((t) => ({ args: t.args, expected: t.expected, origin: t.origin })),
-      revealInputs: false,
-    };
+export function selectTests(content: ProblemVersion, mode: SubmissionMode): SelectedTests {
+  const publicTests: BundleTestCase[] = content.examples.map((e) => ({
+    args: e.args,
+    expected: e.expected,
+    origin: "public",
+  }));
+
+  if (mode === "run") {
+    return { tests: publicTests, revealInputs: true, publicCount: publicTests.length, hiddenCount: 0 };
   }
 
-  const customArgs = customInputToArgs(customInput);
-  if (customArgs) {
-    return { tests: [{ args: customArgs }], revealInputs: true };
+  const seen = new Set(publicTests.map((t) => argsKey(t.args)));
+  const hiddenTests: BundleTestCase[] = [];
+  for (const t of content.hidden_tests) {
+    if (seen.has(argsKey(t.args))) continue;
+    seen.add(argsKey(t.args));
+    hiddenTests.push({ args: t.args, expected: t.expected, origin: "hidden" });
   }
 
   return {
-    tests: content.examples.map((e) => ({ args: e.args, expected: e.expected })),
-    revealInputs: true,
+    tests: [...publicTests, ...hiddenTests],
+    revealInputs: false,
+    publicCount: publicTests.length,
+    hiddenCount: hiddenTests.length,
   };
+}
+
+export interface TestOriginSummary {
+  public_passed: number;
+  public_total: number;
+  hidden_passed: number;
+  hidden_total: number;
+}
+
+/**
+ * Splits the pass counts by whether the user can see the test.
+ *
+ * "4/5" on its own does not tell you what to fix. Knowing that all the public examples passed and
+ * one hidden case did not is a different debugging problem from failing example 2 — the first says
+ * "your approach breaks on an input you haven't thought of", the second says "look at the page".
+ */
+export function summarizeTestOrigins(
+  tests: BundleTestCase[],
+  perTest: readonly { index: number; passed: boolean }[],
+): TestOriginSummary {
+  const passedByIndex = new Map(perTest.map((t) => [t.index, t.passed]));
+  const summary: TestOriginSummary = { public_passed: 0, public_total: 0, hidden_passed: 0, hidden_total: 0 };
+  tests.forEach((test, index) => {
+    // A test with no `expected` is ungraded and excluded from totals everywhere else too
+    // (`buildExecutionResult`), so it must not inflate these either.
+    if (!("expected" in test)) return;
+    const isPublic = test.origin === "public" || test.origin === "example";
+    const passed = passedByIndex.get(index) === true;
+    if (isPublic) {
+      summary.public_total += 1;
+      if (passed) summary.public_passed += 1;
+    } else {
+      summary.hidden_total += 1;
+      if (passed) summary.hidden_passed += 1;
+    }
+  });
+  return summary;
+}
+
+/** One public test's outcome, safe to serve verbatim: the input and expected value are printed in
+ * the problem statement, and the actual output is the user's own program's. */
+export interface PublicTestResult {
+  index: number;
+  status: string;
+  passed: boolean;
+  actual?: unknown;
+}
+
+/**
+ * Per-test outcomes for the PUBLIC tests only, in statement order.
+ *
+ * This is what lets the workspace render a LeetCode-style case list — every example visible up
+ * front, each turning green or red once a run lands — instead of naming only the first failure.
+ * Hidden tests are excluded here by construction rather than filtered downstream: nothing that
+ * isn't already on the problem page can end up in this array.
+ */
+export function publicResults(
+  tests: BundleTestCase[],
+  perTest: readonly { index: number; passed: boolean; status: string; output?: unknown }[],
+): PublicTestResult[] {
+  const byIndex = new Map(perTest.map((t) => [t.index, t]));
+  const results: PublicTestResult[] = [];
+  tests.forEach((test, index) => {
+    if (test.origin !== "public" && test.origin !== "example") return;
+    const run = byIndex.get(index);
+    results.push({
+      index: results.length,
+      // A test the harness never reported (an earlier crash cut the run short) is "not run", not
+      // a silent pass.
+      status: run?.status ?? "not_run",
+      passed: run?.passed === true,
+      ...(run && "output" in run ? { actual: run.output } : {}),
+    });
+  });
+  return results;
 }
 
 /** `content.comparator` is a bare enum (CONTRACTS §4.2) with no per-problem tolerance field;

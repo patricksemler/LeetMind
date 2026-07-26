@@ -22,6 +22,7 @@ export interface GradeResult {
   runtimeMs: number;
   memoryKb: number;
   failure?: SubmissionFailure;
+  publicResults?: { index: number; status: string; passed: boolean; actual?: unknown }[];
 }
 
 function isUnmodifiedStarter(source: string, language: Language): boolean {
@@ -41,9 +42,43 @@ function pickVerdict(source: string, language: Language): Verdict {
   return "accepted";
 }
 
+/** Mirrors `selectTests` in apps/judge: submit runs the public examples PLUS the hidden suite,
+ * deduped by argument list, so the mock's denominators match what the real API reports. */
+export function submitTestSplit(problem: ProblemFixture): { publicTotal: number; hiddenTotal: number; total: number } {
+  const publicArgs = new Set(problem.content.examples.map((e) => JSON.stringify(e.args)));
+  const publicTotal = publicArgs.size;
+  const hiddenTotal = problem.content.hidden_tests.filter((t) => !publicArgs.has(JSON.stringify(t.args))).length;
+  return { publicTotal, hiddenTotal, total: publicTotal + hiddenTotal };
+}
+
+/** Per-public-test outcomes, aligned to `examples`, mirroring the judge's `publicResults`. */
+export function publicResultsFor(
+  problem: ProblemFixture,
+  passedCount: number,
+  actualWhenWrong: unknown = null,
+): { index: number; status: string; passed: boolean; actual?: unknown }[] {
+  return problem.content.examples.map((e, i) => {
+    const passed = i < passedCount;
+    return {
+      index: i,
+      status: passed ? "passed" : "failed",
+      passed,
+      actual: passed ? e.expected : actualWhenWrong,
+    };
+  });
+}
+
 export function gradeSubmit(problem: ProblemFixture, language: Language, source: string): GradeResult {
   const verdict = pickVerdict(source, language);
-  const total = problem.content.hidden_tests.length;
+  const { publicTotal, hiddenTotal, total } = submitTestSplit(problem);
+  const allPassed = { public_passed: publicTotal, public_total: publicTotal, hidden_passed: hiddenTotal, hidden_total: hiddenTotal };
+  /** A failure at `index` — public tests come first, so anything past them is a hidden case. */
+  const splitAt = (index: number) => ({
+    public_passed: Math.min(index, publicTotal),
+    public_total: publicTotal,
+    hidden_passed: Math.max(0, index - publicTotal),
+    hidden_total: hiddenTotal,
+  });
 
   switch (verdict) {
     case "accepted":
@@ -55,11 +90,16 @@ export function gradeSubmit(problem: ProblemFixture, language: Language, source:
         memoryKb: 14_300 + Math.round(Math.random() * 2000),
         failure: {
           kind: "solved",
-          message: "Accepted — all hidden tests passed.",
+          message: `Accepted — all ${total} tests passed (${publicTotal} public, ${hiddenTotal} hidden).`,
+          tests: allPassed,
         },
+        publicResults: publicResultsFor(problem, publicTotal),
       };
     case "wrong_answer": {
-      const failIndex = Math.min(1, Math.max(0, total - 1));
+      // Fail the LAST test so the mock exercises the interesting case: every public example
+      // passing and a hidden one failing, which is the state the results panel has to explain
+      // without leaking the hidden input.
+      const failIndex = Math.max(0, total - 1);
       return {
         verdict,
         passedTests: failIndex,
@@ -68,9 +108,11 @@ export function gradeSubmit(problem: ProblemFixture, language: Language, source:
         memoryKb: 14_100 + Math.round(Math.random() * 1500),
         failure: {
           kind: "assertion",
-          message: `Output did not match the expected result on hidden test ${failIndex + 1}.`,
+          message: "Output did not match the expected result.",
           first_failing_test_index: failIndex,
+          tests: splitAt(failIndex),
         },
+        publicResults: publicResultsFor(problem, Math.min(failIndex, publicTotal)),
       };
     }
     case "time_limit":
@@ -84,7 +126,9 @@ export function gradeSubmit(problem: ProblemFixture, language: Language, source:
           kind: "time_limit",
           message: "Execution exceeded the per-test wall-clock budget.",
           first_failing_test_index: Math.max(0, total - 2),
+          tests: splitAt(Math.max(0, total - 2)),
         },
+        publicResults: publicResultsFor(problem, Math.min(Math.max(0, total - 2), publicTotal)),
       };
     case "runtime_error":
       return {
@@ -125,96 +169,67 @@ export function gradeSubmit(problem: ProblemFixture, language: Language, source:
   }
 }
 
-export function gradeRun(
-  problem: ProblemFixture,
-  language: Language,
-  source: string,
-  customInput: unknown,
-): GradeResult {
+/** Run executes the problem's PUBLIC examples — the ones printed in the statement. No custom
+ * input: that mode is gone, so there is nothing to grade against except the examples' own
+ * expected values, and every failure can safely show input/expected/actual. */
+export function gradeRun(problem: ProblemFixture, language: Language, source: string): GradeResult {
   const verdict = pickVerdict(source, language);
-  const example = problem.content.examples[0];
-  const inputPreview = customInput ?? example?.args;
-  const expectedPreview = example?.expected;
+  const examples = problem.content.examples;
+  const total = examples.length;
+  const publicSummary = (passed: number) => ({
+    public_passed: passed,
+    public_total: total,
+    hidden_passed: 0,
+    hidden_total: 0,
+  });
 
   switch (verdict) {
     case "accepted":
       return {
         verdict,
-        passedTests: 1,
-        totalTests: 1,
+        passedTests: total,
+        totalTests: total,
         runtimeMs: 18 + Math.round(Math.random() * 15),
         memoryKb: 13_800,
         failure: {
           kind: "ok",
-          message: "Ran against the custom input. This does not affect mastery.",
-          input_preview: inputPreview,
-          expected_preview: expectedPreview,
-          actual_preview: expectedPreview,
+          message: `All ${total} public example${total === 1 ? "" : "s"} passed. Submit to run the hidden tests too.`,
+          tests: publicSummary(total),
         },
+        publicResults: publicResultsFor(problem, total),
       };
-    case "wrong_answer":
+    case "wrong_answer": {
+      const failIndex = Math.min(1, Math.max(0, total - 1));
+      const example = examples[failIndex];
       return {
         verdict,
-        passedTests: 0,
-        totalTests: 1,
+        passedTests: failIndex,
+        totalTests: total,
         runtimeMs: 16,
         memoryKb: 13_700,
         failure: {
           kind: "assertion",
-          message: "Output did not match on the custom input.",
-          first_failing_test_index: 0,
-          input_preview: inputPreview,
-          expected_preview: expectedPreview,
+          message: `Output did not match on example ${failIndex + 1}.`,
+          first_failing_test_index: failIndex,
+          input_preview: example?.args,
+          expected_preview: example?.expected,
           actual_preview: null,
+          tests: publicSummary(failIndex),
         },
+        publicResults: publicResultsFor(problem, failIndex),
       };
-    case "time_limit":
+    }
+    default: {
+      const graded = gradeSubmit(problem, language, source);
       return {
-        verdict,
+        ...graded,
         passedTests: 0,
-        totalTests: 1,
-        runtimeMs: 10_000,
-        memoryKb: 15_200,
-        failure: {
-          kind: "time_limit",
-          message: "Execution exceeded the wall-clock budget.",
-          input_preview: inputPreview,
-        },
+        totalTests: total,
+        failure: graded.failure
+          ? { ...graded.failure, first_failing_test_index: 0, tests: publicSummary(0) }
+          : undefined,
       };
-    case "runtime_error":
-      return {
-        verdict,
-        passedTests: 0,
-        totalTests: 1,
-        runtimeMs: 8,
-        memoryKb: 13_600,
-        failure: {
-          kind: "runtime_error",
-          message: "The program raised an unhandled exception.",
-          input_preview: inputPreview,
-          stderr_tail:
-            language === "python"
-              ? 'Traceback (most recent call last):\nRuntimeError: forced failure ("CRASH" marker in source)'
-              : "terminate called after throwing an instance of 'std::runtime_error'",
-        },
-      };
-    case "compilation_error":
-      return {
-        verdict,
-        passedTests: 0,
-        totalTests: 1,
-        runtimeMs: 0,
-        memoryKb: 0,
-        failure: {
-          kind: "compilation_error",
-          message: language === "python" ? "SyntaxError while compiling solution." : "g++ compilation failed.",
-          stderr_tail:
-            language === "python"
-              ? '  File "solution.py", line 1\n    def (:\n        ^\nSyntaxError: invalid syntax'
-              : "solution.cpp:3:5: error: expected ';' before '}' token",
-        },
-      };
-    default:
-      return { verdict: "internal_error", passedTests: 0, totalTests: 1, runtimeMs: 0, memoryKb: 0 };
+    }
   }
 }
+

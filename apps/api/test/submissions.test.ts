@@ -177,7 +177,7 @@ describe.skipIf(!dbReachable)("submissions", () => {
     expect(countRow?.count).toBe("1");
   });
 
-  it("mode:'run' is accepted with custom_input", async () => {
+  it("mode:'run' is accepted, and no longer takes user-supplied input", async () => {
     const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing" });
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
@@ -190,11 +190,29 @@ describe.skipIf(!dbReachable)("submissions", () => {
         language: "python",
         source: "def twoSum(nums, target):\n    return []\n",
         mode: "run",
-        custom_input: { nums: [1, 2, 3], target: 5 },
       },
     });
     expect(res.statusCode).toBe(201);
     submissionIds.push(JSON.parse(res.body).submission_id);
+
+    // `custom_input` was removed from the request contract: Run means "the public examples", so
+    // there is nothing for the caller to supply. An extra key must not be silently honoured.
+    const stale = await server.inject({
+      method: "POST",
+      url: "/api/submissions",
+      payload: {
+        problem_version_id: seeded.problemVersionId,
+        language: "python",
+        source: "def twoSum(nums, target):\n    return []\n",
+        mode: "run",
+        custom_input: { nums: [1, 2, 3], target: 5 },
+      },
+    });
+    expect(stale.statusCode).toBe(201);
+    const staleId = JSON.parse(stale.body).submission_id;
+    submissionIds.push(staleId);
+    const row = await pool.query<{ custom_input: unknown }>("select custom_input from submissions where id = $1", [staleId]);
+    expect(row.rows[0]?.custom_input).toBeNull();
   });
 
   it("rejects sources over the 256KB limit with 400", async () => {

@@ -257,7 +257,6 @@ app.post(
       mode: body.mode,
       language: body.language,
       source: body.source,
-      customInput: body.custom_input,
       baselineItemId: body.baseline_item_id,
       activeMs: body.active_ms ?? 0,
     });

@@ -166,7 +166,8 @@ Tables and their columns (types are Postgres; `not null` unless marked `?`):
   (`run|submit`), `language` (`python|cpp`), `source`, `source_hash`, `status`
   (`created|queued|assigned|compiling|running|completed|cancelled`), `verdict?`,
   `passed_tests int default 0`, `total_tests int default 0`, `runtime_ms int?`, `memory_kb int?`,
-  `failure jsonb?`, `active_ms int?`, `custom_input jsonb?`, `idempotency_key text unique?`,
+  `failure jsonb?`, `public_results jsonb?` (per-public-test outcomes),
+  `active_ms int?`, `custom_input jsonb?` (legacy; never written), `idempotency_key text unique?`,
   `correlation_id?`, `created_at`, `completed_at?`
 - **execution_attempts**: `id pk`, `submission_id fk cascade`, `attempt int`, `worker_id`,
   `image_digest?`, `language_version?`, `flags?`, `limits jsonb`, `usage jsonb?`, `per_test jsonb?`,
@@ -361,18 +362,49 @@ reveal?: {
 version, or a recorded give-up. It is absent on every other response. The same allowlist discipline
 as `toPublicProblem` applies: build it in one place and never spread the raw content object.
 
-**Run mode with `custom_input` has no expected value.** There is nothing to compare against, so
-per-test results carry `status: 'completed'` (not `passed`/`failed`), the response reports
-`passed_tests: 0, total_tests: 0`, and the verdict is `accepted` iff the code ran without error.
-Grading custom input against `examples[0].expected` is wrong and must not be done.
+**Run vs submit differ only in which tests execute.**
+
+| mode | tests |
+|---|---|
+| `run` | the problem's public `examples`, exactly as printed in the statement |
+| `submit` | those same public examples **plus** `hidden_tests`, deduped by argument list |
+
+Submit is a strict superset on purpose: "solved" must mean the solution satisfied everything the
+user can see *and* everything they cannot, and the reported totals have to make that visible. A
+`run` never marks a problem solved and never writes a mastery event, however many examples pass.
+
+Public tests are ordered first, so `first_failing_test_index` names a case the user can read
+whenever an example is what broke.
+
+User-supplied `custom_input` was removed. `submissions.custom_input` remains on the table for
+historical rows; new submissions never set it. The sandbox harness keeps its no-`expected`
+capability (`status: 'completed'`, excluded from `passed_tests`/`total_tests`) — the verification
+gate relies on it — but the app no longer produces such a test.
 
 **`POST /api/hints` rejects `level: 'editorial'` with 400.** The editorial is reachable only through
 `POST /api/problems/:versionId/give-up` (which records the `editorial` hint event itself) or by
 solving. This keeps the give-up mastery consequence impossible to bypass by requesting the hint
 level directly.
 
-`failure` (safe diagnostics only — never leaks hidden expected values for a `submit`):
-`{ kind, message, first_failing_test_index?, stderr_tail?, input_preview?, expected_preview?, actual_preview? }`
+`failure` (safe diagnostics only — never leaks hidden expected values):
+`{ kind, message, first_failing_test_index?, stderr_tail?, input_preview?, expected_preview?, actual_preview?, tests? }`
+
+`submissions.public_results` (migration 006) carries the per-test outcome of every PUBLIC test, in
+statement order: `[{ index, status, passed, actual? }]`. It is projected on `GET /api/submissions/:id`
+and the SSE `verdict` event without sanitization, because it is public by construction — the judge
+(`publicResults`) filters on test origin before building it. The workspace renders one case per
+public example and marks each ✓/✗ from this array.
+
+`tests` is `{ public_passed, public_total, hidden_passed, hidden_total }` — the pass counts split by
+whether the user can see the test. `4/5` alone does not say whether the missing case is an example
+on the page or a hidden one; the split does.
+
+Preview fields are gated on the failing **test**, not on the mode. A public example's input and
+expected output are printed in the problem statement, so withholding them on a submit-mode failure
+hides nothing and leaves the user unable to tell which example broke — they are kept. A hidden
+test's are stripped, at three independent layers (sandbox `previewFields`, the API's
+`sanitizeFailure`, and the web `ResultsPanel`), each of which must positively establish the test is
+public rather than assume it.
 where the `*_preview` fields are populated **only** for `run` mode and for example-derived tests.
 
 ---
@@ -624,7 +656,7 @@ All routes are JSON, prefix `/api`, and every response carries `x-correlation-id
 | GET | `/health` | | `{ ok, version, db: 'up'|'down' }` |
 | GET | `/api/problems/next` | `?concept=&rating=` | `{ problem: PublicProblem, rationale: string, evidence: object }` |
 | GET | `/api/problems/:versionId` | | `{ problem: PublicProblem }` |
-| POST | `/api/submissions` | `{ problem_version_id, language, source, mode, custom_input?, baseline_item_id?, active_ms? }` | `{ submission_id, status }` |
+| POST | `/api/submissions` | `{ problem_version_id, language, source, mode, baseline_item_id?, active_ms? }` | `{ submission_id, status }` |
 | GET | `/api/submissions/:id` | | `{ submission }` (safe projection) |
 | GET | `/api/submissions/:id/events` | | SSE |
 | POST | `/api/hints` | `{ problem_version_id, level }` | `{ level, text, penalty_cap, next_level_penalty }` |

@@ -40,6 +40,19 @@ export type SubmissionMode = z.infer<typeof SubmissionMode>;
  * Safe diagnostics only — never leaks hidden expected values for a `submit`. `*_preview` fields
  * are populated only for `run` mode and example-derived tests. docs/CONTRACTS.md §4.5.
  */
+/** Pass counts split by whether the user can see the test. "4/5" alone doesn't say what to fix;
+ * "all 2 public examples passed, 1 hidden case failed" is a different problem from "example 2
+ * failed", and only one of them means "go look at the page". */
+export const TestOriginSummarySchema = z
+  .object({
+    public_passed: z.number().int().nonnegative(),
+    public_total: z.number().int().nonnegative(),
+    hidden_passed: z.number().int().nonnegative(),
+    hidden_total: z.number().int().nonnegative(),
+  })
+  .passthrough();
+export type TestOriginSummary = z.infer<typeof TestOriginSummarySchema>;
+
 export const SubmissionFailureSchema = z
   .object({
     kind: z.string(),
@@ -49,6 +62,7 @@ export const SubmissionFailureSchema = z
     input_preview: z.unknown().optional(),
     expected_preview: z.unknown().optional(),
     actual_preview: z.unknown().optional(),
+    tests: TestOriginSummarySchema.optional(),
   })
   .passthrough();
 export type SubmissionFailure = z.infer<typeof SubmissionFailureSchema>;
@@ -74,6 +88,21 @@ export const RevealSchema = z
   .passthrough();
 export type Reveal = z.infer<typeof RevealSchema>;
 
+/**
+ * One public test's outcome. Safe to serve verbatim: the input and expected value are printed in
+ * the problem statement, and `actual` is the user's own program's output. Hidden tests never
+ * appear here — `publicResults` (apps/judge) filters on test origin before building the array.
+ */
+export const PublicTestResultSchema = z
+  .object({
+    index: z.number().int().nonnegative(),
+    status: z.string(),
+    passed: z.boolean(),
+    actual: z.unknown().optional(),
+  })
+  .passthrough();
+export type PublicTestResult = z.infer<typeof PublicTestResultSchema>;
+
 /** Safe projection of a `submissions` row — what `GET /api/submissions/:id` returns. */
 export const SubmissionSchema = z
   .object({
@@ -96,6 +125,9 @@ export const SubmissionSchema = z
     created_at: timestampSchema,
     completed_at: timestampSchema.nullable().optional(),
     reveal: RevealSchema.optional(),
+    /** Per-test outcomes for the PUBLIC tests, in statement order. Drives the case list in the
+     * workspace. Null/absent for rows judged before migration 006. */
+    public_results: z.array(PublicTestResultSchema).nullable().optional(),
     /** True when this submit-mode submission was judged after a recorded give-up on this problem
      * version — judged and streamed like any other, but never applies a mastery consequence. */
     practice: z.boolean().optional(),
@@ -168,7 +200,6 @@ export const CreateSubmissionRequest = z.object({
   language: Language,
   source: z.string(),
   mode: SubmissionMode,
-  custom_input: z.unknown().optional(),
   baseline_item_id: z.string().optional(),
   active_ms: z.number().int().nonnegative().optional(),
 });
