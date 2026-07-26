@@ -49,8 +49,9 @@ export function NavBar() {
               {email}
             </span>
             <button
-              onClick={() => {
-                void signOut().then(() => navigate("/login", { replace: true }));
+              onClick={async () => {
+                await signOut();
+                navigate("/login", { replace: true });
               }}
               className="rounded border border-border px-2 py-1 text-xs text-text-faint hover:border-border-strong hover:text-text-dim"
             >

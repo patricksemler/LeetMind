@@ -1,5 +1,6 @@
 import type React from "react";
-import { type CSSProperties, type ReactNode, useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { loadNumberPref, savePref } from "../../lib/prefs";
 
 /** Arrow-key step, in percentage points of the container's size along the split axis. */

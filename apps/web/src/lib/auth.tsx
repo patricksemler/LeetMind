@@ -13,7 +13,8 @@
  * data arrives — a genuine cross-account leak in the UI even though every API response was
  * correctly scoped.
  */
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import { authConfigured, supabase } from "./supabase";
@@ -63,11 +64,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) return;
     let cancelled = false;
 
-    void supabase.auth.getSession().then(({ data }) => {
+    void (async () => {
+      const { data } = await supabase.auth.getSession();
       if (cancelled) return;
       setSession(data.session);
       setReady(true);
-    });
+    })();
 
     // Fires on sign-in, sign-out, and every silent token refresh — the refresh case is why this
     // subscription matters even for a user who never touches the auth UI.

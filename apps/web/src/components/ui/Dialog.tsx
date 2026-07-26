@@ -1,4 +1,5 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 
 export interface DialogProps {
   open: boolean;

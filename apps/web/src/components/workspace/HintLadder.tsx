@@ -78,12 +78,14 @@ export function HintLadder({ versionId, disabled = false }: { versionId: string;
     for (const level of taken) {
       if (hintTexts[level] || refetchedRef.current.levels.has(level)) continue;
       refetchedRef.current.levels.add(level);
-      api
-        .takeHint({ problem_version_id: versionId, level })
-        .then((res) => rememberText(versionId, res.level, res.text))
-        .catch(() => {
+      (async () => {
+        try {
+          const res = await api.takeHint({ problem_version_id: versionId, level });
+          rememberText(versionId, res.level, res.text);
+        } catch {
           /* best-effort reconstruction */
-        });
+        }
+      })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hintsQuery.data, versionId]);

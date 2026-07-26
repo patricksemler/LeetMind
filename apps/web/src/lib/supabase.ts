@@ -8,7 +8,8 @@
  * `null` and `authConfigured` is false; `AuthProvider` then runs in single-user mode, exactly
  * matching an API booted with `AUTH_REQUIRED=false`.
  */
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
