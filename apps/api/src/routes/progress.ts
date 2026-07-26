@@ -6,6 +6,7 @@ import type { FastifyInstance } from "fastify";
 import { listConceptStates, listLearningEvents, query, queryOne } from "@leetmind/db";
 import { reviewsDue, type ConceptState } from "@leetmind/learner";
 import type { Deps } from "../deps.js";
+import { bestComparableTimeImprovement, mergeConceptTrends } from "../lib/progressStats.js";
 
 interface ConceptTrendRow {
   concept_id: string;
@@ -141,31 +142,9 @@ export function registerProgressRoutes(fastify: FastifyInstance, deps: Deps): vo
       [userId],
     );
 
-    let bestImprovement: { submission_id: string; problem_version_id: string; improvement_ms: number } | null =
-      null;
-    for (const row of comparableTimeRows) {
-      if (row.prior_avg_active_ms === null) continue;
-      const improvementMs = row.prior_avg_active_ms - row.active_ms;
-      if (!bestImprovement || improvementMs > bestImprovement.improvement_ms) {
-        bestImprovement = {
-          submission_id: row.submission_id,
-          problem_version_id: row.problem_version_id,
-          improvement_ms: improvementMs,
-        };
-      }
-    }
+    const bestImprovement = bestComparableTimeImprovement(comparableTimeRows);
 
-    const trendByConceptId = new Map(trendRows.map((r) => [r.concept_id, r]));
-    const concepts = conceptRows.map((row) => {
-      const trend = trendByConceptId.get(row.concept_id);
-      const delta = trend?.recent_delta ?? 0;
-      return {
-        ...row,
-        trend: delta > 5 ? "up" : delta < -5 ? "down" : "flat",
-        trend_delta: delta,
-        trend_event_count: trend?.event_count ?? 0,
-      };
-    });
+    const concepts = mergeConceptTrends(conceptRows, trendRows);
 
     // Reuse the learner's pure `reviewsDue` rather than reimplementing the SM-2 due-check in SQL.
     const stateForReview = await listConceptStates(userId);
