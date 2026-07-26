@@ -92,6 +92,7 @@ describe.skipIf(!dbReachable)("live database: migrations + seed", () => {
         "002_seed_taxonomy",
         "003_baseline_replaces_workouts",
         "004_accounts",
+        "005_rename_baseline_constraints",
       ]);
     } finally {
       await client.end();

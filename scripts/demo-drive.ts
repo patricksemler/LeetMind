@@ -29,7 +29,7 @@ function fixture(): Record<string, unknown> {
 }
 
 /** One approved problem, derived from the verified fixture but re-pointed at `conceptId` and
- * `rating`. Workout assembly needs several candidates across concepts and difficulties before it
+ * `rating`. Practice selection needs several candidates across concepts and difficulties before it
  * can fill warm-up / working / overload / recovery roles, so the demo seeds a small spread. */
 async function seedOne(conceptId: string, rating: number, suffix: string): Promise<string> {
   const content = fixture();
@@ -68,7 +68,7 @@ async function seed(): Promise<void> {
       `${(content.mutants_py as unknown[] | undefined)?.length ?? 0} mutants)\n`,
   );
 
-  // A spread across concepts and ratings so workout assembly has candidates for every role.
+  // A spread across concepts and ratings so practice selection has somewhere to widen into.
   const spread: [string, number, string][] = [
     ["arrays_hashing", 900, "warmup-arrays"],
     ["sliding_window", 1150, "working-window"],

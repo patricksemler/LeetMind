@@ -3,7 +3,7 @@
 #
 # Walks the full loop: weakness -> objective -> generation -> verification (including a VISIBLE
 # rejection) -> sandboxed judging with streamed results -> hint -> explainable mastery update ->
-# next-workout change -> dashboards.
+# the next problem practice picks as a result -> dashboards.
 #
 # Runs against the DEV database on purpose: this demonstrates the real application, not the test
 # harness. It seeds its own data and cleans up after itself unless --keep is passed.
@@ -30,39 +30,76 @@ done
 : "${API_PORT:=8099}"
 export DATABASE_URL API_PORT
 
+# The database name comes from DATABASE_URL rather than being hardcoded. Every psql_ call used to
+# say `-d leetmind` while the api and judge honoured DATABASE_URL, so pointing the demo at a
+# throwaway clone silently seeded and CLEANED UP the dev database instead — the two halves of the
+# script disagreed about which database they were driving.
+DB_NAME="$(printf '%s' "$DATABASE_URL" | sed -E 's#.*/([^/?]+)(\?.*)?$#\1#')"
+: "${DB_NAME:=leetmind}"
+
 BOLD=$'\033[1m'; DIM=$'\033[2m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; RESET=$'\033[0m'
 step()  { printf '\n%s━━━ %s ━━━%s\n' "$BOLD" "$1" "$RESET"; }
 note()  { printf '%s  %s%s\n' "$DIM" "$1" "$RESET"; }
 ok()    { printf '%s  ✓ %s%s\n' "$GREEN" "$1" "$RESET"; }
 warn()  { printf '%s  ! %s%s\n' "$YELLOW" "$1" "$RESET"; }
-psql_() { docker exec -i "$DB_CONTAINER" psql -U leetmind -d leetmind -tAc "$1"; }
+psql_() { docker exec -i "$DB_CONTAINER" psql -U leetmind -d "$DB_NAME" -tAc "$1"; }
 
 cleanup() {
   [[ -n "${API_PID:-}"   ]] && kill "$API_PID"   2>/dev/null || true
   [[ -n "${JUDGE_PID:-}" ]] && kill "$JUDGE_PID" 2>/dev/null || true
   if [[ $KEEP -eq 0 && -n "${DB_CONTAINER:-}" ]]; then
+    # Cleanup is best-effort and reports its own status at the end, so `set -e` must not abort it
+    # part-way. It did: this runs as an EXIT trap, and any non-zero step (an empty `grep` in the
+    # session lookup below, a guard that evaluates false) silently killed the rest of the trap,
+    # leaving demo rows behind while the earlier statements had already run.
+    set +e
     # Delete children before parents. Every FK in the schema is NO ACTION, so a bare
     # `delete from problems` fails on the first referencing row — and the original `|| true`
     # swallowed that error, leaving demo data behind on every run while reporting success.
-    # Order matters: learning_events and execution_attempts reference submissions, which (with
-    # workout_items, jobs and verification_reports) reference problem_versions.
+    # Order matters, and it is not just "children of problem_versions last": `submissions` has an
+    # FK into `baseline_items` as well, so submissions must go BEFORE baseline_items even though
+    # both are children of problem_versions. Deleting items first fails the moment any submission
+    # was actually made against a baseline probe — which is the normal case after onboarding.
     local demo_versions="select pv.id from problem_versions pv
                            join problems p on p.id = pv.problem_id
                           where p.internal_name like 'demo-%'"
+
+    # Baseline sessions whose items point at demo problems, captured BEFORE those items are
+    # deleted (the delete is what would make the sessions look empty). Every statement below must
+    # be scoped to demo data by construction. The previous version emptied the items table and
+    # then deleted every session with no items left — which is a delete of the ENTIRE table the
+    # moment the table is empty, taking real practice history the demo never touched with it.
+    local demo_sessions
+    demo_sessions="$(psql_ "select distinct baseline_session_id from baseline_items
+                             where problem_version_id in ($demo_versions);" 2>/dev/null \
+                     | tr -d ' ' | sed "/^$/d;s/^/'/;s/\$/'/" | paste -sd, -)"
     local failed=0
     for stmt in \
       "delete from learning_events   where problem_version_id in ($demo_versions)" \
       "delete from execution_attempts where submission_id in (select id from submissions where problem_version_id in ($demo_versions))" \
       "delete from hint_events       where problem_version_id in ($demo_versions)" \
-      "delete from workout_items     where problem_version_id in ($demo_versions)" \
-      "delete from workouts          where id not in (select workout_id from workout_items)" \
       "delete from submissions       where problem_version_id in ($demo_versions)" \
+      "delete from baseline_items    where problem_version_id in ($demo_versions)" \
+      "${demo_sessions:+delete from baseline_sessions where id in ($demo_sessions)}" \
       "delete from verification_reports where problem_version_id in ($demo_versions)" \
       "delete from problem_concepts  where problem_version_id in ($demo_versions)" \
       "delete from jobs              where status in ('done','dead','failed')" \
       "delete from problem_versions  where problem_id in (select id from problems where internal_name like 'demo-%')" \
       "delete from problems          where internal_name like 'demo-%'" ; do
-      psql_ "$stmt" >/dev/null 2>&1 || failed=1
+      # An `if`, not `[[ ... ]] && continue`: under `set -e` an AND-list whose final command is
+      # the test itself exits non-zero when the test is false, which aborted this loop on the very
+      # first (non-empty) statement and left every demo row behind.
+      if [[ -n "$stmt" ]]; then
+        # Report WHICH statement failed and why. "cleanup incomplete (failed=1)" on its own says
+        # nothing actionable — the whole point of the counter is to notice leftover rows, and you
+        # cannot fix them without the error.
+        local err
+        if ! err="$(psql_ "$stmt" 2>&1)"; then
+          failed=1
+          warn "cleanup step failed: ${stmt:0:60}…"
+          note "  ${err//$'\n'/ }"
+        fi
+      fi
     done
     local left
     left="$(psql_ "select count(*) from problems where internal_name like 'demo-%';" 2>/dev/null | tr -d ' ')"
@@ -71,6 +108,7 @@ cleanup() {
     else
       warn "demo cleanup incomplete: ${left:-?} demo-* problem(s) remain (failed=$failed)"
     fi
+    set -e
   fi
 }
 trap cleanup EXIT
@@ -81,13 +119,13 @@ command -v docker >/dev/null || { echo "docker not found"; exit 1; }
 docker info >/dev/null 2>&1 || { echo "Docker daemon is not running — start Docker Desktop"; exit 1; }
 ok "docker daemon up"
 
-# Pick the container that actually serves the `leetmind` database. Matching on the image alone is
-# not enough: throwaway test containers use the same postgres image, and grabbing one of those
-# yields a confusing "database leetmind does not exist" several steps later.
+# Pick the container that actually serves $DB_NAME. Matching on the image alone is not enough:
+# throwaway test containers use the same postgres image, and grabbing one of those yields a
+# confusing "database does not exist" several steps later.
 find_db_container() {
   local name
   for name in $(docker ps --filter "ancestor=postgres:17-alpine" --format '{{.Names}}'); do
-    if docker exec "$name" psql -U leetmind -d leetmind -tAc 'select 1' >/dev/null 2>&1; then
+    if docker exec "$name" psql -U leetmind -d "$DB_NAME" -tAc 'select 1' >/dev/null 2>&1; then
       echo "$name"; return 0
     fi
   done
@@ -96,7 +134,7 @@ find_db_container() {
 
 DB_CONTAINER="$(find_db_container || true)"
 if [[ -z "$DB_CONTAINER" ]]; then
-  note "no container serving the 'leetmind' database — starting one via docker compose…"
+  note "no container serving the '$DB_NAME' database — starting one via docker compose…"
   docker compose up -d db >/dev/null
   for _ in $(seq 1 30); do
     DB_CONTAINER="$(find_db_container || true)"
@@ -104,8 +142,8 @@ if [[ -z "$DB_CONTAINER" ]]; then
     sleep 1
   done
 fi
-[[ -n "$DB_CONTAINER" ]] || { echo "could not find or start a postgres serving 'leetmind'"; exit 1; }
-ok "postgres: $DB_CONTAINER"
+[[ -n "$DB_CONTAINER" ]] || { echo "could not find or start a postgres serving '$DB_NAME'"; exit 1; }
+ok "postgres: $DB_CONTAINER (database: $DB_NAME)"
 
 for img in leetmind/runner-python:1 leetmind/runner-cpp:1; do
   docker image inspect "$img" >/dev/null 2>&1 || { note "building $img…"; ./scripts/build-images.sh >/dev/null; break; }
@@ -199,20 +237,28 @@ note "Exactly-once is structural: the learning_events insert is guarded by a uni
 note "key and runs FIRST — concept-state changes only apply if that insert returns a row."
 
 # ─────────────────────────────────────────────────────────────────────────────
-step "7. The next workout reflects what just happened"
-note "Assembly: warm-up → working sets (65-80% band) → overload (above band) → recovery (review due)."
-note "Every item carries a rationale naming the concept, its mastery, and why it was chosen."
-curl -sf -X POST "http://localhost:$API_PORT/api/workouts" \
-  -H 'content-type: application/json' -d '{"target_minutes":40}' 2>/dev/null \
+step "7. Practice picks the next problem from what just happened"
+note "One endpoint answers \"what now?\": a problem at the edge of your ability, or — when nothing"
+note "verified is left in that band — a generate job it commissions on the spot, reported as a wait."
+note "There is no session to assemble; the learner state IS the plan, re-read on every request."
+curl -sf "http://localhost:$API_PORT/api/practice/next" 2>/dev/null \
   | python3 -c "
 import json,sys
 try:
-    w = json.load(sys.stdin)
+    r = json.load(sys.stdin)
 except Exception:
-    print('    (no approved problems in the pool yet — run with --live or seed the pool)'); raise SystemExit
-for it in (w.get('workout') or w).get('items', []):
-    print(f\"    [{it.get('role','?'):9s}] {it.get('rationale','')}\")
-" || note "(workout endpoint needs an approved pool)"
+    print('    (api not reachable)'); raise SystemExit
+if r.get('needs_baseline'):
+    print('    needs baseline : no probe recorded yet, so there is nothing honest to target')
+elif r.get('generating'):
+    g = r['generating']
+    print(f\"    generating     : {g['concept_id']} @ {g['target_rating']}\")
+    print(f\"                     {g['reason']}\")
+else:
+    p = r.get('problem') or {}
+    print(f\"    next problem   : {p.get('title','(none)')}\")
+    print(f\"    why            : {r.get('rationale','')}\")
+" || note "(practice endpoint needs an approved pool)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 step "8. Dashboards"

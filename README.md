@@ -5,11 +5,6 @@ verified algorithm problems on your own machine, judges your code in sandboxed c
 models your mastery per concept so every problem targets the edge of your ability — covering the
 pattern families of the NeetCode 150.
 
-Two surfaces, and only two. A short **baseline** seeds honest per-concept ratings, with skipping
-treated as real evidence rather than failure. After that, **practice** serves one problem at a time
-forever — and when nothing verified is left at your current level, it generates one and tells you
-it's doing so.
-
 It is built first as a daily-use tool for its author, and second as a portfolio artifact. The
 engineering that earns the second is engineering the first genuinely needs: a hand-built job queue,
 a sandboxed execution substrate, a six-stage verification gate, and a learner model whose every
@@ -19,6 +14,47 @@ decision is explainable.
 - [`docs/CONTRACTS.md`](docs/CONTRACTS.md) — normative names, shapes, schema.
 - [`docs/threat-model.md`](docs/threat-model.md) — what the isolation boundary actually is.
 - [`docs/measurements.md`](docs/measurements.md) — measured latency/throughput, and their limits.
+
+## How it works
+
+Two surfaces, and deliberately only two.
+
+**1. Baseline** — a handful of short problems across the core pattern families, one at a time.
+Difficulty steps up when you solve one and drops fast when you skip. **Skipping is the encouraged
+path for anything you haven't learned yet**: the skip button sits beside the start button at equal
+weight, and a skip is recorded as real evidence (it lowers the rating estimate *and* tightens the
+uncertainty around it) rather than as a failure. That is not politeness — a baseline where skipping
+feels like failure produces dishonest ratings, because someone who doesn't recognise a topic will
+guess or grind instead of admitting it, and a rating that is wrong in *that* direction makes
+everything downstream useless. Skipping three topics gets you through in a few minutes with better
+data than grinding six.
+
+**2. Practice** — everything after. One endpoint, `GET /api/practice/next`, answers "what should I
+do right now?" with exactly one of three things:
+
+| | |
+|---|---|
+| **a problem** | verified, approved, unattempted, at the edge of your weakest evidenced concept |
+| **generating** | nothing verified is left in that band, so a new problem is being written and verified for you — the wait is shown, not hidden behind an empty state |
+| **needs baseline** | nothing has measured you yet, so there is no honest edge to target |
+
+There is no session to start, nothing to plan, and nothing persisted between problems. **The
+learner state *is* the plan**, re-read on every request — so the next problem reflects the solve you
+just finished, not a list chosen before you started.
+
+> **Workouts were removed.** v1 assembled a session ladder — warm-up → working sets → overload →
+> recovery, with duration budgeting. Its entire value was *which problem comes next*, which the
+> learner model already decides one problem at a time; the container around it added ceremony
+> (start a workout, finish it, abandon it, honour a minutes budget) without adding information. A
+> stateless loop that re-decides after every solve is strictly more responsive to the evidence.
+> Full reasoning in [`PLAN.md`](PLAN.md) §8.
+
+Everything you do teaches the model something — solve, skip, or give up — and every resulting
+change is explained in plain language:
+
+> This problem was rated 1450 and you were at 1200, so you had about a 1 in 5 chance. You solved it
+> unaided. That moves **Two Pointers** up 39 to 1239. The estimate is more confident than before:
+> give or take 160 points instead of 350.
 
 ## Status
 
@@ -68,8 +104,17 @@ pnpm dev:web                       # :5173
 ```
 
 Walks weakness → generation → verification (with a visible rejection) → sandboxed judging with
-streamed verdicts → explainable mastery update → next workout → dashboards. Add `--live` to call the
-real model for generation, `--keep` to leave the seeded data in place.
+streamed verdicts → explainable mastery update → the next problem practice picks as a result →
+dashboards. Add `--live` to call the real model for generation, `--keep` to leave the seeded data
+in place.
+
+It runs against the **development** database on purpose — the point is to demonstrate the real
+application, not a fixture — and removes only its own `demo-*` rows afterwards. Point it somewhere
+disposable if you would rather it didn't:
+
+```bash
+DATABASE_URL=postgres://leetmind:leetmind@localhost:5432/leetmind_scratch ./scripts/demo.sh
+```
 
 ## Accounts
 
@@ -129,9 +174,13 @@ Four design decisions carry most of the weight:
    derivation; expected outputs come from the differential-verified reference solution — never from
    model assertion. (This repo has a worked example of why: a hand-written fixture expectation was
    simply wrong, and the gate's regenerated suite disagreed with it correctly.)
-4. **Every mastery change is explainable.** `learning_events` is append-only and stores before/after
-   state plus the full evidence and a human sentence: *"Expected 64% success (you 1200 vs problem
-   1100); scored 1. sliding_window +12 (1200→1212, ±350→±160)."*
+4. **Every mastery change is explainable, in language a person can read.** `learning_events` is
+   append-only and stores before/after state, the full evidence, and a sentence that still makes
+   sense months later with no UI around it. The explanation used to be written for whoever was
+   debugging the model — *"Expected 64% success (you 1200 vs problem 1100); scored 1.
+   sliding_window +12 (1200→1212, ±350→±160)"* — which is correct and tells the person who just
+   solved the problem nothing. Explainable has to mean explainable *to the user*: the 0..1 evidence
+   score stays out of the interface entirely, and concepts are named, not slugged.
 
 ## Running the tests
 
@@ -170,21 +219,32 @@ There is no admin UI by design — the terminal is the admin console.
 
 | Path | Purpose |
 |---|---|
-| `apps/web` | React + Vite + Monaco workspace, progress, diagnostic, `/system` |
+| `apps/web` | React + Vite + Monaco workspace, practice loop, baseline, progress, auth |
 | `apps/api` | Fastify HTTP + SSE over Postgres `LISTEN/NOTIFY` |
 | `apps/judge` | Judge coordinator, submission state machine, rejudge, chaos suite |
 | `packages/shared` | zod contracts, logging, config, `toPublicProblem` |
 | `packages/db` | pool, migration runner, repositories, test-DB guard |
 | `packages/queue` | the Postgres job queue |
 | `packages/sandbox` | `docker run` wrapper, harness protocol, C++ codegen, CLI bridge |
-| `packages/learner` | Glicko-lite mastery, SM-2 review, workout assembly (pure) |
+| `packages/learner` | Glicko-lite mastery, SM-2 review, baseline planning, selection (pure) |
 | `content/` | Python content plane — generation, six-stage verification, replenishment |
 | `scripts/` | demo, load test, image build, dead-job requeue |
 
 ## Known limitations
 
-Stated here rather than buried: this is a **single-user tool with no authentication**, and on macOS
-the real isolation boundary is Docker Desktop's Linux VM rather than the container. Both are
-appropriate for running your own code on your own machine, and both are disqualifying for public
-multi-tenant execution. [`docs/threat-model.md`](docs/threat-model.md) says exactly what would have
-to change first.
+Stated here rather than buried.
+
+**The isolation boundary is not the container.** On macOS it is Docker Desktop's Linux VM. That is
+appropriate for running your own code on your own machine and disqualifying for public multi-tenant
+execution, regardless of how many accounts the app now supports.
+[`docs/threat-model.md`](docs/threat-model.md) says exactly what would have to change first —
+accounts moved the authentication boundary, not the execution one.
+
+**Generation costs real money and real time.** A problem is one `claude -p` call (~$0.37) plus a
+six-stage verification gate, so the practice loop's `generating` state is measured in tens of
+seconds. Background replenishment exists precisely so you rarely meet it, but a fast session on a
+thin concept will out-run the content plane.
+
+**Content quality is bounded by the gate, not by taste.** Verification proves a problem is
+*correct* — reference agrees with brute force, boundaries hold, mutants die. It cannot prove a
+problem is *interesting*. Complexity validation and novelty checking are deferred (`PLAN.md` §11).
