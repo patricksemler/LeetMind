@@ -1,44 +1,4 @@
-import type { ReactNode } from "react";
-
-export type MeterTone = "accent" | "accepted" | "error" | "warn" | "neutral";
-
-const fillTone: Record<MeterTone, string> = {
-  accent: "bg-accent",
-  accepted: "bg-verdict-accepted",
-  error: "bg-verdict-error",
-  warn: "bg-verdict-warn",
-  neutral: "bg-text-faint",
-};
-
-export interface MeterProps {
-  value: number;
-  max: number;
-  tone?: MeterTone;
-  label?: ReactNode;
-  className?: string;
-}
-
-/** A simple horizontal fill meter — used for per-test progress and any other bounded count. */
-export function Meter({ value, max, tone = "accent", label, className = "" }: MeterProps) {
-  const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
-  return (
-    <div className={className}>
-      {label && <div className="mb-1 flex justify-between text-xs text-text-dim">{label}</div>}
-      <div
-        role="progressbar"
-        aria-valuenow={value}
-        aria-valuemin={0}
-        aria-valuemax={max}
-        className="h-1.5 w-full overflow-hidden rounded-full bg-bg-inset"
-      >
-        <div
-          className={`h-full rounded-full transition-[width] duration-300 ${fillTone[tone]}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
+import { formatRating } from "../../lib/format";
 
 /**
  * Where a rating sits on the 800–2400 scale, with its uncertainty drawn as a range around it.
@@ -75,7 +35,7 @@ export function RatingMeter({
     <div>
       <div
         role="img"
-        aria-label={`${label}: ${Math.round(rating)} on a ${min} to ${max} scale, give or take ${Math.round(uncertainty)}`}
+        aria-label={`${label}: ${formatRating(rating)} on a ${min} to ${max} scale, give or take ${formatRating(uncertainty)}`}
         className="relative h-1.5 w-full bg-bg-overlay"
       >
         <div

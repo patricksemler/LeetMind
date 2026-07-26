@@ -9,10 +9,6 @@ export function formatRating(rating: number): string {
   return Math.round(rating).toString();
 }
 
-export function formatPercent(x: number): string {
-  return `${Math.round(x * 100)}%`;
-}
-
 export function formatDate(value: string | Date | null | undefined): string {
   if (!value) return "—";
   const d = typeof value === "string" ? new Date(value) : value;
