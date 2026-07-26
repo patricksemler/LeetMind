@@ -4,7 +4,7 @@ import { loadApiConfig } from "@leetmind/shared";
 import { newIdForTest } from "./practiceHelpers.js";
 import { buildDeps, type Deps } from "../src/deps.js";
 import { buildServer } from "../src/server.js";
-import { chooseTarget } from "../src/routes/practice.js";
+import { chooseTarget } from "../src/lib/practiceSelection.js";
 import { cleanup, isDatabaseReachable, seedApprovedProblem, testPool } from "./helpers.js";
 import { COLD_START_PROBLEM_COUNT, COLD_START_RATING, type ConceptState } from "@leetmind/learner";
 
