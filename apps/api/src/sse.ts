@@ -12,9 +12,9 @@ const logger = createLogger("api-sse");
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const BASE_RECONNECT_DELAY_MS = 500;
 
-export type NotifySubscriber = (type: string, payload: NotifyPayload) => void;
+type NotifySubscriber = (type: string, payload: NotifyPayload) => void;
 
-export class NotifyBus {
+class NotifyBus {
   private client: Client | null = null;
   private readonly subscribers = new Map<string, Set<NotifySubscriber>>();
   private reconnectAttempt = 0;
