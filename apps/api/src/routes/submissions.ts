@@ -5,18 +5,23 @@ import {
   getSubmission,
   hasSeenEditorial,
   insertSubmission,
-  listHintEvents,
   listSubmissionsForVersion,
   notify,
-  queryOne,
   withTransaction,
-  type LearningEventRow,
   type SubmissionRow,
 } from "@leetmind/db";
 import { badRequest, CreateSubmissionRequest, judgeJobKey, newId, notFound } from "@leetmind/shared";
 import type { Deps } from "../deps.js";
 import { sha256Hex } from "../lib/hash.js";
-import { buildReveal, sanitizeFailure, toSafeSubmission } from "../mappers/submission.js";
+import {
+  buildReveal,
+  enrichSubmission,
+  isPracticeSubmission,
+  loadMasteryEventForSubmission,
+  sanitizeFailure,
+  toSafeSubmission,
+  verdictEventPayload,
+} from "../mappers/submission.js";
 import { requireId } from "../server.js";
 import { notifyBus } from "../sse.js";
 
@@ -26,93 +31,9 @@ import { notifyBus } from "../sse.js";
  * so fetching a long tail nobody renders is pure weight on every tab open. */
 const SUBMISSION_HISTORY_LIMIT = 10;
 
-/** `practice` labels submit-mode submissions created AFTER a recorded give-up on the version.
- * The ordering check matters: a give-up must not retroactively relabel earlier submissions that
- * were fully scored (the 409 in-flight guard means a give-up event is always either wholly before
- * a submission's creation or after its terminal verdict, so `created_at` ordering is exact). The
- * judge's own mastery gate (`hasGivenUp` in the handler) stays existence-based — at judge time,
- * any recorded give-up necessarily predates the submission it is gating. */
-async function isPracticeSubmission(userId: string, row: SubmissionRow): Promise<boolean> {
-  if (row.mode !== "submit") return false;
-  const events = await listHintEvents(userId, row.problem_version_id);
-  return events.some((h) => h.level === "editorial" && new Date(h.created_at).getTime() < new Date(row.created_at).getTime());
-}
-
-/** Full client-facing submission projection: safe fields + reveal (if earned) + practice flag (if
- * this submit-mode submission followed a recorded give-up on the same version). Shared by
- * `GET /api/submissions/:id` and `GET /api/problems/:versionId/submissions/latest`. */
-async function enrichSubmission(userId: string, row: SubmissionRow) {
-  const [reveal, practice] = await Promise.all([
-    buildReveal(userId, row.problem_version_id),
-    isPracticeSubmission(userId, row),
-  ]);
-  return { ...toSafeSubmission(row), ...(reveal ? { reveal } : {}), ...(practice ? { practice: true } : {}) };
-}
-
 const MAX_SOURCE_BYTES = 256 * 1024;
 const SUPPORTED_LANGUAGES = new Set(["python", "cpp"]);
 const PING_INTERVAL_MS = 15_000;
-
-interface MasteryEventData {
-  submission_id: string;
-  changes: unknown[];
-  outcome: number;
-  explanation: string;
-}
-
-async function loadMasteryEventForSubmission(submissionId: string): Promise<MasteryEventData | null> {
-  const row = await queryOne<LearningEventRow>(
-    `select * from learning_events where submission_id = $1 and kind = 'submission' order by created_at desc limit 1`,
-    [submissionId],
-  );
-  if (!row) return null;
-  const evidence = row.evidence as { changes?: unknown[]; explanation?: string };
-  return {
-    submission_id: submissionId,
-    changes: Array.isArray(evidence?.changes) ? evidence.changes : [],
-    outcome: row.outcome,
-    explanation: typeof evidence?.explanation === "string" ? evidence.explanation : "",
-  };
-}
-
-function baseVerdictEventPayload(row: SubmissionRow) {
-  return {
-    submission_id: row.id,
-    verdict: row.verdict,
-    passed_tests: row.passed_tests,
-    total_tests: row.total_tests,
-    runtime_ms: row.runtime_ms,
-    memory_kb: row.memory_kb,
-    ...(row.failure ? { failure: sanitizeFailure(row.failure, row.mode) } : {}),
-    // Public tests only (see toSafeSubmission) — the workspace colours its case list from this.
-    ...(row.public_results ? { public_results: row.public_results } : {}),
-  };
-}
-
-/**
- * Builds the full `verdict` SSE/`GET` payload (sanitized failure + reveal). `reveal` is fetched
- * separately from the always-safe base fields so a `buildReveal` failure (e.g. a bad content
- * blob) never takes the verdict itself down with it — callers get the base payload back instead
- * of losing the verdict entirely (docs/CONTRACTS.md §4.5, and the root cause of the P0 "live
- * verdict never reaches the client" bug: the old call site chained `.then` with no `.catch`).
- */
-async function verdictEventPayload(
-  userId: string,
-  row: SubmissionRow,
-  onRevealError?: (err: unknown) => void,
-) {
-  const base = baseVerdictEventPayload(row);
-  try {
-    const [reveal, practice] = await Promise.all([
-      buildReveal(userId, row.problem_version_id),
-      isPracticeSubmission(userId, row),
-    ]);
-    return { ...base, ...(reveal ? { reveal } : {}), ...(practice ? { practice: true } : {}) };
-  } catch (err) {
-    onRevealError?.(err);
-    return base;
-  }
-}
 
 export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): void {
   fastify.post("/api/submissions", async (request, reply) => {
