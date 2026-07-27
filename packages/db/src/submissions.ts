@@ -30,7 +30,10 @@ export interface NewSubmissionInput {
 }
 
 /** Inserts a submission row. Callers own id generation and typically run this in the same transaction as `Queue.enqueue`. */
-export async function insertSubmission(client: PoolClient, row: NewSubmissionInput): Promise<SubmissionRow> {
+export async function insertSubmission(
+  client: PoolClient,
+  row: NewSubmissionInput,
+): Promise<SubmissionRow> {
   const sql = `
     insert into submissions (
       id, user_id, problem_version_id, baseline_item_id, mode, language, source, source_hash,
@@ -72,7 +75,10 @@ export async function getSubmission(id: string): Promise<SubmissionRow | null> {
  * you already have a result for) loses the verdict with no recovery: the backend has it, but the
  * client only ever tracked the active submission id in local React state (confirmed live).
  */
-export async function getLatestSubmission(userId: string, versionId: string): Promise<SubmissionRow | null> {
+export async function getLatestSubmission(
+  userId: string,
+  versionId: string,
+): Promise<SubmissionRow | null> {
   return queryOne<SubmissionRow>(
     "select * from submissions where user_id = $1 and problem_version_id = $2 order by created_at desc limit 1",
     [userId, versionId],
@@ -252,7 +258,10 @@ export async function insertExecutionAttempt(
   return inserted;
 }
 
-export async function listRecentSubmissions(userId: string, limit: number): Promise<SubmissionRow[]> {
+export async function listRecentSubmissions(
+  userId: string,
+  limit: number,
+): Promise<SubmissionRow[]> {
   return query<SubmissionRow>(
     "select * from submissions where user_id = $1 order by created_at desc limit $2",
     [userId, limit],

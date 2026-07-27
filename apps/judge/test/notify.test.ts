@@ -101,10 +101,24 @@ describe.skipIf(!canRun)("pg_notify sequence (integration: live Postgres LISTEN 
     }
 
     const types = events.map((e) => e.type);
-    expect(types).toEqual(["status", "progress", "status", "status", "status", "progress", "verdict", "mastery"]);
+    expect(types).toEqual([
+      "status",
+      "progress",
+      "status",
+      "status",
+      "status",
+      "progress",
+      "verdict",
+      "mastery",
+    ]);
 
     const statusEvents = events.filter((e) => e.type === "status");
-    expect(statusEvents.map((e) => e.status)).toEqual(["assigned", "compiling", "running", "completed"]);
+    expect(statusEvents.map((e) => e.status)).toEqual([
+      "assigned",
+      "compiling",
+      "running",
+      "completed",
+    ]);
 
     const progressEvents = events.filter((e) => e.type === "progress");
     expect(progressEvents[0]).toMatchObject({ passed: 0, total: 3 });

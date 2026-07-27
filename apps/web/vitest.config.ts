@@ -6,7 +6,9 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@leetmind/shared": fileURLToPath(new URL("../../packages/shared/src/index.ts", import.meta.url)),
+      "@leetmind/shared": fileURLToPath(
+        new URL("../../packages/shared/src/index.ts", import.meta.url),
+      ),
     },
   },
   test: {

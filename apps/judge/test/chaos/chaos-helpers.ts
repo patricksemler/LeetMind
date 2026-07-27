@@ -79,7 +79,8 @@ export function spawnChaosWorker(opts: ChaosWorkerOpts): ChaosWorkerHandle {
     CHAOS_CONCURRENCY: String(opts.concurrency ?? 1),
   };
   if (opts.leaseSeconds !== undefined) env.CHAOS_LEASE_SECONDS = String(opts.leaseSeconds);
-  if (opts.reaperIntervalMs !== undefined) env.CHAOS_REAPER_INTERVAL_MS = String(opts.reaperIntervalMs);
+  if (opts.reaperIntervalMs !== undefined)
+    env.CHAOS_REAPER_INTERVAL_MS = String(opts.reaperIntervalMs);
   if (opts.pollIntervalMs !== undefined) env.CHAOS_POLL_INTERVAL_MS = String(opts.pollIntervalMs);
   if (opts.heartbeatMs !== undefined) env.CHAOS_HEARTBEAT_MS = String(opts.heartbeatMs);
 

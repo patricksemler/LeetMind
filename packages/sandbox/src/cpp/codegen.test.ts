@@ -161,7 +161,7 @@ describe("generateMainCpp — rejects a signature.name that isn't a valid identi
   // `solution_instance.${signature.name}(...)` — QA-PLAN.md §3's C++ parity item: this must fail
   // loudly rather than let whatever string was supplied land in a compiled translation unit.
   it.each([
-    "twoSum(); system(\"rm -rf /\"); //",
+    'twoSum(); system("rm -rf /"); //',
     "twoSum() { return {}; } int backdoor",
     "twoSum\n#include <cstdlib>",
     "",
@@ -169,9 +169,9 @@ describe("generateMainCpp — rejects a signature.name that isn't a valid identi
     "two-sum",
     "two sum",
   ])("rejects %j", (badName) => {
-    expect(() => generateMainCpp({ name: badName, params: [{ name: "a", type: "int" }], returns: "int" })).toThrow(
-      /valid identifier/,
-    );
+    expect(() =>
+      generateMainCpp({ name: badName, params: [{ name: "a", type: "int" }], returns: "int" }),
+    ).toThrow(/valid identifier/);
   });
 
   it("still accepts an ordinary identifier", () => {

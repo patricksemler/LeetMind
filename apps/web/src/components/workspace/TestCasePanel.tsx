@@ -41,7 +41,9 @@ export function TestCasePanel({
   const examples = problem.examples;
 
   if (examples.length === 0) {
-    return <div className="p-4 text-sm text-text-faint">This problem has no public example cases.</div>;
+    return (
+      <div className="p-4 text-sm text-text-faint">This problem has no public example cases.</div>
+    );
   }
 
   // The example's own prose explanation is deliberately NOT rendered here — it is already on the
@@ -73,7 +75,9 @@ export function TestCasePanel({
               // font), and this handles "Case 9" vs "Case 10" — proportional digits differ too, so
               // the row still shifted by a pixel or two per tab without it.
               className={`flex items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs tabular-nums transition-colors ${
-                selected ? "bg-bg-overlay text-text" : "text-text-dim hover:bg-bg-overlay hover:text-text"
+                selected
+                  ? "bg-bg-overlay text-text"
+                  : "text-text-dim hover:bg-bg-overlay hover:text-text"
               }`}
             >
               {!r && <span className={BLANK_SLOT} aria-hidden="true" />}

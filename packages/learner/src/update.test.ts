@@ -61,7 +61,7 @@ describe("updateConcepts — Elo delta direction and magnitude", () => {
     });
 
     expect(Math.abs(lossToEasy.changes[0]!.delta)).toBeGreaterThan(
-      Math.abs(lossToHard.changes[0]!.delta)
+      Math.abs(lossToHard.changes[0]!.delta),
     );
     expect(lossToEasy.changes[0]!.delta).toBeLessThan(0);
     expect(lossToHard.changes[0]!.delta).toBeLessThan(0);
@@ -70,7 +70,13 @@ describe("updateConcepts — Elo delta direction and magnitude", () => {
   it("matches the hand-derived K*(outcome-expected)*evidenceWeight formula for a single concept", () => {
     const states = { c1: makeState(1500, 200) };
     const weights = [{ id: "c1", weight: 1 }];
-    const result = updateConcepts({ states, weights, problemRating: 1650, outcome: 0.75, evidenceWeight: 1 });
+    const result = updateConcepts({
+      states,
+      weights,
+      problemRating: 1650,
+      outcome: 0.75,
+      evidenceWeight: 1,
+    });
 
     const expected = expectedSuccess(1500, 1650);
     const k = kFactor(200);
@@ -92,7 +98,13 @@ describe("updateConcepts — delta split by weight", () => {
       { id: "weak", weight: 0.4 },
     ];
 
-    const result = updateConcepts({ states, weights, problemRating: 1500, outcome: 1, evidenceWeight: 1 });
+    const result = updateConcepts({
+      states,
+      weights,
+      problemRating: 1500,
+      outcome: 1,
+      evidenceWeight: 1,
+    });
 
     const strongChange = result.changes.find((c) => c.concept_id === "strong")!;
     const weakChange = result.changes.find((c) => c.concept_id === "weak")!;
@@ -155,7 +167,13 @@ describe("updateConcepts — swing cap", () => {
       { id: "a", weight: 0.5 },
       { id: "b", weight: 0.5 },
     ];
-    const result = updateConcepts({ states, weights, problemRating: 2400, outcome: 1, evidenceWeight: 3 });
+    const result = updateConcepts({
+      states,
+      weights,
+      problemRating: 2400,
+      outcome: 1,
+      evidenceWeight: 3,
+    });
     const total = result.changes.reduce((sum, c) => sum + c.delta, 0);
     expect(total).toBeCloseTo(64, 6);
   });
@@ -283,7 +301,9 @@ describe("updateConcepts — explanation", () => {
       outcome: 1,
       evidenceWeight: 1,
     });
-    expect(result.changes[0]!.after_uncertainty).toBeLessThan(result.changes[0]!.before_uncertainty);
+    expect(result.changes[0]!.after_uncertainty).toBeLessThan(
+      result.changes[0]!.before_uncertainty,
+    );
     expect(result.explanation).toContain("more confident than before");
     expect(result.explanation).not.toContain("±");
   });
@@ -308,7 +328,9 @@ describe("updateConcepts — explanation", () => {
       expect(result.explanation).toContain(`c1 unchanged at ${roundedAfter}`);
     } else {
       const direction = roundedDelta > 0 ? "up" : "down";
-      expect(result.explanation).toContain(`c1 ${direction} ${Math.abs(roundedDelta)} to ${roundedAfter}`);
+      expect(result.explanation).toContain(
+        `c1 ${direction} ${Math.abs(roundedDelta)} to ${roundedAfter}`,
+      );
     }
   });
 });

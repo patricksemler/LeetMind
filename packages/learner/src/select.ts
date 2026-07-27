@@ -184,7 +184,7 @@ export function selectNext(
   candidates: CandidateProblem[],
   states: Record<string, ConceptState>,
   now: Date,
-  opts?: Partial<SelectionWeights>
+  opts?: Partial<SelectionWeights>,
 ): SelectNextResult {
   if (candidates.length === 0) {
     throw new Error("selectNext: candidates must be non-empty");

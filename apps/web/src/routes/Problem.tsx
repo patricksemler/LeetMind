@@ -242,8 +242,7 @@ export function Problem() {
    * submit but writes no learning event, which is the whole point: the reveal has already been
    * scored, and copying it out must not hand that back. */
   const primaryMode: SubmissionMode = mustTranscribe ? "transcribe" : "submit";
-  const submitPending =
-    submitMutation.isPending && submitMutation.variables?.mode === primaryMode;
+  const submitPending = submitMutation.isPending && submitMutation.variables?.mode === primaryMode;
   const runPending = submitMutation.isPending && submitMutation.variables?.mode === "run";
 
   // "In flight" spans creating the submission AND judging it. `submitMutation.isPending` only covers
@@ -265,7 +264,8 @@ export function Problem() {
   // end the new one's wait. `status` is only consulted for `cancelled`, which has no verdict to
   // arrive and would otherwise spin forever.
   const createdHere = !!createdSubmissionId && createdSubmissionId === activeSubmissionId;
-  const streamRunning = events.status !== null && events.status !== "completed" && events.status !== "cancelled";
+  const streamRunning =
+    events.status !== null && events.status !== "completed" && events.status !== "cancelled";
   const judging = !verdict && events.status !== "cancelled" && (createdHere || streamRunning);
   const submitBusy = submitPending || (activeMode === primaryMode && judging);
   const runBusy = runPending || (activeMode === "run" && judging);
@@ -281,7 +281,12 @@ export function Problem() {
   // the editor, the statement pane, or anywhere else on the page — see EditorPane's doc comment.
   useHotkeys(
     [
-      { key: "Enter", meta: true, allowInInputs: true, handler: () => triggerSubmit({ mode: primaryMode }) },
+      {
+        key: "Enter",
+        meta: true,
+        allowInInputs: true,
+        handler: () => triggerSubmit({ mode: primaryMode }),
+      },
       { key: "'", meta: true, allowInInputs: true, handler: () => triggerSubmit({ mode: "run" }) },
     ],
     [versionId, language, source, primaryMode],
@@ -396,7 +401,9 @@ export function Problem() {
                       Next problem
                     </Link>
                   ) : mustTranscribe ? (
-                    <span className="px-1 text-xs text-text-faint">Type the solution out to continue</span>
+                    <span className="px-1 text-xs text-text-faint">
+                      Type the solution out to continue
+                    </span>
                   ) : null
                 }
               />
@@ -422,7 +429,9 @@ export function Problem() {
                         statement's own section headings, which is what makes the two read as one
                         continuous document. */}
                     <section className="space-y-3">
-                      <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">Hints</h3>
+                      <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">
+                        Hints
+                      </h3>
                       <HintLadder versionId={versionId} disabled={revealed} />
                     </section>
                     {/* The rule between the hints and what follows them lives here rather than on
@@ -443,8 +452,13 @@ export function Problem() {
                     )}
                     {solution && (
                       <Panel className="space-y-3 p-4">
-                        <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">Solution</h3>
-                        <SolutionPane editorialMd={solution.editorial_md} solutions={solution.solutions} />
+                        <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">
+                          Solution
+                        </h3>
+                        <SolutionPane
+                          editorialMd={solution.editorial_md}
+                          solutions={solution.solutions}
+                        />
                       </Panel>
                     )}
                   </div>
@@ -475,14 +489,17 @@ export function Problem() {
               />
               {mustTranscribe && (
                 <div className="border-b border-accent-dim bg-accent-dim px-4 py-1.5 text-xs text-text">
-                  Read the solution below the statement, then type it out here — not paste it. Writing it
-                  is what makes it stick, and a similar problem comes next so you can use it.
+                  Read the solution below the statement, then type it out here — not paste it.
+                  Writing it is what makes it stick, and a similar problem comes next so you can use
+                  it.
                 </div>
               )}
               {submitMutation.isError && (
                 <div className="flex items-center justify-between gap-3 border-b border-verdict-error bg-verdict-error-dim px-4 py-1.5 text-xs text-text">
                   <span>
-                    {submitMutation.error instanceof Error ? submitMutation.error.message : "Couldn't submit — try again."}
+                    {submitMutation.error instanceof Error
+                      ? submitMutation.error.message
+                      : "Couldn't submit — try again."}
                   </span>
                   <button className="shrink-0 underline" onClick={() => submitMutation.reset()}>
                     Dismiss

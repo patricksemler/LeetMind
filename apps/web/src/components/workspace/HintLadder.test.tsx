@@ -29,7 +29,13 @@ function makeStatefulApi(initialTaken: HintLevel[] = []) {
   vi.mocked(api.getHints).mockImplementation(async () => ({
     taken: [...taken],
     available: LADDER.filter((l) => !taken.includes(l)),
-    penalties: { l1_orientation: 0.9, l2_conceptual: 0.75, l3_structural: 0.6, outline: 0.4, editorial: 0 },
+    penalties: {
+      l1_orientation: 0.9,
+      l2_conceptual: 0.75,
+      l3_structural: 0.6,
+      outline: 0.4,
+      editorial: 0,
+    },
     // The server hands back the text of rungs already paid for, so the ladder redraws from one read.
     texts: Object.fromEntries(taken.map((l) => [l, HINT_TEXT[l]])),
     editorial_md: null,
@@ -41,8 +47,19 @@ function makeStatefulApi(initialTaken: HintLevel[] = []) {
     if (!taken.includes(level)) taken.push(level);
     const idx = LADDER.indexOf(level);
     const next = idx >= 0 && idx + 1 < LADDER.length ? LADDER[idx + 1]! : "editorial";
-    const caps = { l1_orientation: 0.9, l2_conceptual: 0.75, l3_structural: 0.6, outline: 0.4, editorial: 0 };
-    return { level, text: HINT_TEXT[level], penalty_cap: caps[level], next_level_penalty: caps[next as HintLevel] };
+    const caps = {
+      l1_orientation: 0.9,
+      l2_conceptual: 0.75,
+      l3_structural: 0.6,
+      outline: 0.4,
+      editorial: 0,
+    };
+    return {
+      level,
+      text: HINT_TEXT[level],
+      penalty_cap: caps[level],
+      next_level_penalty: caps[next as HintLevel],
+    };
   });
 
   return { reset: () => (taken = []) };
@@ -89,7 +106,13 @@ describe("HintLadder", () => {
     vi.mocked(api.getHints).mockResolvedValue({
       taken: ["l1_orientation", "l2_conceptual"],
       available: ["l3_structural"],
-      penalties: { l1_orientation: 0.9, l2_conceptual: 0.75, l3_structural: 0.6, outline: 0.4, editorial: 0 },
+      penalties: {
+        l1_orientation: 0.9,
+        l2_conceptual: 0.75,
+        l3_structural: 0.6,
+        outline: 0.4,
+        editorial: 0,
+      },
       texts: {},
       editorial_md: null,
       solutions: null,
@@ -127,7 +150,9 @@ describe("HintLadder", () => {
       </Providers>,
     );
 
-    await waitFor(() => expect(screen.getAllByRole("button", { name: /^reveal$/i })).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: /^reveal$/i })).toHaveLength(1),
+    );
     expect(screen.queryByText(HINT_TEXT.l1_orientation)).not.toBeInTheDocument();
   });
 
@@ -158,7 +183,10 @@ describe("HintLadder", () => {
 
     await user.click(revealButton);
 
-    expect(api.takeHint).toHaveBeenCalledWith({ problem_version_id: "v1", level: "l1_orientation" });
+    expect(api.takeHint).toHaveBeenCalledWith({
+      problem_version_id: "v1",
+      level: "l1_orientation",
+    });
     expect(await screen.findByText(HINT_TEXT.l1_orientation)).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -177,7 +205,10 @@ describe("HintLadder", () => {
     // L2 is now the available rung — the only Reveal left belongs to it.
     await user.click(await screen.findByRole("button", { name: /^reveal$/i }));
 
-    expect(api.takeHint).toHaveBeenLastCalledWith({ problem_version_id: "v1", level: "l2_conceptual" });
+    expect(api.takeHint).toHaveBeenLastCalledWith({
+      problem_version_id: "v1",
+      level: "l2_conceptual",
+    });
     expect(await screen.findByText(HINT_TEXT.l2_conceptual)).toBeInTheDocument();
     // L1's text is still visible — taken hints stay visible
     expect(screen.getByText(HINT_TEXT.l1_orientation)).toBeInTheDocument();
@@ -227,7 +258,14 @@ describe("HintLadder", () => {
     expect(pendingButton).toBeDisabled();
     expect(screen.queryByRole("button", { name: /^reveal$/i })).not.toBeInTheDocument();
 
-    resolveTake({ level: "l1_orientation", text: HINT_TEXT.l1_orientation, penalty_cap: 0.9, next_level_penalty: 0.75 });
-    await waitFor(() => expect(screen.queryByRole("button", { name: /revealing…/i })).not.toBeInTheDocument());
+    resolveTake({
+      level: "l1_orientation",
+      text: HINT_TEXT.l1_orientation,
+      penalty_cap: 0.9,
+      next_level_penalty: 0.75,
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /revealing…/i })).not.toBeInTheDocument(),
+    );
   });
 });

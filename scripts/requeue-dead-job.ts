@@ -72,7 +72,10 @@ function printDeadJob(job: DeadJobInfo): void {
   console.log(`  payload: ${JSON.stringify(job.payload)}`);
 }
 
-function parseFlags(argv: string[]): { positional: string[]; flags: Record<string, string | boolean> } {
+function parseFlags(argv: string[]): {
+  positional: string[];
+  flags: Record<string, string | boolean>;
+} {
   const positional: string[] = [];
   const flags: Record<string, string | boolean> = {};
   for (const arg of argv) {
@@ -101,10 +104,16 @@ async function cmdList(queue: Queue, flags: Record<string, string | boolean>): P
   }
 }
 
-async function cmdRequeue(queue: Queue, positional: string[], flags: Record<string, string | boolean>): Promise<void> {
+async function cmdRequeue(
+  queue: Queue,
+  positional: string[],
+  flags: Record<string, string | boolean>,
+): Promise<void> {
   const jobId = positional[0];
   if (!jobId) {
-    throw new Error("requeue: missing <job-id>. Usage: requeue-dead-job.ts requeue <job-id> [--yes]");
+    throw new Error(
+      "requeue: missing <job-id>. Usage: requeue-dead-job.ts requeue <job-id> [--yes]",
+    );
   }
 
   const existing = await queue.getJob(jobId);
@@ -133,7 +142,9 @@ async function cmdRequeue(queue: Queue, positional: string[], flags: Record<stri
 
   const requeued = await queue.requeueDeadJob(jobId);
   if (!requeued) {
-    throw new Error(`requeue: job ${jobId} was no longer "dead" by the time we tried to requeue it.`);
+    throw new Error(
+      `requeue: job ${jobId} was no longer "dead" by the time we tried to requeue it.`,
+    );
   }
   console.log(`Requeued ${jobId}: status=${requeued.status} attempts=${requeued.attempts}`);
 }

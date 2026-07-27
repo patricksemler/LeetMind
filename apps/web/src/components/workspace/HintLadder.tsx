@@ -28,13 +28,22 @@ function labelFor(level: HintLevel): string {
   return i === -1 ? "Hint" : `Hint #${i + 1}`;
 }
 
-export function HintLadder({ versionId, disabled = false }: { versionId: string; disabled?: boolean }) {
+export function HintLadder({
+  versionId,
+  disabled = false,
+}: {
+  versionId: string;
+  disabled?: boolean;
+}) {
   const queryClient = useQueryClient();
   /** Rungs revealed in THIS session, tagged with the problem they belong to — see `takenSet` below
    * for why they're held at all. Tagged because the ladder is not remounted when the route moves to
    * another problem: untagged, hint text revealed on the previous problem stayed in state and was
    * drawn against the new one's rungs. */
-  const [revealed, setRevealed] = useState<{ versionId: string; texts: Partial<Record<HintLevel, string>> }>({
+  const [revealed, setRevealed] = useState<{
+    versionId: string;
+    texts: Partial<Record<HintLevel, string>>;
+  }>({
     versionId,
     texts: {},
   });
@@ -64,17 +73,24 @@ export function HintLadder({ versionId, disabled = false }: { versionId: string;
   // rung after mount, which meant every revisit rendered "Loading…" placeholders and filled them in
   // a round trip later.
   const revealedTexts = revealed.versionId === versionId ? revealed.texts : {};
-  const hintTexts: Partial<Record<HintLevel, string>> = { ...hintsQuery.data?.texts, ...revealedTexts };
+  const hintTexts: Partial<Record<HintLevel, string>> = {
+    ...hintsQuery.data?.texts,
+    ...revealedTexts,
+  };
 
   // Fallback for a rung the server reports as taken but sends no text for — an API older than the
   // `texts` field, or any gap in it. `POST /api/hints` is idempotent (the server records a level at
   // most once, so this never re-applies the penalty), and it's the only way to get that text back.
   // Without it the rung sits on "Loading…" forever, which is worse than the extra round trip it
   // costs: the point of `texts` is that this path is never normally taken.
-  const refetchedRef = useRef<{ versionId: string; levels: Set<HintLevel> }>({ versionId, levels: new Set() });
+  const refetchedRef = useRef<{ versionId: string; levels: Set<HintLevel> }>({
+    versionId,
+    levels: new Set(),
+  });
   useEffect(() => {
     if (!hintsQuery.data) return;
-    if (refetchedRef.current.versionId !== versionId) refetchedRef.current = { versionId, levels: new Set() };
+    if (refetchedRef.current.versionId !== versionId)
+      refetchedRef.current = { versionId, levels: new Set() };
     for (const level of taken) {
       if (hintTexts[level] || refetchedRef.current.levels.has(level)) continue;
       refetchedRef.current.levels.add(level);
@@ -116,7 +132,11 @@ export function HintLadder({ versionId, disabled = false }: { versionId: string;
           <div
             key={level}
             className={`flex gap-3 rounded-md border p-3 ${
-              isTaken ? "border-accent-dim bg-bg-inset" : isLocked ? "border-border opacity-50" : "border-border-strong"
+              isTaken
+                ? "border-accent-dim bg-bg-inset"
+                : isLocked
+                  ? "border-border opacity-50"
+                  : "border-border-strong"
             }`}
           >
             {/* Plate and title row share one height (`min-h-7`, the height of the reveal button) and
@@ -144,8 +164,12 @@ export function HintLadder({ versionId, disabled = false }: { versionId: string;
                   </Button>
                 )}
               </div>
-              {isTaken && hintTexts[level] && <Markdown className="mt-1 text-xs">{hintTexts[level]!}</Markdown>}
-              {isTaken && !hintTexts[level] && <p className="mt-1 text-xs text-text-faint">Loading…</p>}
+              {isTaken && hintTexts[level] && (
+                <Markdown className="mt-1 text-xs">{hintTexts[level]!}</Markdown>
+              )}
+              {isTaken && !hintTexts[level] && (
+                <p className="mt-1 text-xs text-text-faint">Loading…</p>
+              )}
             </div>
           </div>
         );

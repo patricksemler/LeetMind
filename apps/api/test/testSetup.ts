@@ -10,7 +10,12 @@
 // its own doc comment in @leetmind/db). If the guard throws, the whole test run fails loudly
 // here, before any test (and therefore before any destructive fixture) gets a chance to run.
 import { afterAll } from "vitest";
-import { dropTestSchema, ensureTestSchemaIsolation, testDatabaseUrl, testWorkerSchema } from "@leetmind/db";
+import {
+  dropTestSchema,
+  ensureTestSchemaIsolation,
+  testDatabaseUrl,
+  testWorkerSchema,
+} from "@leetmind/db";
 
 await ensureTestSchemaIsolation();
 

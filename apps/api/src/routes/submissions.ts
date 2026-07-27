@@ -10,7 +10,13 @@ import {
   withTransaction,
   type SubmissionRow,
 } from "@leetmind/db";
-import { badRequest, CreateSubmissionRequest, judgeJobKey, newId, notFound } from "@leetmind/shared";
+import {
+  badRequest,
+  CreateSubmissionRequest,
+  judgeJobKey,
+  newId,
+  notFound,
+} from "@leetmind/shared";
 import type { Deps } from "../deps.js";
 import { sha256Hex } from "../lib/hash.js";
 import {
@@ -108,7 +114,10 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
         submission_id: inserted.id,
         user_id: inserted.user_id,
         status: inserted.status,
-        at: inserted.created_at instanceof Date ? inserted.created_at.toISOString() : String(inserted.created_at),
+        at:
+          inserted.created_at instanceof Date
+            ? inserted.created_at.toISOString()
+            : String(inserted.created_at),
       });
 
       return inserted;
@@ -208,9 +217,10 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
     send("status", {
       submission_id: submission.id,
       status: submission.status,
-      at: (submission.completed_at ?? submission.created_at) instanceof Date
-        ? (submission.completed_at ?? submission.created_at).toISOString()
-        : String(submission.completed_at ?? submission.created_at),
+      at:
+        (submission.completed_at ?? submission.created_at) instanceof Date
+          ? (submission.completed_at ?? submission.created_at).toISOString()
+          : String(submission.completed_at ?? submission.created_at),
     });
 
     if (submission.status === "completed") {
@@ -250,12 +260,18 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
       getSubmission(submission.id)
         .then((fresh) =>
           verdictEventPayload(userId, fresh ?? submission, (err) => {
-            fastify.log.error({ err, submission_id: submission.id }, "failed to build reveal for live verdict event");
+            fastify.log.error(
+              { err, submission_id: submission.id },
+              "failed to build reveal for live verdict event",
+            );
           }),
         )
         .then((eventPayload) => send(type, eventPayload))
         .catch((err) => {
-          fastify.log.error({ err, submission_id: submission.id }, "failed to build live verdict event; sending unenriched");
+          fastify.log.error(
+            { err, submission_id: submission.id },
+            "failed to build live verdict event; sending unenriched",
+          );
           const rawFailure = (rest as { failure?: SubmissionRow["failure"] }).failure;
           send(type, {
             ...rest,
@@ -281,7 +297,10 @@ export function registerSubmissionRoutes(fastify: FastifyInstance, deps: Deps): 
         send(
           "verdict",
           await verdictEventPayload(userId, recheck, (err) => {
-            fastify.log.error({ err, submission_id: submission.id }, "failed to build reveal for TOCTOU-recheck verdict event");
+            fastify.log.error(
+              { err, submission_id: submission.id },
+              "failed to build reveal for TOCTOU-recheck verdict event",
+            );
           }),
         );
         const mastery = await loadMasteryEventForSubmission(submission.id);

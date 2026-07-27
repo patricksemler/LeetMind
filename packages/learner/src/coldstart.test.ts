@@ -42,7 +42,9 @@ describe("nextColdStartStep", () => {
     expect(up.target_rating).toBeGreaterThan(COLD_START_RATING);
     expect(down.target_rating).toBeLessThan(COLD_START_RATING);
     // Asymmetric on purpose: being handed something far too hard is the expensive error.
-    expect(COLD_START_RATING - down.target_rating).toBeGreaterThan(up.target_rating - COLD_START_RATING);
+    expect(COLD_START_RATING - down.target_rating).toBeGreaterThan(
+      up.target_rating - COLD_START_RATING,
+    );
   });
 
   it("treats a give-up the same as a skip for stepping", () => {

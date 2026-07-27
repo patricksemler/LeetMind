@@ -58,7 +58,13 @@ describe("buildDockerArgs", () => {
       image: "leetmind/runner-cpp:1",
       bundleDir: "/work-dir/other",
       argv: ["/work/prog"],
-      limits: { memoryMb: 512, cpus: 2, pidsLimit: 32, wallTimeoutMs: 5000, outputLimitBytes: 1024 },
+      limits: {
+        memoryMb: 512,
+        cpus: 2,
+        pidsLimit: 32,
+        wallTimeoutMs: 5000,
+        outputLimitBytes: 1024,
+      },
       name: "leetmind-sbx-xyz",
     });
 
@@ -75,7 +81,13 @@ describe("buildDockerArgs", () => {
       image: "leetmind/runner-python:1",
       bundleDir: "/tmp/x",
       argv: ["python3", "/bundle/runner.py"],
-      limits: { memoryMb: 256, cpus: 1, pidsLimit: 64, wallTimeoutMs: 10000, outputLimitBytes: 65536 },
+      limits: {
+        memoryMb: 256,
+        cpus: 1,
+        pidsLimit: 64,
+        wallTimeoutMs: 10000,
+        outputLimitBytes: 65536,
+      },
       name: "leetmind-sbx-1",
     });
     // every element is a discrete token; none contain embedded whitespace-joined flag pairs

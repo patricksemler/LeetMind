@@ -46,7 +46,9 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     }
   });
 
-  async function seed(opts: Parameters<typeof seedApprovedProblem>[0] = {}): Promise<SeededProblem> {
+  async function seed(
+    opts: Parameters<typeof seedApprovedProblem>[0] = {},
+  ): Promise<SeededProblem> {
     const problem = await seedApprovedProblem(opts);
     problemsToTeardown.push(problem);
     return problem;
@@ -194,7 +196,11 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     // in @leetmind/shared): a bare "some hidden test failed" left the user nothing to act on.
     const failing = reloaded.failure?.failing_test;
     expect(failing).toBeDefined();
-    expect(failing).toMatchObject({ origin: "hidden", args: [500000, 500000], expected: SECRET_EXPECTED });
+    expect(failing).toMatchObject({
+      origin: "hidden",
+      args: [500000, 500000],
+      expected: SECRET_EXPECTED,
+    });
 
     // ...and ONLY that case. The bound is what makes the disclosure acceptable: the rest of the
     // hidden suite must not ride along, so a single submission can never enumerate it.
@@ -475,15 +481,35 @@ describe.skipIf(!canRun)("handleJudgeJob (integration: live Postgres + Docker)",
     // transaction to wait and read the FIRST transaction's already-applied state, so both land.
     const problem = await seed();
     const [subA, subB] = await Promise.all([
-      insertTestSubmission({ versionId: problem.versionId, source: "def solve(a, b):\n    return a + b\n", mode: "submit" }),
-      insertTestSubmission({ versionId: problem.versionId, source: "def solve(a, b):\n    return a + b\n", mode: "submit" }),
+      insertTestSubmission({
+        versionId: problem.versionId,
+        source: "def solve(a, b):\n    return a + b\n",
+        mode: "submit",
+      }),
+      insertTestSubmission({
+        versionId: problem.versionId,
+        source: "def solve(a, b):\n    return a + b\n",
+        mode: "submit",
+      }),
     ]);
 
     const before = await snapshotConceptState();
 
     const [jobA, jobB] = await Promise.all([
-      makeLeasedJudgeJob(deps, { submission_id: subA.id, mode: "submit", language: "python", problem_version_id: problem.versionId, user_id: TEST_USER_ID }),
-      makeLeasedJudgeJob(deps, { submission_id: subB.id, mode: "submit", language: "python", problem_version_id: problem.versionId, user_id: TEST_USER_ID }),
+      makeLeasedJudgeJob(deps, {
+        submission_id: subA.id,
+        mode: "submit",
+        language: "python",
+        problem_version_id: problem.versionId,
+        user_id: TEST_USER_ID,
+      }),
+      makeLeasedJudgeJob(deps, {
+        submission_id: subB.id,
+        mode: "submit",
+        language: "python",
+        problem_version_id: problem.versionId,
+        user_id: TEST_USER_ID,
+      }),
     ]);
     await Promise.all([handler(jobA, makeCtx()), handler(jobB, makeCtx())]);
 

@@ -78,7 +78,9 @@ describe("useSubmissionEvents", () => {
     const createEventSource = makeCreateEventSource();
     const fetchSubmission = vi.fn();
 
-    const { result } = renderHook(() => useSubmissionEvents("sub_1", { createEventSource, fetchSubmission }));
+    const { result } = renderHook(() =>
+      useSubmissionEvents("sub_1", { createEventSource, fetchSubmission }),
+    );
 
     await waitForInstances(1);
     const es = lastES();
@@ -86,7 +88,13 @@ describe("useSubmissionEvents", () => {
     act(() => es.emit("open"));
     expect(result.current.connectionState).toBe("open");
 
-    act(() => es.emit("status", { submission_id: "sub_1", status: "running", at: "2026-07-22T00:00:00.000Z" }));
+    act(() =>
+      es.emit("status", {
+        submission_id: "sub_1",
+        status: "running",
+        at: "2026-07-22T00:00:00.000Z",
+      }),
+    );
     expect(result.current.status).toBe("running");
 
     act(() => es.emit("progress", { submission_id: "sub_1", passed: 2, total: 5 }));
@@ -116,7 +124,13 @@ describe("useSubmissionEvents", () => {
       es.emit("mastery", {
         submission_id: "sub_1",
         changes: [
-          { concept_id: "arrays_hashing", before_rating: 1200, after_rating: 1215, before_uncertainty: 300, after_uncertainty: 290 },
+          {
+            concept_id: "arrays_hashing",
+            before_rating: 1200,
+            after_rating: 1215,
+            before_uncertainty: 300,
+            after_uncertainty: 290,
+          },
         ],
         outcome: 1,
         explanation: "Solved cleanly.",
@@ -130,12 +144,23 @@ describe("useSubmissionEvents", () => {
   it("reconnects with exponential backoff after the stream drops", async () => {
     vi.useFakeTimers();
     const fetchSubmission = vi.fn().mockResolvedValue({
-      submission: { id: "sub_2", status: "running", passed_tests: 0, total_tests: 4, verdict: null },
+      submission: {
+        id: "sub_2",
+        status: "running",
+        passed_tests: 0,
+        total_tests: 4,
+        verdict: null,
+      },
     } as unknown as GetSubmissionResponse);
     const createEventSource = makeCreateEventSource();
 
     const { result } = renderHook(() =>
-      useSubmissionEvents("sub_2", { createEventSource, fetchSubmission, baseBackoffMs: 1000, maxBackoffMs: 8000 }),
+      useSubmissionEvents("sub_2", {
+        createEventSource,
+        fetchSubmission,
+        baseBackoffMs: 1000,
+        maxBackoffMs: 8000,
+      }),
     );
 
     await flushConnect();
@@ -182,7 +207,9 @@ describe("useSubmissionEvents", () => {
     } as unknown as GetSubmissionResponse);
     const createEventSource = makeCreateEventSource();
 
-    const { result } = renderHook(() => useSubmissionEvents("sub_3", { createEventSource, fetchSubmission }));
+    const { result } = renderHook(() =>
+      useSubmissionEvents("sub_3", { createEventSource, fetchSubmission }),
+    );
 
     await waitForInstances(1);
     // stream drops before any verdict event ever arrived
@@ -198,7 +225,11 @@ describe("useSubmissionEvents", () => {
     const createEventSource = makeCreateEventSource();
 
     const { result } = renderHook(() =>
-      useSubmissionEvents("sub_4", { createEventSource, fetchSubmission: vi.fn(), postVerdictGraceMs: 500 }),
+      useSubmissionEvents("sub_4", {
+        createEventSource,
+        fetchSubmission: vi.fn(),
+        postVerdictGraceMs: 500,
+      }),
     );
     await flushConnect();
     const es = lastES();

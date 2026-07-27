@@ -41,7 +41,11 @@ const COMPILE_ARGV = [
   "g++ -std=c++20 -O2 -pipe -static-libstdc++ /bundle/main.cpp -o /work/prog && base64 /work/prog",
 ];
 
-const RUN_ARGV = ["sh", "-c", "base64 -d /bundle/prog.b64 > /work/prog && chmod +x /work/prog && /work/prog /bundle"];
+const RUN_ARGV = [
+  "sh",
+  "-c",
+  "base64 -d /bundle/prog.b64 > /work/prog && chmod +x /work/prog && /work/prog /bundle",
+];
 
 // A `g++ -O2 -static-libstdc++` binary (even for a tiny solution) commonly runs 1-2MB; base64
 // inflates that ~4/3. The default SANDBOX_OUTPUT_LIMIT_BYTES (64KB, CONTRACTS §2) is nowhere near
@@ -84,7 +88,10 @@ export function defaultCompileLimits(executionLimits: SandboxLimits): SandboxLim
  * signal-killed process reports through Docker/Node's child_process — a reasonable, if imperfect,
  * signal that this was a crash rather than a harness bug.
  */
-export function classifyCppOpaqueFailure(sandboxResult: SandboxResult): { verdict: Verdict; message: string } {
+export function classifyCppOpaqueFailure(sandboxResult: SandboxResult): {
+  verdict: Verdict;
+  message: string;
+} {
   const code = sandboxResult.exitCode;
   const looksLikeNativeCrash = code !== null && code >= 129 && code <= 255;
   return {
@@ -159,7 +166,8 @@ export async function executeCpp(opts: ExecuteCppOptions): Promise<ExecutionResu
   }
 
   const perTestTimeoutMs =
-    opts.perTestTimeoutMs ?? Math.max(1000, Math.floor(limits.wallTimeoutMs / Math.max(tests.length, 1)));
+    opts.perTestTimeoutMs ??
+    Math.max(1000, Math.floor(limits.wallTimeoutMs / Math.max(tests.length, 1)));
   const compileLimits = opts.compileLimits ?? defaultCompileLimits(limits);
 
   const bundleFiles = buildCppBundle({
@@ -179,7 +187,8 @@ export async function executeCpp(opts: ExecuteCppOptions): Promise<ExecutionResu
     correlationId,
   });
 
-  const compileOk = !compileResult.timedOut && !compileResult.oomKilled && compileResult.exitCode === 0;
+  const compileOk =
+    !compileResult.timedOut && !compileResult.oomKilled && compileResult.exitCode === 0;
 
   if (!compileOk) {
     const verdict: Verdict = compileResult.timedOut
@@ -207,7 +216,11 @@ export async function executeCpp(opts: ExecuteCppOptions): Promise<ExecutionResu
         // path-scrubbed before ever leaving this package, per CONTRACTS §7.
         stderr_tail: tail(scrubPaths(compileResult.stderr)),
       },
-      compile: { ok: false, durationMs: compileResult.durationMs, imageDigest: compileResult.imageDigest },
+      compile: {
+        ok: false,
+        durationMs: compileResult.durationMs,
+        imageDigest: compileResult.imageDigest,
+      },
       raw: { sandbox: compileResult, harness: null },
     };
   }
@@ -242,6 +255,10 @@ export async function executeCpp(opts: ExecuteCppOptions): Promise<ExecutionResu
 
   return {
     ...executionResult,
-    compile: { ok: true, durationMs: compileResult.durationMs, imageDigest: compileResult.imageDigest },
+    compile: {
+      ok: true,
+      durationMs: compileResult.durationMs,
+      imageDigest: compileResult.imageDigest,
+    },
   };
 }

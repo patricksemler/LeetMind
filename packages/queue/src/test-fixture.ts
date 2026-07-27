@@ -1,12 +1,12 @@
 // Local test-only fixture: DDL for `jobs` + `worker_heartbeats` mirroring
 // docs/CONTRACTS.md §3, kept independent of packages/db's migrations (owned
 // by another agent) per task instructions.
-import { Pool } from 'pg';
-import { assertTestDatabase } from '@leetmind/db';
+import { Pool } from "pg";
+import { assertTestDatabase } from "@leetmind/db";
 
 export const TEST_DATABASE_URL =
   process.env.QUEUE_TEST_DATABASE_URL ??
-  'postgres://leetmind:leetmind@localhost:55433/leetmind_queue_test';
+  "postgres://leetmind:leetmind@localhost:55433/leetmind_queue_test";
 
 // docs/CONTRACTS.md §13 rule 4: this suite already spins up its own throwaway container and
 // never touches DATABASE_URL, so it's safe by construction — but the guard still applies (an
@@ -54,7 +54,7 @@ export async function tryConnect(): Promise<Pool | null> {
     max: 10,
   });
   try {
-    await pool.query('select 1');
+    await pool.query("select 1");
     return pool;
   } catch {
     await pool.end().catch(() => {});
@@ -67,7 +67,7 @@ export async function setupSchema(pool: Pool): Promise<void> {
 }
 
 export async function truncateAll(pool: Pool): Promise<void> {
-  await pool.query('truncate table jobs, worker_heartbeats;');
+  await pool.query("truncate table jobs, worker_heartbeats;");
 }
 
 /** Raw insert bypassing Queue.enqueue(), for tests that need full control

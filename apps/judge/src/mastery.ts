@@ -22,8 +22,20 @@ import {
   type SubmissionRow,
   type UserConceptStateRow,
 } from "@leetmind/db";
-import { learningEventKey, newId, type HintLevel, type ProblemVersion, type Verdict } from "@leetmind/shared";
-import { isMastered, outcomeScore, scheduleReview, updateConcepts, type ConceptChange } from "@leetmind/learner";
+import {
+  learningEventKey,
+  newId,
+  type HintLevel,
+  type ProblemVersion,
+  type Verdict,
+} from "@leetmind/shared";
+import {
+  isMastered,
+  outcomeScore,
+  scheduleReview,
+  updateConcepts,
+  type ConceptChange,
+} from "@leetmind/learner";
 
 const HINT_LEVEL_ORDER: readonly HintLevel[] = [
   "l1_orientation",
@@ -138,12 +150,19 @@ function computeCounterUpdates(
   activeMs: number,
 ): Pick<
   UserConceptStateRow,
-  "attempts" | "solves" | "unassisted_solves" | "current_streak" | "best_streak" | "hint_counts" | "total_active_ms"
+  | "attempts"
+  | "solves"
+  | "unassisted_solves"
+  | "current_streak"
+  | "best_streak"
+  | "hint_counts"
+  | "total_active_ms"
 > {
   const solved = verdict === "accepted";
   const attempts = old.attempts + 1;
   const solves = old.solves + (solved ? 1 : 0);
-  const unassisted_solves = solved && !highestHint ? old.unassisted_solves + 1 : old.unassisted_solves;
+  const unassisted_solves =
+    solved && !highestHint ? old.unassisted_solves + 1 : old.unassisted_solves;
   const current_streak = solved ? old.current_streak + 1 : 0;
   const best_streak = Math.max(old.best_streak, current_streak);
   const hint_counts = { ...old.hint_counts };
@@ -156,7 +175,15 @@ function computeCounterUpdates(
   // turns this `+` back into string concatenation — which is exactly the bug that previously
   // corrupted this column and dead-lettered judge jobs.
   const total_active_ms = Number(old.total_active_ms) + activeMs;
-  return { attempts, solves, unassisted_solves, current_streak, best_streak, hint_counts, total_active_ms };
+  return {
+    attempts,
+    solves,
+    unassisted_solves,
+    current_streak,
+    best_streak,
+    hint_counts,
+    total_active_ms,
+  };
 }
 
 function bumpCompilationErrorCount(old: UserConceptStateRow): Record<string, number> {
@@ -176,7 +203,10 @@ async function countPriorSubmissions(
   excludeSubmissionId: string,
   kind: "substantive" | "compilation_error",
 ): Promise<number> {
-  const verdictFilter = kind === "compilation_error" ? "verdict = 'compilation_error'" : "verdict is not null and verdict <> 'compilation_error'";
+  const verdictFilter =
+    kind === "compilation_error"
+      ? "verdict = 'compilation_error'"
+      : "verdict is not null and verdict <> 'compilation_error'";
   const rows = await queryWith<{ count: string }>(
     client,
     `select count(*)::text as count from submissions
@@ -219,8 +249,20 @@ export async function applyMastery(input: ApplyMasteryInput): Promise<ApplyMaste
   const hintEvents = await listHintEvents(userId, versionId, client);
   const highestHint = highestHintTaken(hintEvents.map((h) => h.level));
 
-  const priorSubstantive = await countPriorSubmissions(client, userId, versionId, submission.id, "substantive");
-  const priorCompileErrors = await countPriorSubmissions(client, userId, versionId, submission.id, "compilation_error");
+  const priorSubstantive = await countPriorSubmissions(
+    client,
+    userId,
+    versionId,
+    submission.id,
+    "substantive",
+  );
+  const priorCompileErrors = await countPriorSubmissions(
+    client,
+    userId,
+    versionId,
+    submission.id,
+    "compilation_error",
+  );
   const isSubstantive = verdict !== "compilation_error";
   const substantiveSubmissions = priorSubstantive + (isSubstantive ? 1 : 0);
   const compileErrors = priorCompileErrors + (verdict === "compilation_error" ? 1 : 0);
@@ -244,7 +286,8 @@ export async function applyMastery(input: ApplyMasteryInput): Promise<ApplyMaste
   const lockOrder = [...conceptIds].sort();
   const stateByConceptId: Record<string, UserConceptStateRow> = {};
   for (const id of lockOrder) {
-    stateByConceptId[id] = (await getConceptStateForUpdate(client, userId, id)) ?? defaultConceptStateRow(userId, id);
+    stateByConceptId[id] =
+      (await getConceptStateForUpdate(client, userId, id)) ?? defaultConceptStateRow(userId, id);
   }
   const stateMap: Record<string, UserConceptStateRow> = {};
   conceptIds.forEach((id) => {
@@ -280,7 +323,8 @@ export async function applyMastery(input: ApplyMasteryInput): Promise<ApplyMaste
     const counters = computeCounterUpdates(old, verdict, highestHint, activeMs);
     const isPrimary = change.concept_id === primaryConceptId;
     const review = isPrimary ? scheduleReview(old, outcome.outcome, now) : null;
-    const errorCounts = verdict === "compilation_error" ? bumpCompilationErrorCount(old) : old.error_counts;
+    const errorCounts =
+      verdict === "compilation_error" ? bumpCompilationErrorCount(old) : old.error_counts;
 
     newStates[change.concept_id] = {
       ...old,
@@ -352,5 +396,10 @@ export async function applyMastery(input: ApplyMasteryInput): Promise<ApplyMaste
     explanation: update.explanation,
   });
 
-  return { applied: true, changes: update.changes, outcome: outcome.outcome, explanation: update.explanation };
+  return {
+    applied: true,
+    changes: update.changes,
+    outcome: outcome.outcome,
+    explanation: update.explanation,
+  };
 }

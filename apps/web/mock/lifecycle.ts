@@ -27,7 +27,11 @@ function setStatus(submissionId: string, status: SubmissionStatus): void {
   const sub = submissions.get(submissionId);
   if (!sub) return;
   sub.row.status = status;
-  publish(submissionId, "status", { submission_id: submissionId, status, at: new Date().toISOString() });
+  publish(submissionId, "status", {
+    submission_id: submissionId,
+    status,
+    at: new Date().toISOString(),
+  });
 }
 
 export async function runLifecycle(submissionId: string): Promise<void> {
@@ -65,7 +69,11 @@ export async function runLifecycle(submissionId: string): Promise<void> {
     const passedSoFar = Math.min(grade.passedTests, Math.round((i / steps) * total));
     publish(submissionId, "progress", { submission_id: submissionId, passed: passedSoFar, total });
   }
-  publish(submissionId, "progress", { submission_id: submissionId, passed: grade.passedTests, total });
+  publish(submissionId, "progress", {
+    submission_id: submissionId,
+    passed: grade.passedTests,
+    total,
+  });
 
   await sleep(200);
 
@@ -116,7 +124,8 @@ export async function runLifecycle(submissionId: string): Promise<void> {
 
   const userState = getProblemUserState(sub.problemVersionId);
   const substantive = bumpSubmissionCount(sub.problemVersionId);
-  const highestHint = userState.hintsTaken.length > 0 ? userState.hintsTaken[userState.hintsTaken.length - 1]! : null;
+  const highestHint =
+    userState.hintsTaken.length > 0 ? userState.hintsTaken[userState.hintsTaken.length - 1]! : null;
 
   const { outcome, evidenceWeight } = outcomeScore({
     verdict: grade.verdict,

@@ -57,7 +57,8 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
       const active = document.activeElement;
       const currentIndex = active instanceof Node ? focusable.indexOf(active as HTMLElement) : -1;
       const delta = e.shiftKey ? -1 : 1;
-      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + delta + focusable.length) % focusable.length;
+      const nextIndex =
+        currentIndex === -1 ? 0 : (currentIndex + delta + focusable.length) % focusable.length;
       e.preventDefault();
       focusable[nextIndex]!.focus();
     }
@@ -97,7 +98,9 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
           </button>
         </div>
         <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-border px-5 py-3">{footer}</div>}
+        {footer && (
+          <div className="flex justify-end gap-2 border-t border-border px-5 py-3">{footer}</div>
+        )}
       </div>
     </div>
   );

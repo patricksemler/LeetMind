@@ -121,7 +121,11 @@ export async function coldStartHistory(userId: string): Promise<ColdStartHistory
     // matches a real concept id, which is exactly the behaviour wanted.
     concept_id: r.concept_id ?? "",
     outcome:
-      r.kind === "submission" && r.outcome > 0.2 ? "solved" : r.kind === "skip" ? "skipped" : "failed",
+      r.kind === "submission" && r.outcome > 0.2
+        ? "solved"
+        : r.kind === "skip"
+          ? "skipped"
+          : "failed",
   }));
 }
 

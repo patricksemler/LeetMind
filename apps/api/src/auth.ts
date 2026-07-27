@@ -18,7 +18,13 @@
  * `createTokenVerifier`.
  */
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { createRemoteJWKSet, decodeProtectedHeader, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from "jose";
+import {
+  createRemoteJWKSet,
+  decodeProtectedHeader,
+  jwtVerify,
+  type JWTPayload,
+  type JWTVerifyGetKey,
+} from "jose";
 import { provisionUserForAuth } from "@leetmind/db";
 import { AppError, type ApiConfig } from "@leetmind/shared";
 import type { Deps } from "./deps.js";
@@ -102,15 +108,23 @@ export interface VerifiedIdentity {
  * secret is actually configured, and the secret is never used to verify a token that claims an
  * asymmetric algorithm (or vice versa).
  */
-export function createTokenVerifier(config: ApiConfig): (token: string) => Promise<VerifiedIdentity> {
+export function createTokenVerifier(
+  config: ApiConfig,
+): (token: string) => Promise<VerifiedIdentity> {
   if (!config.supabaseUrl) {
     return async () => {
-      throw new AppError("internal_error", "Token verification requested with no SUPABASE_URL configured", 500);
+      throw new AppError(
+        "internal_error",
+        "Token verification requested with no SUPABASE_URL configured",
+        500,
+      );
     };
   }
 
   const issuer = `${config.supabaseUrl.replace(/\/$/, "")}/auth/v1`;
-  const secret = config.supabaseJwtSecret ? new TextEncoder().encode(config.supabaseJwtSecret) : null;
+  const secret = config.supabaseJwtSecret
+    ? new TextEncoder().encode(config.supabaseJwtSecret)
+    : null;
   // Lazily constructed: a project that only ever issues HS256 tokens should never be made to
   // fetch a JWKS document it doesn't use.
   let jwks: JWTVerifyGetKey | null = null;

@@ -111,7 +111,11 @@ describe.skipIf(!dockerUp)("sandbox docker integration", () => {
     const result = await runSandboxed({
       image: IMAGE,
       files: {},
-      argv: ["python3", "-c", "b = bytearray(500 * 1024 * 1024)\nb[0] = 1\nprint('should not get here')"],
+      argv: [
+        "python3",
+        "-c",
+        "b = bytearray(500 * 1024 * 1024)\nb[0] = 1\nprint('should not get here')",
+      ],
       limits: { ...baseLimits, memoryMb: 64, wallTimeoutMs: 8000 },
     });
 

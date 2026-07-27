@@ -8,7 +8,11 @@ export async function getUser(id: string): Promise<UserRow | null> {
 }
 
 /** Inserts the user if absent (idempotent), then returns the row. Used to seed the single local user. */
-export async function ensureUser(id: string, handle: string, client?: PoolClient): Promise<UserRow> {
+export async function ensureUser(
+  id: string,
+  handle: string,
+  client?: PoolClient,
+): Promise<UserRow> {
   const sql = `
     insert into users (id, handle)
     values ($1, $2)
@@ -77,19 +81,28 @@ export async function provisionUserForAuth(
   identity: AuthIdentity,
   opts: ProvisionOptions = {},
 ): Promise<UserRow> {
-  const existing = await queryOne<UserRow>("select * from users where auth_user_id = $1", [identity.authUserId]);
+  const existing = await queryOne<UserRow>("select * from users where auth_user_id = $1", [
+    identity.authUserId,
+  ]);
   if (existing) return existing;
 
   return withTransaction(async (client) => {
     // Re-check inside the transaction: another request may have provisioned between the read
     // above and this point.
-    const raced = await queryOneWith<UserRow>(client, "select * from users where auth_user_id = $1", [
-      identity.authUserId,
-    ]);
+    const raced = await queryOneWith<UserRow>(
+      client,
+      "select * from users where auth_user_id = $1",
+      [identity.authUserId],
+    );
     if (raced) return raced;
 
     const claimEmail = opts.legacyClaimEmail?.trim().toLowerCase();
-    if (opts.legacyUserId && claimEmail && identity.email && identity.email.toLowerCase() === claimEmail) {
+    if (
+      opts.legacyUserId &&
+      claimEmail &&
+      identity.email &&
+      identity.email.toLowerCase() === claimEmail
+    ) {
       const claimed = await queryOneWith<UserRow>(
         client,
         `update users
@@ -119,9 +132,11 @@ export async function provisionUserForAuth(
       // `on conflict do nothing` covers BOTH the handle collision (retry with the next candidate)
       // and the auth_user_id collision (another request won the race) — distinguish them by
       // looking for the subject.
-      const bySubject = await queryOneWith<UserRow>(client, "select * from users where auth_user_id = $1", [
-        identity.authUserId,
-      ]);
+      const bySubject = await queryOneWith<UserRow>(
+        client,
+        "select * from users where auth_user_id = $1",
+        [identity.authUserId],
+      );
       if (bySubject) return bySubject;
     }
 

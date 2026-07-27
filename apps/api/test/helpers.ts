@@ -32,7 +32,10 @@ assertTestDatabase(TEST_DATABASE_URL);
 
 export async function isDatabaseReachable(): Promise<boolean> {
   const config = loadBaseConfig();
-  const client = new Client({ connectionString: config.databaseUrl, connectionTimeoutMillis: 1500 });
+  const client = new Client({
+    connectionString: config.databaseUrl,
+    connectionTimeoutMillis: 1500,
+  });
   try {
     await client.connect();
     await client.end();
@@ -101,7 +104,10 @@ export interface SeedProblemOpts {
 /** Inserts a `problems` + `problem_versions` (+ `problem_concepts`) row with realistic content,
  * every server-only field carrying a unique sentinel. Returns everything a test needs to both
  * exercise the API and assert on cleanup. */
-export async function seedApprovedProblem(pool: Pool, opts: SeedProblemOpts = {}): Promise<SeededProblem> {
+export async function seedApprovedProblem(
+  pool: Pool,
+  opts: SeedProblemOpts = {},
+): Promise<SeededProblem> {
   const sentinels = freshSentinels();
   const problemId = newId();
   const problemVersionId = newId();
@@ -113,7 +119,8 @@ export async function seedApprovedProblem(pool: Pool, opts: SeedProblemOpts = {}
     version: 1,
     title: opts.title ?? "Two Sum Variant",
     internal_name: `test-problem-${problemVersionId}`,
-    statement_md: "Given an array of integers `nums` and a target, return indices of two numbers that add to target.",
+    statement_md:
+      "Given an array of integers `nums` and a target, return indices of two numbers that add to target.",
     constraints_md: "2 <= nums.length <= 1000\n-1000 <= nums[i] <= 1000",
     signature: {
       name: "twoSum",
@@ -123,7 +130,9 @@ export async function seedApprovedProblem(pool: Pool, opts: SeedProblemOpts = {}
       ],
       returns: "list[int]",
     },
-    examples: [{ args: [[2, 7, 11, 15], 9], expected: [0, 1], explanation: "nums[0] + nums[1] == 9" }],
+    examples: [
+      { args: [[2, 7, 11, 15], 9], expected: [0, 1], explanation: "nums[0] + nums[1] == 9" },
+    ],
     concepts: [{ id: conceptId, role: "primary", weight: opts.conceptWeight ?? 1 }],
     difficulty: { rating: difficultyRating, confidence: "generated" },
     expected_active_minutes: [5, 15],
@@ -139,17 +148,27 @@ export async function seedApprovedProblem(pool: Pool, opts: SeedProblemOpts = {}
     ],
     mutants_py: [`# ${sentinels.mutant}\ndef twoSum(nums, target):\n    return []\n`],
     hints: {
-      l1_orientation: "Think about what information you need to remember as you scan the array once.",
-      l2_conceptual: "A lookup structure can tell you in O(1) whether the complement you need has already appeared.",
+      l1_orientation:
+        "Think about what information you need to remember as you scan the array once.",
+      l2_conceptual:
+        "A lookup structure can tell you in O(1) whether the complement you need has already appeared.",
       l3_structural: `${sentinels.l3Text}: use a hash map from value to index, checking target-minus-current before inserting.`,
       outline: `${sentinels.outlineText}: 1) init empty map, 2) for each index/value, check complement in map, 3) else insert value->index.`,
       editorial_md: `${sentinels.editorialText}\n\nFull walkthrough of the one-pass hash map solution.`,
     },
-    provenance: { mode: "novel", model: "test-fixture", prompt_version: "v1", generated_at: new Date().toISOString() },
+    provenance: {
+      mode: "novel",
+      model: "test-fixture",
+      prompt_version: "v1",
+      generated_at: new Date().toISOString(),
+    },
     state: opts.state ?? "approved",
   };
 
-  await pool.query("insert into problems (id, internal_name) values ($1, $2)", [problemId, content.internal_name]);
+  await pool.query("insert into problems (id, internal_name) values ($1, $2)", [
+    problemId,
+    content.internal_name,
+  ]);
   await pool.query(
     `insert into problem_versions (
        id, problem_id, version, state, content, title, difficulty_rating,
@@ -202,12 +221,17 @@ export async function cleanup(pool: Pool, scope: CleanupScope): Promise<void> {
     // Submissions may reference a baseline_item without `on delete cascade` — null the FK first so
     // the cascade delete below never trips it (none of this suite's tests create such a
     // submission, but this keeps the helper correct if a future one does).
-    await pool.query("update submissions set baseline_item_id = null where baseline_item_id in (select id from baseline_items where baseline_session_id = any($1))", [baselineSessionIds]);
+    await pool.query(
+      "update submissions set baseline_item_id = null where baseline_item_id in (select id from baseline_items where baseline_session_id = any($1))",
+      [baselineSessionIds],
+    );
     await pool.query("delete from baseline_sessions where id = any($1)", [baselineSessionIds]);
   }
 
   if (submissionIds.length > 0) {
-    await pool.query("delete from execution_attempts where submission_id = any($1)", [submissionIds]);
+    await pool.query("delete from execution_attempts where submission_id = any($1)", [
+      submissionIds,
+    ]);
     await pool.query("delete from learning_events where submission_id = any($1)", [submissionIds]);
     await pool.query(
       "delete from jobs where kind = 'judge' and payload->>'submission_id' = any($1::text[])",
@@ -217,16 +241,26 @@ export async function cleanup(pool: Pool, scope: CleanupScope): Promise<void> {
   }
 
   if (problemVersionIds.length > 0) {
-    await pool.query("delete from hint_events where problem_version_id = any($1)", [problemVersionIds]);
-    await pool.query("delete from learning_events where problem_version_id = any($1)", [problemVersionIds]);
-    await pool.query("delete from submissions where problem_version_id = any($1)", [problemVersionIds]);
-    await pool.query("delete from verification_reports where problem_version_id = any($1)", [problemVersionIds]);
+    await pool.query("delete from hint_events where problem_version_id = any($1)", [
+      problemVersionIds,
+    ]);
+    await pool.query("delete from learning_events where problem_version_id = any($1)", [
+      problemVersionIds,
+    ]);
+    await pool.query("delete from submissions where problem_version_id = any($1)", [
+      problemVersionIds,
+    ]);
+    await pool.query("delete from verification_reports where problem_version_id = any($1)", [
+      problemVersionIds,
+    ]);
     // Both FKs — a follow-up references the problem it was born from AND the one it was served as.
     await pool.query(
       "delete from scheduled_followups where origin_problem_version_id = any($1) or served_problem_version_id = any($1)",
       [problemVersionIds],
     );
-    await pool.query("delete from problem_concepts where problem_version_id = any($1)", [problemVersionIds]);
+    await pool.query("delete from problem_concepts where problem_version_id = any($1)", [
+      problemVersionIds,
+    ]);
     await pool.query("delete from problem_versions where id = any($1)", [problemVersionIds]);
   }
 

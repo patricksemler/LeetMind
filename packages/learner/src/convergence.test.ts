@@ -62,10 +62,9 @@ describe("convergence: Glicko-lite estimate tracks a true latent skill", () => {
       state = { ...state, rating: change.after_rating, uncertainty: change.after_uncertainty };
     }
 
-     
     console.log(
       `[convergence] final rating=${state.rating.toFixed(1)} uncertainty=${state.uncertainty.toFixed(1)} ` +
-        `(true skill=${TRUE_SKILL})`
+        `(true skill=${TRUE_SKILL})`,
     );
 
     expect(Math.abs(state.rating - TRUE_SKILL)).toBeLessThanOrEqual(120);

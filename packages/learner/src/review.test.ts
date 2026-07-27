@@ -26,13 +26,23 @@ describe("scheduleReview — SM-2 sequence", () => {
     expect(r1.review_reps).toBe(1);
     expect(r1.review_ease).toBeCloseTo(2.6, 10);
 
-    state = { ...state, review_interval_days: r1.review_interval_days, review_ease: r1.review_ease, review_reps: r1.review_reps };
+    state = {
+      ...state,
+      review_interval_days: r1.review_interval_days,
+      review_ease: r1.review_ease,
+      review_reps: r1.review_reps,
+    };
     const r2 = scheduleReview(state, 1, NOW);
     expect(r2.review_interval_days).toBe(4);
     expect(r2.review_reps).toBe(2);
     expect(r2.review_ease).toBeCloseTo(2.7, 10);
 
-    state = { ...state, review_interval_days: r2.review_interval_days, review_ease: r2.review_ease, review_reps: r2.review_reps };
+    state = {
+      ...state,
+      review_interval_days: r2.review_interval_days,
+      review_ease: r2.review_ease,
+      review_reps: r2.review_reps,
+    };
     const r3 = scheduleReview(state, 1, NOW);
     expect(r3.review_reps).toBe(3);
     expect(r3.review_ease).toBeCloseTo(2.8, 10); // hits the ceiling
@@ -61,7 +71,12 @@ describe("scheduleReview — SM-2 sequence", () => {
       const result = scheduleReview(state, 0, NOW);
       expect(result.review_ease).toBeGreaterThanOrEqual(1.3);
       expect(result.review_ease).toBeLessThanOrEqual(2.8);
-      state = { ...state, review_ease: result.review_ease, review_interval_days: result.review_interval_days, review_reps: result.review_reps };
+      state = {
+        ...state,
+        review_ease: result.review_ease,
+        review_interval_days: result.review_interval_days,
+        review_reps: result.review_reps,
+      };
     }
     expect(state.review_ease).toBeCloseTo(1.3, 10);
   });
@@ -71,7 +86,12 @@ describe("scheduleReview — SM-2 sequence", () => {
     for (let i = 0; i < 20; i++) {
       const result = scheduleReview(state, 1, NOW);
       expect(result.review_ease).toBeLessThanOrEqual(2.8);
-      state = { ...state, review_ease: result.review_ease, review_interval_days: result.review_interval_days, review_reps: result.review_reps };
+      state = {
+        ...state,
+        review_ease: result.review_ease,
+        review_interval_days: result.review_interval_days,
+        review_reps: result.review_reps,
+      };
     }
     expect(state.review_ease).toBeCloseTo(2.8, 10);
   });
@@ -79,14 +99,20 @@ describe("scheduleReview — SM-2 sequence", () => {
 
 describe("decayUncertainty", () => {
   it("grows with idle days", () => {
-    const state = makeState({ uncertainty: 100, last_practiced_at: new Date(NOW.getTime() - 10 * DAY_MS) });
+    const state = makeState({
+      uncertainty: 100,
+      last_practiced_at: new Date(NOW.getTime() - 10 * DAY_MS),
+    });
     const result = decayUncertainty(state, NOW);
     expect(result.uncertainty).toBeGreaterThan(100);
     expect(result.uncertainty).toBeCloseTo(Math.sqrt(100 ** 2 + (10 * 3) ** 2), 6);
   });
 
   it("saturates at 350 for a long idle period", () => {
-    const state = makeState({ uncertainty: 100, last_practiced_at: new Date(NOW.getTime() - 365 * DAY_MS) });
+    const state = makeState({
+      uncertainty: 100,
+      last_practiced_at: new Date(NOW.getTime() - 365 * DAY_MS),
+    });
     const result = decayUncertainty(state, NOW);
     expect(result.uncertainty).toBe(350);
   });
@@ -98,7 +124,11 @@ describe("decayUncertainty", () => {
   });
 
   it("does not change other state fields", () => {
-    const state = makeState({ uncertainty: 100, rating: 1234, last_practiced_at: new Date(NOW.getTime() - 5 * DAY_MS) });
+    const state = makeState({
+      uncertainty: 100,
+      rating: 1234,
+      last_practiced_at: new Date(NOW.getTime() - 5 * DAY_MS),
+    });
     const result = decayUncertainty(state, NOW);
     expect(result.rating).toBe(1234);
     expect(result.concept_id).toBe("c1");

@@ -38,7 +38,7 @@ export function expectedSuccess(userRating: number, problemRating: number): numb
  */
 export function blendedRating(
   states: Record<string, { rating: number; uncertainty: number }>,
-  weights: ConceptWeight[]
+  weights: ConceptWeight[],
 ): { rating: number; uncertainty: number } {
   if (weights.length === 0) {
     throw new Error("blendedRating: weights must be non-empty");

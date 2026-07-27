@@ -31,7 +31,8 @@ export function registerMiscRoutes(app: Express): void {
     "/api/generate-now",
     handle((req, res) => {
       const parsed = GenerateNowRequest.safeParse(req.body);
-      if (!parsed.success) return badRequest(res, "invalid generate-now request", parsed.error.flatten());
+      if (!parsed.success)
+        return badRequest(res, "invalid generate-now request", parsed.error.flatten());
       res.json({ job_id: newId() });
     }),
   );

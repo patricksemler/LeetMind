@@ -14,16 +14,16 @@ where the two versions agree, and one place they materially disagree.
 
 ## 1. Environment (exactly as measured, all 3 runs — same machine, same day)
 
-| | |
-|---|---|
-| OS | darwin 27.0.0 (arm64) |
-| CPU | Apple M4 — 10 logical cores |
-| Memory | 24 GB |
-| Node.js | v26.5.0 |
-| Docker | Docker version 29.5.2, build 79eb04c |
-| Docker Compose | Docker Compose version v5.1.3 |
-| Database | dedicated `leetmind_test` database (docs/CONTRACTS.md §13), NOT the dev database |
-| Date | 2026-07-23 |
+|                |                                                                                  |
+| -------------- | -------------------------------------------------------------------------------- |
+| OS             | darwin 27.0.0 (arm64)                                                            |
+| CPU            | Apple M4 — 10 logical cores                                                      |
+| Memory         | 24 GB                                                                            |
+| Node.js        | v26.5.0                                                                          |
+| Docker         | Docker version 29.5.2, build 79eb04c                                             |
+| Docker Compose | Docker Compose version v5.1.3                                                    |
+| Database       | dedicated `leetmind_test` database (docs/CONTRACTS.md §13), NOT the dev database |
+| Date           | 2026-07-23                                                                       |
 
 Single machine, single process per service, Docker Desktop on macOS — see §8 before generalizing.
 
@@ -43,18 +43,18 @@ Defined in `scripts/loadtest/config.ts` (`DEFAULT_PROFILE`) — this is the **cu
 default**, run with no environment overrides beyond `LOADTEST_API_PORT=8098` (to avoid colliding
 with the concurrent agent's port 8099/18080).
 
-| Field | Value |
-|---|---|
-| Concurrent sessions (virtual users) | 6 |
-| Submissions per session | 20 |
-| **Total submissions** | 120 |
-| Think-time between a session's submissions | 200–800ms (compressed — see §8) |
-| Language mix | python 70% / cpp 30% |
-| Outcome mix (intended) | accepted 65%, wrong_answer 20%, timeout 5%, compile_error 10% |
-| Judge worker processes | 2 (real, separate OS processes) |
-| Judge concurrency per process | 3 (total 6 concurrent judge slots) |
-| Sandbox wall timeout | 4000ms (production default 10000ms — shortened only so `timeout` submissions don't dominate wall-clock) |
-| Queue lease / reaper interval / heartbeat | 30s / 5000ms / 10000ms — **production defaults**, not compressed |
+| Field                                      | Value                                                                                                   |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Concurrent sessions (virtual users)        | 6                                                                                                       |
+| Submissions per session                    | 20                                                                                                      |
+| **Total submissions**                      | 120                                                                                                     |
+| Think-time between a session's submissions | 200–800ms (compressed — see §8)                                                                         |
+| Language mix                               | python 70% / cpp 30%                                                                                    |
+| Outcome mix (intended)                     | accepted 65%, wrong_answer 20%, timeout 5%, compile_error 10%                                           |
+| Judge worker processes                     | 2 (real, separate OS processes)                                                                         |
+| Judge concurrency per process              | 3 (total 6 concurrent judge slots)                                                                      |
+| Sandbox wall timeout                       | 4000ms (production default 10000ms — shortened only so `timeout` submissions don't dominate wall-clock) |
+| Queue lease / reaper interval / heartbeat  | 30s / 5000ms / 10000ms — **production defaults**, not compressed                                        |
 
 **Note on the profile size (see §7):** the previous, unverified version of this document reported
 a 4-session × 10-submission (40 total) profile. `scripts/loadtest/config.ts`'s `DEFAULT_PROFILE` in
@@ -76,25 +76,25 @@ Machine check immediately before start: load average 3.47/3.08/3.04, 0 `leetmind
 
 **End-to-end submission latency (POST → terminal verdict)**
 
-| | n | p50 | p95 | p99 | min | max | mean |
-|---|---|---|---|---|---|---|---|
-| all | 120 | 2.04s | 10.51s | 30.86s | 308ms | 39.24s | 3.95s |
-| python | 79 | 939ms | 5.44s | 14.84s | 308ms | 34.78s | 2.19s |
-| cpp | 41 | 6.57s | 11.10s | 29.20s | 2.35s | 39.24s | 7.35s |
+|        | n   | p50   | p95    | p99    | min   | max    | mean  |
+| ------ | --- | ----- | ------ | ------ | ----- | ------ | ----- |
+| all    | 120 | 2.04s | 10.51s | 30.86s | 308ms | 39.24s | 3.95s |
+| python | 79  | 939ms | 5.44s  | 14.84s | 308ms | 34.78s | 2.19s |
+| cpp    | 41  | 6.57s | 11.10s | 29.20s | 2.35s | 39.24s | 7.35s |
 
 **Queue wait (enqueued → claimed)**
 
-| | n | p50 | p95 | p99 | min | max | mean |
-|---|---|---|---|---|---|---|---|
+|     | n   | p50   | p95   | p99    | min  | max    | mean  |
+| --- | --- | ----- | ----- | ------ | ---- | ------ | ----- |
 | all | 120 | 586ms | 5.21s | 30.47s | 19ms | 35.20s | 2.14s |
 
 **Judge execution time (`submissions.runtime_ms` — see §4 for exactly what this does and does not include)**
 
-| | n | p50 | p95 | p99 | min | max | mean |
-|---|---|---|---|---|---|---|---|
-| all | 120 | 265ms | 583ms | 4.01s | 0ms | 4.01s | 419ms |
-| python | 79 | 292ms | 572ms | 4.00s | 217ms | 4.01s | 404ms |
-| cpp | 41 | 186ms | 4.01s | 4.01s | 0ms | 4.01s | 449ms |
+|        | n   | p50   | p95   | p99   | min   | max   | mean  |
+| ------ | --- | ----- | ----- | ----- | ----- | ----- | ----- |
+| all    | 120 | 265ms | 583ms | 4.01s | 0ms   | 4.01s | 419ms |
+| python | 79  | 292ms | 572ms | 4.00s | 217ms | 4.01s | 404ms |
+| cpp    | 41  | 186ms | 4.01s | 4.01s | 0ms   | 4.01s | 449ms |
 
 Throughput: **71.0 submissions/min**. Incomplete: 0. Verdicts: `accepted` 77, `wrong_answer` 30, `compilation_error` 8, `time_limit` 5.
 
@@ -104,29 +104,29 @@ Machine check immediately before start: load average 3.31/3.61/3.29, 0 `leetmind
 
 **End-to-end submission latency**
 
-| | n | p50 | p95 | p99 | min | max | mean |
-|---|---|---|---|---|---|---|---|
-| all | 120 | 1.82s | 9.33s | 34.70s | 356ms | 40.98s | 3.79s |
-| python | 83 | 1.14s | 6.00s | 11.62s | 356ms | 13.16s | 2.02s |
-| cpp | 37 | 5.95s | 16.28s | 40.54s | 2.00s | 40.98s | 7.77s |
+|        | n   | p50   | p95    | p99    | min   | max    | mean  |
+| ------ | --- | ----- | ------ | ------ | ----- | ------ | ----- |
+| all    | 120 | 1.82s | 9.33s  | 34.70s | 356ms | 40.98s | 3.79s |
+| python | 83  | 1.14s | 6.00s  | 11.62s | 356ms | 13.16s | 2.02s |
+| cpp    | 37  | 5.95s | 16.28s | 40.54s | 2.00s | 40.98s | 7.77s |
 
 **Queue wait**
 
-| | n | p50 | p95 | p99 | min | max | mean |
-|---|---|---|---|---|---|---|---|
+|     | n   | p50   | p95   | p99    | min  | max    | mean  |
+| --- | --- | ----- | ----- | ------ | ---- | ------ | ----- |
 | all | 120 | 850ms | 5.61s | 30.32s | 18ms | 35.68s | 2.00s |
 
 **Judge execution time**
 
-| | n | p50 | p95 | p99 | min | max | mean |
-|---|---|---|---|---|---|---|---|
-| all | 120 | 291ms | 4.01s | 4.02s | 0ms | 4.02s | 486ms |
-| python | 83 | 308ms | 3.65s | 4.01s | 225ms | 4.02s | 534ms |
-| cpp | 37 | 194ms | 1.13s | 4.01s | 0ms | 4.02s | 380ms |
+|        | n   | p50   | p95   | p99   | min   | max   | mean  |
+| ------ | --- | ----- | ----- | ----- | ----- | ----- | ----- |
+| all    | 120 | 291ms | 4.01s | 4.02s | 0ms   | 4.02s | 486ms |
+| python | 83  | 308ms | 3.65s | 4.01s | 225ms | 4.02s | 534ms |
+| cpp    | 37  | 194ms | 1.13s | 4.01s | 0ms   | 4.02s | 380ms |
 
 Throughput: **83.4 submissions/min**. Incomplete: 0. Verdicts: `accepted` 74, `compilation_error` 17, `wrong_answer` 22, `time_limit` 7.
 
-**Note:** immediately *after* this run, 1-minute load average briefly spiked to **10.47** (residual
+**Note:** immediately _after_ this run, 1-minute load average briefly spiked to **10.47** (residual
 from this run's own burst of concurrent `docker run`s finishing) before settling back to ~5 within
 ~2 minutes. This was monitored and allowed to settle (load average ≤ 4) before Run 3 was started.
 
@@ -138,25 +138,25 @@ running), the highest starting load average of the three runs. Wall-clock for th
 
 **End-to-end submission latency**
 
-| | n | p50 | p95 | p99 | min | max | mean |
-|---|---|---|---|---|---|---|---|
-| all | 120 | 3.38s | 8.87s | 31.68s | 307ms | 37.52s | 4.13s |
-| python | 75 | 1.19s | 5.79s | 7.14s | 307ms | 9.29s | 2.17s |
-| cpp | 45 | 6.10s | 9.17s | 37.26s | 1.81s | 37.52s | 7.40s |
+|        | n   | p50   | p95   | p99    | min   | max    | mean  |
+| ------ | --- | ----- | ----- | ------ | ----- | ------ | ----- |
+| all    | 120 | 3.38s | 8.87s | 31.68s | 307ms | 37.52s | 4.13s |
+| python | 75  | 1.19s | 5.79s | 7.14s  | 307ms | 9.29s  | 2.17s |
+| cpp    | 45  | 6.10s | 9.17s | 37.26s | 1.81s | 37.52s | 7.40s |
 
 **Queue wait**
 
-| | n | p50 | p95 | p99 | min | max | mean |
-|---|---|---|---|---|---|---|---|
+|     | n   | p50   | p95   | p99    | min  | max    | mean  |
+| --- | --- | ----- | ----- | ------ | ---- | ------ | ----- |
 | all | 120 | 855ms | 5.29s | 27.69s | 14ms | 33.49s | 2.07s |
 
 **Judge execution time**
 
-| | n | p50 | p95 | p99 | min | max | mean |
-|---|---|---|---|---|---|---|---|
-| all | 120 | 270ms | 461ms | 4.01s | 0ms | 4.01s | 415ms |
-| python | 75 | 297ms | 472ms | 4.01s | 220ms | 4.01s | 454ms |
-| cpp | 45 | 183ms | 312ms | 4.01s | 0ms | 4.01s | 349ms |
+|        | n   | p50   | p95   | p99   | min   | max   | mean  |
+| ------ | --- | ----- | ----- | ----- | ----- | ----- | ----- |
+| all    | 120 | 270ms | 461ms | 4.01s | 0ms   | 4.01s | 415ms |
+| python | 75  | 297ms | 472ms | 4.01s | 220ms | 4.01s | 454ms |
+| cpp    | 45  | 183ms | 312ms | 4.01s | 0ms   | 4.01s | 349ms |
 
 Throughput: **71.8 submissions/min**. Incomplete: 0. Verdicts: `accepted` 78, `wrong_answer` 27, `compilation_error` 10, `time_limit` 5.
 
@@ -166,7 +166,7 @@ Throughput: **71.8 submissions/min**. Incomplete: 0. Verdicts: `accepted` 78, `w
   5.95–6.57s, queue-wait p50 586–855ms, judge-exec p50 265–291ms across all three runs — same
   order of magnitude, no run is an outlier on the core numbers.
 - **Tails are wide and this is a real finding, not noise to average away.** e2e p95 ranges
-  8.87–10.51s and p99 ranges 30.86–34.70s *in every run* — a ~15–17× gap between p50 and p99. This
+  8.87–10.51s and p99 ranges 30.86–34.70s _in every run_ — a ~15–17× gap between p50 and p99. This
   is not measurement jitter; it is a structural property of this profile: 120 submissions arriving
   over ~90–100s of compressed think-time against only 6 judge slots, where a 30%-weighted C++
   submission occupies a slot for several seconds (see §4), queues up everything behind it. A
@@ -183,11 +183,11 @@ language it applies to.** Tested directly below.
 
 ### 4.1 What `submissions.runtime_ms` actually measures (read the code, don't assume)
 
-`packages/sandbox/src/run.ts`'s `runSandboxed` starts its timer *after* bundle materialization and
-stops it *as soon as the `docker run` child process exits* — so for **Python** (one `runSandboxed`
+`packages/sandbox/src/run.ts`'s `runSandboxed` starts its timer _after_ bundle materialization and
+stops it _as soon as the `docker run` child process exits_ — so for **Python** (one `runSandboxed`
 call per submission), `runtime_ms` already includes that submission's entire container
 lifecycle: process spawn, `--network none`/`--read-only`/tmpfs/cgroup setup, the run, and
-teardown. Container startup is *inside* judge-execution time for Python, not hiding in the gap.
+teardown. Container startup is _inside_ judge-execution time for Python, not hiding in the gap.
 
 For **C++**, `apps/judge/src/handler.ts` stores only the **run step's** `durationMs` as
 `runtime_ms`; the compile step's duration is recorded separately as `compile_duration_ms` inside
@@ -207,17 +207,17 @@ leetmind.sandbox=1`), measured host-side wall-clock around the `spawnSync` call.
 
 **`leetmind/runner-python:1`, no-op**
 
-| n | p50 | p95 | p99 | min | max | mean |
-|---|---|---|---|---|---|---|
-| 20 | 142.0ms | 173.6ms | 205.8ms | 121.7ms | 213.8ms | 145.6ms |
+| n   | p50     | p95     | p99     | min     | max     | mean    |
+| --- | ------- | ------- | ------- | ------- | ------- | ------- |
+| 20  | 142.0ms | 173.6ms | 205.8ms | 121.7ms | 213.8ms | 145.6ms |
 
 Raw (ms): `140.0, 143.2, 142.1, 151.2, 142.0, 139.7, 137.2, 135.2, 148.4, 139.2, 132.6, 171.5, 138.8, 142.8, 148.2, 138.3, 144.8, 121.7, 142.3, 213.8`
 
 **`leetmind/runner-cpp:1`, no-op**
 
-| n | p50 | p95 | p99 | min | max | mean |
-|---|---|---|---|---|---|---|
-| 20 | 125.4ms | 139.1ms | 139.9ms | 111.5ms | 140.1ms | 127.0ms |
+| n   | p50     | p95     | p99     | min     | max     | mean    |
+| --- | ------- | ------- | ------- | ------- | ------- | ------- |
+| 20  | 125.4ms | 139.1ms | 139.9ms | 111.5ms | 140.1ms | 127.0ms |
 
 Raw (ms): `111.5, 140.1, 137.4, 131.2, 126.0, 120.3, 126.9, 132.9, 124.8, 123.9, 122.7, 123.2, 118.8, 122.2, 133.4, 130.7, 124.0, 139.1, 121.1, 130.6`
 
@@ -237,17 +237,17 @@ bundle for this load test's problem, 10 sequential uncontended iterations:
 
 **Real compile (main.cpp + vendored json.hpp), uncontended**
 
-| n | p50 | p95 | min | max | mean |
-|---|---|---|---|---|---|
-| 10 | 3.49s | 3.58s | 3.44s | 3.58s | 3.51s |
+| n   | p50   | p95   | min   | max   | mean  |
+| --- | ----- | ----- | ----- | ----- | ----- |
+| 10  | 3.49s | 3.58s | 3.44s | 3.58s | 3.51s |
 
 Raw (ms): `3580.6, 3482.2, 3484.5, 3489.6, 3483.7, 3438.2, 3568.9, 3575.3, 3473.5, 3522.2`
 
 **Control: the same compile invocation against a trivial `int main(){return 0;}` (no json.hpp)**
 
-| n | p50 | p95 | min | max | mean |
-|---|---|---|---|---|---|
-| 5 | 148.4ms | 194.9ms | 139.6ms | 202.6ms | 160.6ms |
+| n   | p50     | p95     | min     | max     | mean    |
+| --- | ------- | ------- | ------- | ------- | ------- |
+| 5   | 148.4ms | 194.9ms | 139.6ms | 202.6ms | 160.6ms |
 
 This control number is indistinguishable from bare container startup (§4.2). The ~3.4s difference
 is `g++` genuinely compiling the vendored JSON header, not Docker/cgroup mechanics.
@@ -256,7 +256,7 @@ is `g++` genuinely compiling the vendored JSON header, not Docker/cgroup mechani
 
 **Wrong as stated; the truth differs by language:**
 
-- **Python**: container startup is *already counted inside* `runtime_ms` and is comparatively tiny
+- **Python**: container startup is _already counted inside_ `runtime_ms` and is comparatively tiny
   (~140ms). The e2e-vs-exec gap for Python (e2e p50 939ms–1.19s minus judge-exec p50 265–308ms ≈
   650–900ms) tracks the measured **queue-wait p50 (586–855ms) almost exactly** across all three
   runs. **The dominant unaccounted-for cost for Python is queue wait, not container startup.**
@@ -287,11 +287,11 @@ Unlike `apps/judge/test/chaos/workerKill.test.ts` (idle system, compressed lease
 profile — a real `SIGKILL` of a real OS process holding a real job, mid-`docker run`, while the
 system is under real concurrent load.
 
-| Run | Victim submission | Killed worker | Recovery time | Final verdict |
-|---|---|---|---|---|
-| 1 | `01KY7NK4FVJ61N8QBJ99Q4NY4Z` | `loadtest-judge-1-...` | **34.66s** | `time_limit` |
-| 2 | `01KY7NQX9XVJ1PARNEFSJVWGPF` | `loadtest-judge-1-...` | **37.70s** | `time_limit` |
-| 3 | `01KY7NWY4F9DSEN0NAZ81KMZQR` | `loadtest-judge-0-...` | **36.15s** | `time_limit` |
+| Run | Victim submission            | Killed worker          | Recovery time | Final verdict |
+| --- | ---------------------------- | ---------------------- | ------------- | ------------- |
+| 1   | `01KY7NK4FVJ61N8QBJ99Q4NY4Z` | `loadtest-judge-1-...` | **34.66s**    | `time_limit`  |
+| 2   | `01KY7NQX9XVJ1PARNEFSJVWGPF` | `loadtest-judge-1-...` | **37.70s**    | `time_limit`  |
+| 3   | `01KY7NWY4F9DSEN0NAZ81KMZQR` | `loadtest-judge-0-...` | **36.15s**    | `time_limit`  |
 
 Mean **36.2s**, range 34.66–37.70s (spread ~3s across 3 runs) — tight relative to the ~45s worst-case
 budget (30s lease + 5s reaper interval + heartbeat/re-execution window). **Under load, recovery
@@ -310,38 +310,39 @@ C++, the multi-second compile from §4.3) genuinely exceeded the 30-second lease
 worker ever killed, so the reaper requeued them as if their worker had died. All were tagged
 `recovered` (none `dead_after_reap` or `still_pending`), so no submission was lost, but this means
 roughly 2/120 (~1.7%) of jobs in this profile hit a false-positive lease expiry purely from queueing
-+ compile latency — a genuine reliability signal this load level surfaces that a smaller/lighter
-profile would not. (For comparison: the previous, unverified 40-submission report showed
-`reaped_total: 1` — only the deliberate victim; this is consistent with the theory that a smaller
-profile with less queueing simply doesn't push any organic job past 30s.)
+
+- compile latency — a genuine reliability signal this load level surfaces that a smaller/lighter
+  profile would not. (For comparison: the previous, unverified 40-submission report showed
+  `reaped_total: 1` — only the deliberate victim; this is consistent with the theory that a smaller
+  profile with less queueing simply doesn't push any organic job past 30s.)
 
 ## 6. Cleanup and database isolation
 
 `leetmind_test` row counts (`problem_versions`/`submissions`/`learning_events`/`jobs`), checked
 after **every** run's cleanup, not just the last:
 
-| Checkpoint | problem_versions | submissions | learning_events | jobs |
-|---|---|---|---|---|
-| Before Run 1 | 0 | 0 | 0 | 0 |
-| After Run 1 cleanup | 0 | 0 | 0 | 0 |
-| After Run 2 cleanup | 0 | 0 | 0 | 0 |
-| After Run 3 cleanup | 0 | 0 | 0 | 0 |
+| Checkpoint          | problem_versions | submissions | learning_events | jobs |
+| ------------------- | ---------------- | ----------- | --------------- | ---- |
+| Before Run 1        | 0                | 0           | 0               | 0    |
+| After Run 1 cleanup | 0                | 0           | 0               | 0    |
+| After Run 2 cleanup | 0                | 0           | 0               | 0    |
+| After Run 3 cleanup | 0                | 0           | 0               | 0    |
 
 Each run logged `Cleaned up: 121 submission(s), the seeded problem, jobs, and worker heartbeats.`
 (120 load-generated + 1 lease-recovery victim). `leetmind_test` was empty of this harness's tables
 before the first run and after every subsequent run.
 
 **Dev database (`leetmind`) — confirmed untouched by this harness**, checked at the same
-checkpoints (a *second*, concurrently-running agent was legitimately using this same dev database
+checkpoints (a _second_, concurrently-running agent was legitimately using this same dev database
 for its own Grafana-dashboard verification work for the entire session, which is why these numbers
 are not static — that drift is real, but it is not this harness's):
 
-| Checkpoint | problem_versions | submissions | learning_events | jobs |
-|---|---|---|---|---|
-| Before Run 1 | 9 | 2 | 2 | 2 |
-| After Run 1 | 14 | 4 | 4 | 4 |
-| After Run 2 | 14 | 4 | 4 | 4 |
-| After Run 3 | 14 | 4 | 4 | 5 |
+| Checkpoint   | problem_versions | submissions | learning_events | jobs |
+| ------------ | ---------------- | ----------- | --------------- | ---- |
+| Before Run 1 | 9                | 2           | 2               | 2    |
+| After Run 1  | 14               | 4           | 4               | 4    |
+| After Run 2  | 14               | 4           | 4               | 4    |
+| After Run 3  | 14               | 4           | 4               | 5    |
 
 `submissions`/`learning_events`/`problem_versions` did not move between "after Run 1" and "after
 Run 3" — exactly what's expected if this harness only ever touches `leetmind_test` (it does:
@@ -365,13 +366,13 @@ be verified, differs from this one in ways worth naming plainly:
    repository in this environment), so it cannot be resolved further — flagged rather than guessed
    at.
 2. **cpp e2e p50 is not reproducible at the reported magnitude.** The previous report claimed
-   11.95s (n=12) under the *lighter* 40-submission profile. This agent's three runs, under a
-   *heavier* 120-submission profile (which if anything should push latency up, not down),
+   11.95s (n=12) under the _lighter_ 40-submission profile. This agent's three runs, under a
+   _heavier_ 120-submission profile (which if anything should push latency up, not down),
    consistently measured 5.95–6.57s — roughly half. §4.3's uncontended compile baseline (~3.5s)
    plus this profile's queue wait (~0.6–0.9s) plus run step (~0.2s) accounts for the ~6s figure
    measured here reasonably well; it does not obviously account for 11.95s. This agent cannot
    explain the previous number and did not reproduce it — it may reflect the previous run being
-   measured while *itself* contended by another concurrent process (the same hygiene hazard this
+   measured while _itself_ contended by another concurrent process (the same hygiene hazard this
    task's instructions warned about), but that is a guess, not a finding.
 3. **Numbers that DID hold up:** the previous lease-recovery figure (34.75s, single measurement)
    lands squarely inside this agent's three-run range (34.66–37.70s, mean 36.2s) — that specific

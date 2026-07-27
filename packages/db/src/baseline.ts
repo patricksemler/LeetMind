@@ -44,7 +44,10 @@ export interface NewBaselineItemInput {
   selection_evidence?: Record<string, unknown>;
 }
 
-export async function insertBaselineItem(client: PoolClient, row: NewBaselineItemInput): Promise<BaselineItemRow> {
+export async function insertBaselineItem(
+  client: PoolClient,
+  row: NewBaselineItemInput,
+): Promise<BaselineItemRow> {
   const sql = `
     insert into baseline_items (id, baseline_session_id, position, problem_version_id, rationale, selection_evidence)
     values ($1, $2, $3, $4, $5, $6)
@@ -100,7 +103,10 @@ export async function getBaselineItem(id: string): Promise<BaselineItemRow | nul
  * `state='active'`, stamping `started_at` the first time only (idempotent re-start no-ops rather
  * than erroring) — CONTRACTS.md §9 intended-query comment for `POST /api/baseline-items/:id/start`.
  */
-export async function startBaselineItem(client: PoolClient, id: string): Promise<BaselineItemRow | null> {
+export async function startBaselineItem(
+  client: PoolClient,
+  id: string,
+): Promise<BaselineItemRow | null> {
   return queryOneWith<BaselineItemRow>(
     client,
     `update baseline_items
@@ -147,7 +153,10 @@ export async function completeBaselineItem(
 }
 
 /** Marks a baseline session `completed` (idempotent: only ever transitions from `active`). */
-export async function completeBaselineSession(client: PoolClient, id: string): Promise<BaselineSessionRow | null> {
+export async function completeBaselineSession(
+  client: PoolClient,
+  id: string,
+): Promise<BaselineSessionRow | null> {
   return queryOneWith<BaselineSessionRow>(
     client,
     `update baseline_sessions set status = 'completed', completed_at = now() where id = $1 and status = 'active' returning *`,
@@ -158,7 +167,10 @@ export async function completeBaselineSession(client: PoolClient, id: string): P
 /** Marks a baseline session `abandoned` (idempotent: only ever transitions from `active`) — used
  * when a fresh baseline is started while one is still open, so `getActiveBaselineSession`'s "most
  * recent active" query never has more than one candidate. */
-export async function abandonBaselineSession(client: PoolClient, id: string): Promise<BaselineSessionRow | null> {
+export async function abandonBaselineSession(
+  client: PoolClient,
+  id: string,
+): Promise<BaselineSessionRow | null> {
   return queryOneWith<BaselineSessionRow>(
     client,
     `update baseline_sessions set status = 'abandoned' where id = $1 and status = 'active' returning *`,

@@ -14,7 +14,7 @@ export interface Logger {
   child?: (bindings: Record<string, unknown>) => Logger;
 }
 
-export type JobStatus = 'queued' | 'leased' | 'done' | 'failed' | 'dead' | 'cancelled';
+export type JobStatus = "queued" | "leased" | "done" | "failed" | "dead" | "cancelled";
 
 export interface Job<TPayload = unknown> {
   id: string;
@@ -48,7 +48,7 @@ export interface FailOpts {
   retryInMs?: number;
 }
 
-export type FailResult = 'retry' | 'dead';
+export type FailResult = "retry" | "dead";
 
 export interface QueueKindStats {
   kind: string;

@@ -14,9 +14,19 @@ const timestampSchema = z.union([z.string(), z.date()]);
 const SystemQueueSchema = z
   .object({
     kinds: z
-      .array(z.object({ kind: z.string(), counts: z.record(z.string(), z.number()), oldest_queued_age_ms: z.number().nullable() }).passthrough())
+      .array(
+        z
+          .object({
+            kind: z.string(),
+            counts: z.record(z.string(), z.number()),
+            oldest_queued_age_ms: z.number().nullable(),
+          })
+          .passthrough(),
+      )
       .default([]),
-    wait_time_ms: z.object({ p50: z.number().nullable(), p95: z.number().nullable() }).passthrough(),
+    wait_time_ms: z
+      .object({ p50: z.number().nullable(), p95: z.number().nullable() })
+      .passthrough(),
     dead_count: z.number().int(),
   })
   .passthrough();
@@ -33,14 +43,20 @@ const SystemWorkerSchema = z
 const SystemVerdictsSchema = z
   .object({
     window: z.string(),
-    counts: z.array(z.object({ verdict: z.string(), count: z.number().int() }).passthrough()).default([]),
+    counts: z
+      .array(z.object({ verdict: z.string(), count: z.number().int() }).passthrough())
+      .default([]),
   })
   .passthrough();
 
 const SystemBufferDepthSchema = z
   .object({
     by_concept_band: z
-      .array(z.object({ concept_id: z.string(), band: z.number(), count: z.number().int() }).passthrough())
+      .array(
+        z
+          .object({ concept_id: z.string(), band: z.number(), count: z.number().int() })
+          .passthrough(),
+      )
       .default([]),
   })
   .passthrough();
@@ -48,7 +64,11 @@ const SystemBufferDepthSchema = z
 const SystemGenerationPassRateSchema = z
   .object({
     by_stage: z
-      .array(z.object({ stage: z.string(), passed: z.number().int(), total: z.number().int() }).passthrough())
+      .array(
+        z
+          .object({ stage: z.string(), passed: z.number().int(), total: z.number().int() })
+          .passthrough(),
+      )
       .default([]),
   })
   .passthrough();

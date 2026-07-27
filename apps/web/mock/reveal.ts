@@ -13,11 +13,17 @@ const nameById = new Map(CONCEPTS.map((c) => [c.id, c.name]));
 
 /** `earned` defaults to the persisted per-problem solved/gave-up flag; pass `true` explicitly
  * from the lifecycle that's setting that flag in the same tick the reveal-bearing event fires. */
-export function buildMockReveal(problem: ProblemFixture, earned = hasSolvedOrGivenUp(problem.problemVersionId)): Reveal | undefined {
+export function buildMockReveal(
+  problem: ProblemFixture,
+  earned = hasSolvedOrGivenUp(problem.problemVersionId),
+): Reveal | undefined {
   if (!earned) return undefined;
   return {
     editorial_md: problem.content.hints.editorial_md,
-    solutions: { python: problem.content.reference_solution_py, cpp: problem.content.reference_solution_cpp },
+    solutions: {
+      python: problem.content.reference_solution_py,
+      cpp: problem.content.reference_solution_cpp,
+    },
     target_complexity: problem.content.target_complexity,
     concepts: problem.content.concepts.map((c) => ({
       id: c.id,

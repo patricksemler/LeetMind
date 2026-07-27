@@ -32,7 +32,12 @@ import {
   type TeachingTrigger,
 } from "@leetmind/db";
 import { newId } from "@leetmind/shared";
-import { planFollowUps, shouldTeach, type TeachingAttempt, type TeachingDecision } from "@leetmind/learner";
+import {
+  planFollowUps,
+  shouldTeach,
+  type TeachingAttempt,
+  type TeachingDecision,
+} from "@leetmind/learner";
 import { findCandidateNear } from "./candidatePool.js";
 
 /** How far back `shouldTeach` looks. It only ever reads the first `TEACHING_FAILURE_STREAK`
@@ -143,7 +148,10 @@ export async function openTeachingEpisode(userId: string): Promise<OpenEpisode |
 }
 
 /** Whether the *next* problem on this concept should be taught from the start. */
-export async function shouldTeachConcept(userId: string, conceptId: string): Promise<TeachingDecision> {
+export async function shouldTeachConcept(
+  userId: string,
+  conceptId: string,
+): Promise<TeachingDecision> {
   return shouldTeach(await recentAttemptsForConcept(userId, conceptId));
 }
 
@@ -215,7 +223,9 @@ export async function resolveFollowupProblem(
     followup.target_rating,
     // Never re-serve the problem that was taught, whatever the shape rules allow.
     new Set([followup.origin_problem_version_id]),
-    followup.origin_shape ? { shape: followup.origin_shape, matchShape: followup.shape_match } : undefined,
+    followup.origin_shape
+      ? { shape: followup.origin_shape, matchShape: followup.shape_match }
+      : undefined,
   );
   if (!candidate) return null;
 

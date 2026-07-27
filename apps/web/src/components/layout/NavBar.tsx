@@ -45,7 +45,10 @@ export function NavBar() {
       <div className="flex items-center gap-2">
         {authRequired && session && (
           <>
-            <span className="hidden max-w-[18ch] truncate text-xs text-text-faint sm:inline" title={email ?? undefined}>
+            <span
+              className="hidden max-w-[18ch] truncate text-xs text-text-faint sm:inline"
+              title={email ?? undefined}
+            >
               {email}
             </span>
             <button

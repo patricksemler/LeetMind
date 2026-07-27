@@ -96,7 +96,11 @@ export function updateConcepts(input: {
   problemRating: number;
   outcome: number;
   evidenceWeight: number;
-}): { changes: ConceptChangeLike[]; explanation: string; newStates: Record<string, ConceptRatingState> } {
+}): {
+  changes: ConceptChangeLike[];
+  explanation: string;
+  newStates: Record<string, ConceptRatingState>;
+} {
   const { states, weights, problemRating, outcome, evidenceWeight } = input;
 
   const totalWeight = weights.reduce((s, w) => s + w.weight, 0) || 1;
@@ -145,17 +149,35 @@ export function scheduleReview(
   state: { review_interval_days: number; review_ease: number; review_reps: number },
   outcome: number,
   now: Date,
-): { next_review_at: string; review_interval_days: number; review_ease: number; review_reps: number } {
-  const ease = Math.min(2.8, Math.max(1.3, state.review_ease + (0.1 - (1 - outcome) * (0.5 + (1 - outcome) * 0.4))));
+): {
+  next_review_at: string;
+  review_interval_days: number;
+  review_ease: number;
+  review_reps: number;
+} {
+  const ease = Math.min(
+    2.8,
+    Math.max(1.3, state.review_ease + (0.1 - (1 - outcome) * (0.5 + (1 - outcome) * 0.4))),
+  );
   let interval: number;
   let reps: number;
   if (outcome >= 0.6) {
     reps = state.review_reps + 1;
-    interval = state.review_reps === 0 ? 1 : state.review_reps === 1 ? 4 : Math.round(state.review_interval_days * ease);
+    interval =
+      state.review_reps === 0
+        ? 1
+        : state.review_reps === 1
+          ? 4
+          : Math.round(state.review_interval_days * ease);
   } else {
     interval = 1;
     reps = 0;
   }
   const next = new Date(now.getTime() + interval * 86_400_000);
-  return { next_review_at: next.toISOString(), review_interval_days: interval, review_ease: ease, review_reps: reps };
+  return {
+    next_review_at: next.toISOString(),
+    review_interval_days: interval,
+    review_ease: ease,
+    review_reps: reps,
+  };
 }

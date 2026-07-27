@@ -28,7 +28,17 @@ function emptyProgress(overrides: Partial<ProgressResponse> = {}): ProgressRespo
 describe("Concepts", () => {
   it("joins mastery data by concept_id — not id — so an attempted concept shows its rating instead of rendering unattempted", async () => {
     vi.mocked(api.concepts).mockResolvedValue({
-      concepts: [{ id: "arrays_hashing", name: "Arrays & Hashing", description: "", misconceptions: [], min_rating: 800, max_rating: 2400, sort_order: 0 }],
+      concepts: [
+        {
+          id: "arrays_hashing",
+          name: "Arrays & Hashing",
+          description: "",
+          misconceptions: [],
+          min_rating: 800,
+          max_rating: 2400,
+          sort_order: 0,
+        },
+      ],
       edges: [],
     });
     // The real GET /api/progress response keys each row by `concept_id`, not `id`
@@ -110,7 +120,17 @@ describe("Concepts", () => {
 
   it("still renders the taxonomy when the progress fetch fails, with a retry notice instead of every concept silently reading as unattempted", async () => {
     vi.mocked(api.concepts).mockResolvedValue({
-      concepts: [{ id: "arrays_hashing", name: "Arrays & Hashing", description: "", misconceptions: [], min_rating: 800, max_rating: 2400, sort_order: 0 }],
+      concepts: [
+        {
+          id: "arrays_hashing",
+          name: "Arrays & Hashing",
+          description: "",
+          misconceptions: [],
+          min_rating: 800,
+          max_rating: 2400,
+          sort_order: 0,
+        },
+      ],
       edges: [],
     });
     vi.mocked(api.progress).mockRejectedValue(new Error("network down"));

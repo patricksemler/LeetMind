@@ -112,7 +112,13 @@ describe("sandbox CLI bridge (cli.ts)", () => {
         tests: [{ args: [1, 2], expected: 3 }],
         comparator: { kind: "exact" },
         source: "def add(a, b):\n    return a + b\n",
-        limits: { memoryMb: 256, cpus: 1, pidsLimit: 64, wallTimeoutMs: 8000, outputLimitBytes: 65536 },
+        limits: {
+          memoryMb: 256,
+          cpus: 1,
+          pidsLimit: 64,
+          wallTimeoutMs: 8000,
+          outputLimitBytes: 65536,
+        },
         image: IMAGE,
       };
 
@@ -140,7 +146,13 @@ describe("sandbox CLI bridge (cli.ts)", () => {
         tests: [{ args: [1, 2], expected: 3 }],
         comparator: { kind: "exact" },
         source: "def add(a, b):\n    return a - b\n",
-        limits: { memoryMb: 256, cpus: 1, pidsLimit: 64, wallTimeoutMs: 8000, outputLimitBytes: 65536 },
+        limits: {
+          memoryMb: 256,
+          cpus: 1,
+          pidsLimit: 64,
+          wallTimeoutMs: 8000,
+          outputLimitBytes: 65536,
+        },
         image: IMAGE,
       };
 
@@ -158,7 +170,13 @@ describe("sandbox CLI bridge (cli.ts)", () => {
         image: IMAGE,
         files: {},
         argv: ["python3", "-c", "print('hi')"],
-        limits: { memoryMb: 256, cpus: 1, pidsLimit: 64, wallTimeoutMs: 8000, outputLimitBytes: 65536 },
+        limits: {
+          memoryMb: 256,
+          cpus: 1,
+          pidsLimit: 64,
+          wallTimeoutMs: 8000,
+          outputLimitBytes: 65536,
+        },
       };
 
       const result = await runCli("exec", JSON.stringify(payload));
@@ -187,8 +205,15 @@ describe("sandbox CLI bridge (cli.ts)", () => {
         },
         tests: [{ args: [1, 2], expected: 3 }],
         comparator: { kind: "exact" },
-        source: "class Solution {\npublic:\n    long long add(long long a, long long b) { return a + b; }\n};\n",
-        limits: { memoryMb: 256, cpus: 1, pidsLimit: 64, wallTimeoutMs: 8000, outputLimitBytes: 65536 },
+        source:
+          "class Solution {\npublic:\n    long long add(long long a, long long b) { return a + b; }\n};\n",
+        limits: {
+          memoryMb: 256,
+          cpus: 1,
+          pidsLimit: 64,
+          wallTimeoutMs: 8000,
+          outputLimitBytes: 65536,
+        },
         image: CPP_IMAGE,
       };
 
@@ -206,11 +231,25 @@ describe("sandbox CLI bridge (cli.ts)", () => {
 
     it("exec-cpp still exits 0 on a compilation_error (a compile failure is data, not a CLI failure)", async () => {
       const payload = {
-        signature: { name: "add", params: [{ name: "a", type: "int" }, { name: "b", type: "int" }], returns: "int" },
+        signature: {
+          name: "add",
+          params: [
+            { name: "a", type: "int" },
+            { name: "b", type: "int" },
+          ],
+          returns: "int",
+        },
         tests: [{ args: [1, 2], expected: 3 }],
         comparator: { kind: "exact" },
-        source: "class Solution {\npublic:\n    long long add(long long a, long long b) { return this_is_broken; }\n};\n",
-        limits: { memoryMb: 256, cpus: 1, pidsLimit: 64, wallTimeoutMs: 8000, outputLimitBytes: 65536 },
+        source:
+          "class Solution {\npublic:\n    long long add(long long a, long long b) { return this_is_broken; }\n};\n",
+        limits: {
+          memoryMb: 256,
+          cpus: 1,
+          pidsLimit: 64,
+          wallTimeoutMs: 8000,
+          outputLimitBytes: 65536,
+        },
         image: CPP_IMAGE,
       };
 

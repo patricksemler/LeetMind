@@ -60,7 +60,10 @@ async function timedQuery<T extends QueryResultRow = QueryResultRow>(
   params: readonly unknown[] | undefined,
 ): Promise<{ rows: T[]; rowCount: number }> {
   const startedAt = performance.now();
-  const result = params === undefined ? await runner.query<T>(sql) : await runner.query<T>(sql, params as unknown[]);
+  const result =
+    params === undefined
+      ? await runner.query<T>(sql)
+      : await runner.query<T>(sql, params as unknown[]);
   const durationMs = performance.now() - startedAt;
 
   if (durationMs > SLOW_QUERY_THRESHOLD_MS) {

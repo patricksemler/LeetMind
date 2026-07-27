@@ -14,7 +14,13 @@ import { loadApiConfig, newId } from "@leetmind/shared";
 import { buildDeps, type Deps } from "../src/deps.js";
 import { buildServer } from "../src/server.js";
 import { notifyBus } from "../src/sse.js";
-import { cleanup, collectKeys, isDatabaseReachable, seedApprovedProblem, testPool } from "./helpers.js";
+import {
+  cleanup,
+  collectKeys,
+  isDatabaseReachable,
+  seedApprovedProblem,
+  testPool,
+} from "./helpers.js";
 
 const dbReachable = await isDatabaseReachable();
 
@@ -31,7 +37,11 @@ describe.skipIf(!dbReachable)("security: server-only fields never leak", () => {
   let deps: Deps;
   let server: FastifyInstance;
   const pool = testPool();
-  const created = { problemIds: [] as string[], problemVersionIds: [] as string[], submissionIds: [] as string[] };
+  const created = {
+    problemIds: [] as string[],
+    problemVersionIds: [] as string[],
+    submissionIds: [] as string[],
+  };
 
   beforeAll(async () => {
     deps = buildDeps(loadApiConfig());
@@ -51,7 +61,10 @@ describe.skipIf(!dbReachable)("security: server-only fields never leak", () => {
 
   it("never leaks hidden_tests/mutants_py/reference_solution_py/brute_force_py/input_generator_py/checker_py keys or values, nor untaken hint text", async () => {
     const userId = deps.config.singleUserId;
-    const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing", difficultyRating: 1200 });
+    const seeded = await seedApprovedProblem(pool, {
+      conceptId: "arrays_hashing",
+      difficultyRating: 1200,
+    });
     created.problemIds.push(seeded.problemId);
     created.problemVersionIds.push(seeded.problemVersionId);
 
@@ -104,7 +117,8 @@ describe.skipIf(!dbReachable)("security: server-only fields never leak", () => {
     // constructor (`buildReveal` in mappers/submission.ts) — never spread loose. Note the
     // FORBIDDEN_KEYS check above still applies unchanged: the reveal exposes the code under
     // `solutions.python`, never under a `reference_solution_py` key.
-    const { editorialText, referenceSolution, referenceSolutionCpp, ...neverRevealedSentinels } = seeded.sentinels;
+    const { editorialText, referenceSolution, referenceSolutionCpp, ...neverRevealedSentinels } =
+      seeded.sentinels;
     const earnedSentinels = {
       editorial_md: editorialText,
       "solutions.python": referenceSolution,
@@ -130,7 +144,9 @@ describe.skipIf(!dbReachable)("security: server-only fields never leak", () => {
           }
           const keys = collectKeys(parsedForKeys);
           for (const forbidden of FORBIDDEN_KEYS) {
-            expect(keys.has(forbidden), `${route}: forbidden key "${forbidden}" present`).toBe(false);
+            expect(keys.has(forbidden), `${route}: forbidden key "${forbidden}" present`).toBe(
+              false,
+            );
           }
         }
       }
@@ -145,12 +161,17 @@ describe.skipIf(!dbReachable)("security: server-only fields never leak", () => {
       // Secret-VALUE check: every sentinel is an opaque random token unique to this test run, so
       // a substring match can only mean the actual secret leaked — never a prose collision.
       for (const sentinel of Object.values(neverRevealedSentinels)) {
-        expect(body.includes(sentinel), `${route}: leaked sentinel value "${sentinel}"`).toBe(false);
+        expect(body.includes(sentinel), `${route}: leaked sentinel value "${sentinel}"`).toBe(
+          false,
+        );
       }
 
       if (!REVEAL_EARNED_ROUTES.has(route)) {
         for (const [field, sentinel] of Object.entries(earnedSentinels)) {
-          expect(body.includes(sentinel), `${route}: leaked ${field} sentinel outside an earned reveal`).toBe(false);
+          expect(
+            body.includes(sentinel),
+            `${route}: leaked ${field} sentinel outside an earned reveal`,
+          ).toBe(false);
         }
         continue;
       }
@@ -161,7 +182,10 @@ describe.skipIf(!dbReachable)("security: server-only fields never leak", () => {
       // content instead of the explicit allowlist).
       const withoutReveal = stripRevealFields(body);
       for (const [field, sentinel] of Object.entries(earnedSentinels)) {
-        expect(withoutReveal.includes(sentinel), `${route}: ${field} sentinel leaked outside reveal.${field}`).toBe(false);
+        expect(
+          withoutReveal.includes(sentinel),
+          `${route}: ${field} sentinel leaked outside reveal.${field}`,
+        ).toBe(false);
       }
     }
   });
@@ -176,7 +200,10 @@ function stripRevealFields(body: string): string {
     if (obj && typeof obj === "object") {
       const rec = obj as Record<string, unknown>;
       if ("reveal" in rec && rec.reveal && typeof rec.reveal === "object") {
-        return { ...rec, reveal: { ...(rec.reveal as Record<string, unknown>), editorial_md: "", solutions: {} } };
+        return {
+          ...rec,
+          reveal: { ...(rec.reveal as Record<string, unknown>), editorial_md: "", solutions: {} },
+        };
       }
       return Object.fromEntries(Object.entries(rec).map(([k, v]) => [k, replaceIn(v)]));
     }

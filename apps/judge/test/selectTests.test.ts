@@ -4,7 +4,10 @@ import { selectTests, summarizeTestOrigins } from "../src/execution.js";
 
 /** Only the fields `selectTests` reads. Cast at the boundary rather than building a full
  * ProblemVersion, which would be ~40 lines of irrelevant fixture. */
-function content(examples: { args: unknown[]; expected: unknown }[], hidden: { args: unknown[]; expected: unknown; origin?: string }[]): ProblemVersion {
+function content(
+  examples: { args: unknown[]; expected: unknown }[],
+  hidden: { args: unknown[]; expected: unknown; origin?: string }[],
+): ProblemVersion {
   return { examples, hidden_tests: hidden } as unknown as ProblemVersion;
 }
 
@@ -41,7 +44,9 @@ describe("selectTests", () => {
 
     const runTests = selectTests(content(EXAMPLES, hidden), "run").tests;
     for (const t of runTests) {
-      expect(selected.tests.some((s) => JSON.stringify(s.args) === JSON.stringify(t.args))).toBe(true);
+      expect(selected.tests.some((s) => JSON.stringify(s.args) === JSON.stringify(t.args))).toBe(
+        true,
+      );
     }
   });
 
@@ -103,7 +108,10 @@ describe("summarizeTestOrigins", () => {
   });
 
   it("excludes ungraded tests (no expected value) from the totals", () => {
-    const withUngraded = [...tests, { args: [6], origin: "hidden" } as { args: unknown[]; origin: string }];
+    const withUngraded = [
+      ...tests,
+      { args: [6], origin: "hidden" } as { args: unknown[]; origin: string },
+    ];
     const summary = summarizeTestOrigins(withUngraded, []);
     expect(summary.hidden_total).toBe(3);
   });

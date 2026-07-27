@@ -51,11 +51,18 @@ async function completeStranded(row: StrandedRow, deps: JudgeDeps): Promise<void
         total_tests: 0,
         failure: {
           kind: "internal_error",
-          message: "The judge could not produce a verdict for this submission after repeated attempts.",
+          message:
+            "The judge could not produce a verdict for this submission after repeated attempts.",
         },
       });
       const at = new Date().toISOString();
-      await notify(client, { type: "status", submission_id: row.submission_id, user_id: row.user_id, status: "completed", at });
+      await notify(client, {
+        type: "status",
+        submission_id: row.submission_id,
+        user_id: row.user_id,
+        status: "completed",
+        at,
+      });
       await notify(client, {
         type: "verdict",
         submission_id: row.submission_id,
@@ -63,12 +70,22 @@ async function completeStranded(row: StrandedRow, deps: JudgeDeps): Promise<void
         verdict: "internal_error",
         passed_tests: 0,
         total_tests: 0,
-        failure: { kind: "internal_error", message: "The judge could not produce a verdict for this submission after repeated attempts." },
+        failure: {
+          kind: "internal_error",
+          message:
+            "The judge could not produce a verdict for this submission after repeated attempts.",
+        },
       });
     });
-    deps.logger.warn({ submission_id: row.submission_id }, "reconciled stranded submission (dead judge job)");
+    deps.logger.warn(
+      { submission_id: row.submission_id },
+      "reconciled stranded submission (dead judge job)",
+    );
   } catch (err) {
-    deps.logger.error({ err, submission_id: row.submission_id }, "failed to reconcile stranded submission");
+    deps.logger.error(
+      { err, submission_id: row.submission_id },
+      "failed to reconcile stranded submission",
+    );
   }
 }
 
@@ -77,7 +94,10 @@ export interface StrandedSweepHandle {
 }
 
 /** setInterval-style loop, mirroring @leetmind/queue's `startReaper`. */
-export function startStrandedSweep(deps: JudgeDeps, opts: { intervalMs?: number; signal?: AbortSignal } = {}): StrandedSweepHandle {
+export function startStrandedSweep(
+  deps: JudgeDeps,
+  opts: { intervalMs?: number; signal?: AbortSignal } = {},
+): StrandedSweepHandle {
   const intervalMs = opts.intervalMs ?? 10_000;
   let running = false;
   const tick = () => {

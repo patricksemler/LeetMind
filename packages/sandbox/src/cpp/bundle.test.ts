@@ -7,7 +7,10 @@ import { buildCppBundle } from "./bundle.js";
 import { generateMainCpp } from "./codegen.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const JSON_HPP_ON_DISK = readFileSync(path.resolve(__dirname, "../../runners/cpp/json.hpp"), "utf8");
+const JSON_HPP_ON_DISK = readFileSync(
+  path.resolve(__dirname, "../../runners/cpp/json.hpp"),
+  "utf8",
+);
 
 const signature: Signature = {
   name: "twoSum",
@@ -29,7 +32,15 @@ describe("buildCppBundle", () => {
     });
 
     expect(Object.keys(bundle).sort()).toEqual(
-      ["comparator.json", "config.json", "json.hpp", "main.cpp", "signature.json", "solution.cpp", "tests.json"].sort(),
+      [
+        "comparator.json",
+        "config.json",
+        "json.hpp",
+        "main.cpp",
+        "signature.json",
+        "solution.cpp",
+        "tests.json",
+      ].sort(),
     );
   });
 

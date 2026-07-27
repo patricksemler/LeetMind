@@ -79,7 +79,8 @@ export function paramTypeToString(ast: ParamTypeAst): string {
 }
 
 export const ParamTypeSchema = z.string().refine(isValidParamType, {
-  message: "Invalid ParamType (expected int|float|bool|str|TreeNode[?]|ListNode[?]|list[<ParamType>])",
+  message:
+    "Invalid ParamType (expected int|float|bool|str|TreeNode[?]|ListNode[?]|list[<ParamType>])",
 });
 
 export const SignatureSchema = z.object({

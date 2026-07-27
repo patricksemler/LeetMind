@@ -47,10 +47,16 @@ function pickVerdict(source: string, language: Language): Verdict {
 
 /** Mirrors `selectTests` in apps/judge: submit runs the public examples PLUS the hidden suite,
  * deduped by argument list, so the mock's denominators match what the real API reports. */
-export function submitTestSplit(problem: ProblemFixture): { publicTotal: number; hiddenTotal: number; total: number } {
+export function submitTestSplit(problem: ProblemFixture): {
+  publicTotal: number;
+  hiddenTotal: number;
+  total: number;
+} {
   const publicArgs = new Set(problem.content.examples.map((e) => JSON.stringify(e.args)));
   const publicTotal = publicArgs.size;
-  const hiddenTotal = problem.content.hidden_tests.filter((t) => !publicArgs.has(JSON.stringify(t.args))).length;
+  const hiddenTotal = problem.content.hidden_tests.filter(
+    (t) => !publicArgs.has(JSON.stringify(t.args)),
+  ).length;
   return { publicTotal, hiddenTotal, total: publicTotal + hiddenTotal };
 }
 
@@ -64,17 +70,42 @@ export function failingTestFor(
   failIndex: number,
   publicTotal: number,
   actual: unknown = null,
-): { index: number; origin: "public" | "hidden"; args: unknown[]; expected?: unknown; actual?: unknown; status?: string } | undefined {
+):
+  | {
+      index: number;
+      origin: "public" | "hidden";
+      args: unknown[];
+      expected?: unknown;
+      actual?: unknown;
+      status?: string;
+    }
+  | undefined {
   if (failIndex < publicTotal) {
     const example = problem.content.examples[failIndex];
     if (!example) return undefined;
-    return { index: failIndex, origin: "public", args: example.args, expected: example.expected, actual, status: "failed" };
+    return {
+      index: failIndex,
+      origin: "public",
+      args: example.args,
+      expected: example.expected,
+      actual,
+      status: "failed",
+    };
   }
   const publicArgs = new Set(problem.content.examples.map((e) => JSON.stringify(e.args)));
-  const hidden = problem.content.hidden_tests.filter((t) => !publicArgs.has(JSON.stringify(t.args)));
+  const hidden = problem.content.hidden_tests.filter(
+    (t) => !publicArgs.has(JSON.stringify(t.args)),
+  );
   const test = hidden[failIndex - publicTotal];
   if (!test) return undefined;
-  return { index: failIndex, origin: "hidden", args: test.args, expected: test.expected, actual, status: "failed" };
+  return {
+    index: failIndex,
+    origin: "hidden",
+    args: test.args,
+    expected: test.expected,
+    actual,
+    status: "failed",
+  };
 }
 
 /** Per-public-test outcomes, aligned to `examples`, mirroring the judge's `publicResults`. */
@@ -94,10 +125,19 @@ export function publicResultsFor(
   });
 }
 
-export function gradeSubmit(problem: ProblemFixture, language: Language, source: string): GradeResult {
+export function gradeSubmit(
+  problem: ProblemFixture,
+  language: Language,
+  source: string,
+): GradeResult {
   const verdict = pickVerdict(source, language);
   const { publicTotal, hiddenTotal, total } = submitTestSplit(problem);
-  const allPassed = { public_passed: publicTotal, public_total: publicTotal, hidden_passed: hiddenTotal, hidden_total: hiddenTotal };
+  const allPassed = {
+    public_passed: publicTotal,
+    public_total: publicTotal,
+    hidden_passed: hiddenTotal,
+    hidden_total: hiddenTotal,
+  };
   /** A failure at `index` — public tests come first, so anything past them is a hidden case. */
   const splitAt = (index: number) => ({
     public_passed: Math.min(index, publicTotal),
@@ -188,7 +228,10 @@ export function gradeSubmit(problem: ProblemFixture, language: Language, source:
         memoryKb: 0,
         failure: {
           kind: "compilation_error",
-          message: language === "python" ? "SyntaxError while compiling solution." : "g++ compilation failed.",
+          message:
+            language === "python"
+              ? "SyntaxError while compiling solution."
+              : "g++ compilation failed.",
           stderr_tail:
             language === "python"
               ? '  File "solution.py", line 1\n    def (:\n        ^\nSyntaxError: invalid syntax'
@@ -196,7 +239,13 @@ export function gradeSubmit(problem: ProblemFixture, language: Language, source:
         },
       };
     default:
-      return { verdict: "internal_error", passedTests: 0, totalTests: total, runtimeMs: 0, memoryKb: 0 };
+      return {
+        verdict: "internal_error",
+        passedTests: 0,
+        totalTests: total,
+        runtimeMs: 0,
+        memoryKb: 0,
+      };
   }
 }
 
@@ -264,4 +313,3 @@ export function gradeRun(problem: ProblemFixture, language: Language, source: st
     }
   }
 }
-

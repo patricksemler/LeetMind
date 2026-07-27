@@ -84,7 +84,8 @@ export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   // Default: authentication follows configuration. Production is the exception — there it is
   // mandatory, and booting without a Supabase project is a misconfiguration worth failing on
   // rather than silently serving one shared anonymous account to the whole internet.
-  const authRequired = parsed.AUTH_REQUIRED ?? (base.nodeEnv === "production" || Boolean(parsed.SUPABASE_URL));
+  const authRequired =
+    parsed.AUTH_REQUIRED ?? (base.nodeEnv === "production" || Boolean(parsed.SUPABASE_URL));
   if (authRequired && !parsed.SUPABASE_URL) {
     throw new Error(
       "Authentication is required (AUTH_REQUIRED=true, or NODE_ENV=production) but SUPABASE_URL is not set. " +

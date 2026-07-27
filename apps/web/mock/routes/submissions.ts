@@ -1,5 +1,10 @@
 import type { Express } from "express";
-import { CreateSubmissionRequest, failedPublicCase, newId, type Submission } from "@leetmind/shared";
+import {
+  CreateSubmissionRequest,
+  failedPublicCase,
+  newId,
+  type Submission,
+} from "@leetmind/shared";
 import { runLifecycle } from "../lifecycle.js";
 import { subscribe } from "../sse.js";
 import { getProblemUserState, problemsById, submissions, USER_ID } from "../state.js";
@@ -12,7 +17,8 @@ export function registerSubmissionRoutes(app: Express): void {
     "/api/submissions",
     handle((req, res) => {
       const parsed = CreateSubmissionRequest.safeParse(req.body);
-      if (!parsed.success) return badRequest(res, "invalid submission body", parsed.error.flatten());
+      if (!parsed.success)
+        return badRequest(res, "invalid submission body", parsed.error.flatten());
       const body = parsed.data;
 
       const fixture = problemsById.get(body.problem_version_id);
@@ -22,7 +28,10 @@ export function registerSubmissionRoutes(app: Express): void {
       // consequence, so allowing it before the solution has been revealed would be an unlimited free
       // run against the real tests.
       if (body.mode === "transcribe" && !getProblemUserState(body.problem_version_id).gaveUp) {
-        return badRequest(res, "transcribe mode requires the editorial to have been revealed for this problem");
+        return badRequest(
+          res,
+          "transcribe mode requires the editorial to have been revealed for this problem",
+        );
       }
 
       const id = newId();
@@ -82,7 +91,9 @@ export function registerSubmissionRoutes(app: Express): void {
       const versionId = pparam(req.params.versionId);
       const latest = [...submissions.values()]
         .filter((s) => s.problemVersionId === versionId)
-        .sort((a, b) => new Date(b.row.created_at).getTime() - new Date(a.row.created_at).getTime())[0];
+        .sort(
+          (a, b) => new Date(b.row.created_at).getTime() - new Date(a.row.created_at).getTime(),
+        )[0];
       res.json({ submission: latest?.row ?? null });
     }),
   );
@@ -101,7 +112,12 @@ export function registerSubmissionRoutes(app: Express): void {
       const rows = [...submissions.values()]
         // Same two exclusions as the real query: runs, and submits that died on a public example
         // (those are treated as runs throughout — see `failedPublicCase` in @leetmind/shared).
-        .filter((s) => s.problemVersionId === versionId && s.row.mode === "submit" && !failedPublicCase(s.row.failure))
+        .filter(
+          (s) =>
+            s.problemVersionId === versionId &&
+            s.row.mode === "submit" &&
+            !failedPublicCase(s.row.failure),
+        )
         .sort((a, b) => new Date(b.row.created_at).getTime() - new Date(a.row.created_at).getTime())
         .slice(0, SUBMISSION_HISTORY_LIMIT)
         .map((s) => s.row);

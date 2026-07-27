@@ -36,7 +36,10 @@ describe.skipIf(!dbReachable)("give-up idempotency", () => {
   });
 
   it("applies the mastery hit exactly once across two give-up calls, and returns the same result both times", async () => {
-    const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing", difficultyRating: 1200 });
+    const seeded = await seedApprovedProblem(pool, {
+      conceptId: "arrays_hashing",
+      difficultyRating: 1200,
+    });
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
 
@@ -79,12 +82,22 @@ describe.skipIf(!dbReachable)("give-up idempotency", () => {
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
 
-    const before = await server.inject({ method: "GET", url: `/api/problems/${seeded.problemVersionId}` });
+    const before = await server.inject({
+      method: "GET",
+      url: `/api/problems/${seeded.problemVersionId}`,
+    });
     expect(JSON.parse(before.body).problem.concepts_revealed).toBeNull();
 
-    await server.inject({ method: "POST", url: `/api/problems/${seeded.problemVersionId}/give-up`, payload: {} });
+    await server.inject({
+      method: "POST",
+      url: `/api/problems/${seeded.problemVersionId}/give-up`,
+      payload: {},
+    });
 
-    const after = await server.inject({ method: "GET", url: `/api/problems/${seeded.problemVersionId}` });
+    const after = await server.inject({
+      method: "GET",
+      url: `/api/problems/${seeded.problemVersionId}`,
+    });
     const revealed = JSON.parse(after.body).problem.concepts_revealed;
     expect(revealed).not.toBeNull();
     expect(revealed[0].id).toBe("arrays_hashing");
@@ -172,7 +185,10 @@ describe.skipIf(!dbReachable)("give-up idempotency", () => {
       }),
     );
     submissionIds.push(submission.id);
-    await pool.query("update submissions set verdict = 'accepted', completed_at = now() where id = $1", [submission.id]);
+    await pool.query(
+      "update submissions set verdict = 'accepted', completed_at = now() where id = $1",
+      [submission.id],
+    );
 
     const res = await server.inject({
       method: "POST",
@@ -208,7 +224,10 @@ describe.skipIf(!dbReachable)("give-up idempotency", () => {
       }),
     );
     submissionIds.push(before.id);
-    await pool.query("update submissions set verdict = 'wrong_answer', completed_at = now() where id = $1", [before.id]);
+    await pool.query(
+      "update submissions set verdict = 'wrong_answer', completed_at = now() where id = $1",
+      [before.id],
+    );
 
     const giveUp = await server.inject({
       method: "POST",
@@ -239,7 +258,10 @@ describe.skipIf(!dbReachable)("give-up idempotency", () => {
       }),
     );
     submissionIds.push(after.id);
-    await pool.query("update submissions set verdict = 'wrong_answer', completed_at = now() where id = $1", [after.id]);
+    await pool.query(
+      "update submissions set verdict = 'wrong_answer', completed_at = now() where id = $1",
+      [after.id],
+    );
 
     const latestAfter = await server.inject({
       method: "GET",

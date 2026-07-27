@@ -24,7 +24,12 @@ export interface PlateProps {
   className?: string;
 }
 
-export function Plate({ size = "md", tone = "neutral", filled = false, className = "" }: PlateProps) {
+export function Plate({
+  size = "md",
+  tone = "neutral",
+  filled = false,
+  className = "",
+}: PlateProps) {
   const r = RADII[size];
   const box = r * 2 + 4;
   const c = box / 2;
@@ -38,7 +43,17 @@ export function Plate({ size = "md", tone = "neutral", filled = false, className
       aria-hidden="true"
     >
       <circle cx={c} cy={c} r={r} fill={filled ? color : "none"} stroke={color} strokeWidth={2} />
-      {!filled && <circle cx={c} cy={c} r={Math.max(1.5, r - 4)} fill="none" stroke={color} strokeWidth={1} opacity={0.5} />}
+      {!filled && (
+        <circle
+          cx={c}
+          cy={c}
+          r={Math.max(1.5, r - 4)}
+          fill="none"
+          stroke={color}
+          strokeWidth={1}
+          opacity={0.5}
+        />
+      )}
     </svg>
   );
 }

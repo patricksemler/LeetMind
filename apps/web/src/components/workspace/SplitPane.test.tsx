@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { SplitPane } from "./SplitPane";
 
 function renderSplit(storageKey?: string) {
-  return render(<SplitPane storageKey={storageKey} first={<p>statement</p>} second={<p>editor</p>} />);
+  return render(
+    <SplitPane storageKey={storageKey} first={<p>statement</p>} second={<p>editor</p>} />,
+  );
 }
 
 /** The container has no layout in jsdom, so a pointer drag can't be simulated meaningfully —
@@ -73,7 +75,14 @@ describe("SplitPane", () => {
 
   it("a vertical split steps on the up/down arrows and reports itself as a horizontal separator", async () => {
     const user = userEvent.setup();
-    render(<SplitPane orientation="vertical" first={<p>editor</p>} second={<p>cases</p>} initialFirstPct={62} />);
+    render(
+      <SplitPane
+        orientation="vertical"
+        first={<p>editor</p>}
+        second={<p>cases</p>}
+        initialFirstPct={62}
+      />,
+    );
 
     const separator = screen.getByRole("separator");
     expect(separator).toHaveAttribute("aria-orientation", "horizontal");

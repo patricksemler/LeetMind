@@ -60,7 +60,16 @@ export async function runGiveUpTransaction(
     correlationId?: string;
   },
 ): Promise<GiveUpTransactionResult> {
-  const { userId, versionId, idempotencyKey, conceptIds, weights, problemRating, activeMs, correlationId } = params;
+  const {
+    userId,
+    versionId,
+    idempotencyKey,
+    conceptIds,
+    weights,
+    problemRating,
+    activeMs,
+    correlationId,
+  } = params;
 
   await insertHintEvent(client, {
     id: newId(),
@@ -88,7 +97,8 @@ export async function runGiveUpTransaction(
   // the confirmed-live mastery lost-update race elsewhere (QA-PLAN.md §2.2).
   const stateMap: Record<string, UserConceptStateRow> = {};
   for (const id of [...conceptIds].sort()) {
-    stateMap[id] = (await getConceptStateForUpdate(client, userId, id)) ?? defaultConceptStateRow(userId, id);
+    stateMap[id] =
+      (await getConceptStateForUpdate(client, userId, id)) ?? defaultConceptStateRow(userId, id);
   }
 
   const beforeSnapshot = snapshotStates(stateMap);
@@ -133,7 +143,11 @@ export async function runGiveUpTransaction(
     submission_id: null,
     kind: "give_up",
     outcome: 0,
-    evidence: { changes: update.changes, explanation: update.explanation, expected: update.expected },
+    evidence: {
+      changes: update.changes,
+      explanation: update.explanation,
+      expected: update.expected,
+    },
     before_state: beforeSnapshot,
     after_state: afterSnapshot,
     idempotency_key: idempotencyKey,

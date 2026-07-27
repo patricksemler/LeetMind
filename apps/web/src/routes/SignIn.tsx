@@ -66,8 +66,8 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         <Panel className="max-w-sm p-6 text-center">
           <h1 className="font-display text-xl text-text">Check your inbox</h1>
           <p className="mt-2 text-sm text-text-dim">
-            We sent a confirmation link to <strong className="text-text">{email}</strong>. Open it to finish
-            creating your account.
+            We sent a confirmation link to <strong className="text-text">{email}</strong>. Open it
+            to finish creating your account.
           </p>
           <Link to="/login" className="mt-4 inline-block text-sm text-accent underline">
             Back to sign in
@@ -80,7 +80,9 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
   return (
     <div className="flex h-full items-center justify-center p-6">
       <Panel className="w-full max-w-sm p-6">
-        <h1 className="font-display text-xl text-text">{isSignUp ? "Create your account" : "Sign in"}</h1>
+        <h1 className="font-display text-xl text-text">
+          {isSignUp ? "Create your account" : "Sign in"}
+        </h1>
         <p className="mt-1 text-sm text-text-dim">
           {isSignUp
             ? "Your practice history, ratings, and generated problems are tied to this account."
@@ -127,7 +129,13 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
           )}
 
           <Button type="submit" variant="primary" className="w-full" disabled={pending}>
-            {pending ? (isSignUp ? "Creating…" : "Signing in…") : isSignUp ? "Create account" : "Sign in"}
+            {pending
+              ? isSignUp
+                ? "Creating…"
+                : "Signing in…"
+              : isSignUp
+                ? "Create account"
+                : "Sign in"}
           </Button>
         </form>
 

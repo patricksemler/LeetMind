@@ -32,8 +32,15 @@ function tabPanelId(tabsId: string, tabId: string): string {
 
 /** Props to spread onto the panel element a given tab controls — keeps the id/aria-controls/
  * aria-labelledby triad in one place instead of every consumer hand-rolling matching strings. */
-export function tabPanelProps(tabsId: string, tabId: string): { id: string; role: "tabpanel"; "aria-labelledby": string } {
-  return { id: tabPanelId(tabsId, tabId), role: "tabpanel", "aria-labelledby": tabButtonId(tabsId, tabId) };
+export function tabPanelProps(
+  tabsId: string,
+  tabId: string,
+): { id: string; role: "tabpanel"; "aria-labelledby": string } {
+  return {
+    id: tabPanelId(tabsId, tabId),
+    role: "tabpanel",
+    "aria-labelledby": tabButtonId(tabsId, tabId),
+  };
 }
 
 export function Tabs({ id, tabs, active, onChange, className = "", trailing }: TabsProps) {

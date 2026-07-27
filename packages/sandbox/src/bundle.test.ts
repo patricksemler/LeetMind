@@ -31,7 +31,14 @@ describe("buildPythonBundle", () => {
     });
 
     expect(Object.keys(bundle).sort()).toEqual(
-      ["comparator.json", "config.json", "runner.py", "signature.json", "solution.py", "tests.json"].sort(),
+      [
+        "comparator.json",
+        "config.json",
+        "runner.py",
+        "signature.json",
+        "solution.py",
+        "tests.json",
+      ].sort(),
     );
   });
 

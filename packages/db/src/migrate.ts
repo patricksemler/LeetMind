@@ -26,7 +26,9 @@ export interface MigrationFile {
 }
 
 /** Reads `dir` and returns every `*.sql` file, sorted lexically by filename. */
-export async function listMigrationFiles(dir: string = DEFAULT_MIGRATIONS_DIR): Promise<MigrationFile[]> {
+export async function listMigrationFiles(
+  dir: string = DEFAULT_MIGRATIONS_DIR,
+): Promise<MigrationFile[]> {
   const entries = await readdir(dir);
   return entries
     .filter((name) => name.endsWith(".sql"))
@@ -39,7 +41,10 @@ export async function listMigrationFiles(dir: string = DEFAULT_MIGRATIONS_DIR): 
 }
 
 /** Pure: files not yet present in `applied`, preserving the lexical order of `files`. */
-export function pendingMigrations(files: MigrationFile[], applied: ReadonlySet<string>): MigrationFile[] {
+export function pendingMigrations(
+  files: MigrationFile[],
+  applied: ReadonlySet<string>,
+): MigrationFile[] {
   return files.filter((f) => !applied.has(f.version));
 }
 
@@ -119,7 +124,10 @@ export async function up(dir: string = DEFAULT_MIGRATIONS_DIR): Promise<void> {
         } catch (err) {
           await client.query("ROLLBACK");
           const message = err instanceof Error ? err.message : String(err);
-          logger.error({ version: file.version, file: file.filename, error: message }, "migration failed");
+          logger.error(
+            { version: file.version, file: file.filename, error: message },
+            "migration failed",
+          );
           throw err;
         }
       }

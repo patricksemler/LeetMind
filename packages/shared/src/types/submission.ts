@@ -117,7 +117,9 @@ export type SubmissionFailure = z.infer<typeof SubmissionFailureSchema>;
 // Typed structurally, not as `SubmissionFailure`: the same failure travels as three shapes that
 // differ only in an index signature — this zod-`.passthrough()` type, the plain @leetmind/db
 // interface the judge writes, and the SSE event's. One predicate has to accept all three.
-export function failedPublicCase(failure: { failing_test?: { origin?: string } | null } | null | undefined): boolean {
+export function failedPublicCase(
+  failure: { failing_test?: { origin?: string } | null } | null | undefined,
+): boolean {
   return failure?.failing_test?.origin === "public";
 }
 
@@ -306,4 +308,3 @@ export const GiveUpResponse = z
   })
   .passthrough();
 export type GiveUpResponse = z.infer<typeof GiveUpResponse>;
-

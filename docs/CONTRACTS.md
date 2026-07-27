@@ -1,7 +1,7 @@
 # LeetMind — Implementation Contracts (normative)
 
-This document is **normative for all implementation work**. `PLAN.md` says *what* and *why*;
-this document says *exactly which names, shapes, and files*. When implementing, do not invent
+This document is **normative for all implementation work**. `PLAN.md` says _what_ and _why_;
+this document says _exactly which names, shapes, and files_. When implementing, do not invent
 alternative names for anything defined here. If something is genuinely missing, implement the
 smallest thing consistent with the conventions below and note it in your report.
 
@@ -83,6 +83,7 @@ exist and must keep working, but nothing at dev or test time may depend on their
 - **No secrets in sandbox images.** Ever.
 
 ### Single-user mode
+
 No auth in v1. `SINGLE_USER_ID` env (default ULID seeded by migration:
 `00000000000000000000000001`, handle `local`). Every user-owned table still carries `user_id`.
 API resolves the current user from config, not from the request.
@@ -91,40 +92,40 @@ API resolves the current user from config, not from the request.
 
 ## 2. Environment variables (`.env.example` must list all of these)
 
-| Var | Default | Used by |
-|---|---|---|
-| `DATABASE_URL` | `postgres://leetmind:leetmind@localhost:5432/leetmind` | all |
-| `PGPOOL_MAX` | `10` | all |
-| `LOG_LEVEL` | `info` | all |
-| `NODE_ENV` | `development` | ts |
-| `API_PORT` | `8080` | api |
-| `API_HOST` | `0.0.0.0` | api |
-| `WEB_PORT` | `5173` | web |
-| `VITE_API_BASE` | `http://localhost:8080` | web |
-| `SINGLE_USER_ID` | `00000000000000000000000001` | api, judge, content |
-| `JUDGE_WORKER_ID` | hostname+pid | judge |
-| `JUDGE_CONCURRENCY` | `2` | judge |
-| `QUEUE_LEASE_SECONDS` | `30` | queue |
-| `QUEUE_HEARTBEAT_MS` | `10000` | queue |
-| `QUEUE_REAPER_INTERVAL_MS` | `5000` | queue |
-| `QUEUE_POLL_INTERVAL_MS` | `500` | queue |
-| `SANDBOX_PYTHON_IMAGE` | `leetmind/runner-python:1` | judge, content |
-| `SANDBOX_CPP_IMAGE` | `leetmind/runner-cpp:1` | judge |
-| `SANDBOX_MEMORY_MB` | `256` | sandbox |
-| `SANDBOX_CPUS` | `1.0` | sandbox |
-| `SANDBOX_PIDS_LIMIT` | `64` | sandbox |
-| `SANDBOX_WALL_TIMEOUT_MS` | `10000` | sandbox |
-| `SANDBOX_OUTPUT_LIMIT_BYTES` | `65536` | sandbox |
-| `SANDBOX_WORK_DIR` | `/tmp/leetmind-sandbox` | sandbox |
-| `DOCKER_BIN` | `docker` | sandbox |
-| `CONTENT_WORKER_ID` | hostname+pid | content |
-| `GENERATOR_INVOKER` | `claude` | content (`claude` \| `codex` \| `stub`) |
-| `CLAUDE_BIN` | `claude` | content |
-| `GENERATOR_TIMEOUT_MS` | `600000` | content |
-| `GENERATOR_MAX_SCHEMA_RETRIES` | `2` | content |
-| `BUFFER_LOW_WATERMARK` | `3` | content |
-| `REPLENISH_INTERVAL_MS` | `60000` | content |
-| `VERIFY_DIFFERENTIAL_CASES` | `200` | content |
+| Var                            | Default                                                | Used by                                 |
+| ------------------------------ | ------------------------------------------------------ | --------------------------------------- |
+| `DATABASE_URL`                 | `postgres://leetmind:leetmind@localhost:5432/leetmind` | all                                     |
+| `PGPOOL_MAX`                   | `10`                                                   | all                                     |
+| `LOG_LEVEL`                    | `info`                                                 | all                                     |
+| `NODE_ENV`                     | `development`                                          | ts                                      |
+| `API_PORT`                     | `8080`                                                 | api                                     |
+| `API_HOST`                     | `0.0.0.0`                                              | api                                     |
+| `WEB_PORT`                     | `5173`                                                 | web                                     |
+| `VITE_API_BASE`                | `http://localhost:8080`                                | web                                     |
+| `SINGLE_USER_ID`               | `00000000000000000000000001`                           | api, judge, content                     |
+| `JUDGE_WORKER_ID`              | hostname+pid                                           | judge                                   |
+| `JUDGE_CONCURRENCY`            | `2`                                                    | judge                                   |
+| `QUEUE_LEASE_SECONDS`          | `30`                                                   | queue                                   |
+| `QUEUE_HEARTBEAT_MS`           | `10000`                                                | queue                                   |
+| `QUEUE_REAPER_INTERVAL_MS`     | `5000`                                                 | queue                                   |
+| `QUEUE_POLL_INTERVAL_MS`       | `500`                                                  | queue                                   |
+| `SANDBOX_PYTHON_IMAGE`         | `leetmind/runner-python:1`                             | judge, content                          |
+| `SANDBOX_CPP_IMAGE`            | `leetmind/runner-cpp:1`                                | judge                                   |
+| `SANDBOX_MEMORY_MB`            | `256`                                                  | sandbox                                 |
+| `SANDBOX_CPUS`                 | `1.0`                                                  | sandbox                                 |
+| `SANDBOX_PIDS_LIMIT`           | `64`                                                   | sandbox                                 |
+| `SANDBOX_WALL_TIMEOUT_MS`      | `10000`                                                | sandbox                                 |
+| `SANDBOX_OUTPUT_LIMIT_BYTES`   | `65536`                                                | sandbox                                 |
+| `SANDBOX_WORK_DIR`             | `/tmp/leetmind-sandbox`                                | sandbox                                 |
+| `DOCKER_BIN`                   | `docker`                                               | sandbox                                 |
+| `CONTENT_WORKER_ID`            | hostname+pid                                           | content                                 |
+| `GENERATOR_INVOKER`            | `claude`                                               | content (`claude` \| `codex` \| `stub`) |
+| `CLAUDE_BIN`                   | `claude`                                               | content                                 |
+| `GENERATOR_TIMEOUT_MS`         | `600000`                                               | content                                 |
+| `GENERATOR_MAX_SCHEMA_RETRIES` | `2`                                                    | content                                 |
+| `BUFFER_LOW_WATERMARK`         | `3`                                                    | content                                 |
+| `REPLENISH_INTERVAL_MS`        | `60000`                                                | content                                 |
+| `VERIFY_DIFFERENTIAL_CASES`    | `200`                                                  | content                                 |
 
 ---
 
@@ -208,6 +209,7 @@ Tables and their columns (types are Postgres; `not null` unless marked `?`):
 - **worker_heartbeats**: `worker_id pk`, `kind`, `last_seen_at`, `meta jsonb default '{}'`
 
 Migration files:
+
 - `001_init.sql` — everything above.
 - `002_seed_taxonomy.sql` — concepts + edges + the single local user (idempotent `on conflict do nothing`).
 
@@ -239,18 +241,24 @@ Everything in this section is **exported from `packages/shared/src/index.ts`** a
 
 ```ts
 type ParamType =
-  | 'int' | 'float' | 'bool' | 'str'
-  | `list[${string}]`          // nested, e.g. "list[list[int]]"
-  | 'TreeNode' | 'ListNode'    // M3
-  | 'TreeNode?' | 'ListNode?'  // nullable roots
+  | "int"
+  | "float"
+  | "bool"
+  | "str"
+  | `list[${string}]` // nested, e.g. "list[list[int]]"
+  | "TreeNode"
+  | "ListNode" // M3
+  | "TreeNode?"
+  | "ListNode?"; // nullable roots
 export const SignatureSchema = z.object({
-  name: z.string(),                                   // camelCase function name
+  name: z.string(), // camelCase function name
   params: z.array(z.object({ name: z.string(), type: ParamTypeSchema })),
   returns: ParamTypeSchema,
-})
+});
 ```
 
 Encodings (JSON, both directions, identical in TS and Python):
+
 - `TreeNode` → level-order array with `null` holes, LeetCode style: `[1,2,3,null,null,4,5]`
 - `ListNode` → plain array: `[1,2,3]`
 - everything else → the obvious JSON
@@ -259,38 +267,60 @@ Encodings (JSON, both directions, identical in TS and Python):
 
 ```ts
 export const ProblemVersionSchema = z.object({
-  problem_id: z.string(), version: z.number().int().positive(),
-  title: z.string(), internal_name: z.string(),
-  statement_md: z.string(), constraints_md: z.string(),
+  problem_id: z.string(),
+  version: z.number().int().positive(),
+  title: z.string(),
+  internal_name: z.string(),
+  statement_md: z.string(),
+  constraints_md: z.string(),
   signature: SignatureSchema,
-  examples: z.array(z.object({ args: z.array(z.unknown()), expected: z.unknown(),
-                               explanation: z.string() })).min(1),
-  concepts: z.array(z.object({ id: z.string(), role: z.enum(['primary','secondary']),
-                               weight: z.number().min(0).max(1) })).min(1),
-  difficulty: z.object({ rating: z.number().int(),
-                         confidence: z.enum(['generated','verified','calibrated']) }),
+  examples: z
+    .array(z.object({ args: z.array(z.unknown()), expected: z.unknown(), explanation: z.string() }))
+    .min(1),
+  concepts: z
+    .array(
+      z.object({
+        id: z.string(),
+        role: z.enum(["primary", "secondary"]),
+        weight: z.number().min(0).max(1),
+      }),
+    )
+    .min(1),
+  difficulty: z.object({
+    rating: z.number().int(),
+    confidence: z.enum(["generated", "verified", "calibrated"]),
+  }),
   expected_active_minutes: z.tuple([z.number().int(), z.number().int()]),
   target_complexity: z.object({ time: z.string(), space: z.string() }),
   reference_solution_py: z.string(),
   brute_force_py: z.string(),
   input_generator_py: z.string(),
-  comparator: z.enum(['exact','float_tol','unordered','checker_py']),
+  comparator: z.enum(["exact", "float_tol", "unordered", "checker_py"]),
   checker_py: z.string().optional(),
-  hidden_tests: z.array(TestCaseSchema).default([]),   // SERVER ONLY
-  mutants_py: z.array(z.string()).default([]),          // SERVER ONLY
-  hints: z.object({ l1_orientation: z.string(), l2_conceptual: z.string(),
-                    l3_structural: z.string(), outline: z.string(), editorial_md: z.string() }),
-  provenance: z.object({ mode: z.enum(['novel','template','composed']), model: z.string(),
-                         prompt_version: z.string(), generated_at: z.string() }),
-  state: z.enum(['candidate','verifying','approved','rejected','retired']),
-})
+  hidden_tests: z.array(TestCaseSchema).default([]), // SERVER ONLY
+  mutants_py: z.array(z.string()).default([]), // SERVER ONLY
+  hints: z.object({
+    l1_orientation: z.string(),
+    l2_conceptual: z.string(),
+    l3_structural: z.string(),
+    outline: z.string(),
+    editorial_md: z.string(),
+  }),
+  provenance: z.object({
+    mode: z.enum(["novel", "template", "composed"]),
+    model: z.string(),
+    prompt_version: z.string(),
+    generated_at: z.string(),
+  }),
+  state: z.enum(["candidate", "verifying", "approved", "rejected", "retired"]),
+});
 
 export const TestCaseSchema = z.object({
   args: z.array(z.unknown()),
   expected: z.unknown(),
-  origin: z.enum(['example','random','boundary','adversarial']),
+  origin: z.enum(["example", "random", "boundary", "adversarial"]),
   seed: z.number().int().optional(),
-})
+});
 ```
 
 **`PublicProblem`** is the ONLY problem shape the API may serialize to a client:
@@ -306,26 +336,44 @@ function `toPublicProblem(row)` in `@leetmind/shared` and **nothing else may bui
 ### 4.3 Verdicts and statuses
 
 ```ts
-export const Verdict = z.enum(['accepted','wrong_answer','compilation_error','runtime_error',
-  'time_limit','memory_limit','output_limit','internal_error','cancelled'])
-export const SubmissionStatus = z.enum(['created','queued','assigned','compiling','running',
-  'completed','cancelled'])
-export const Language = z.enum(['python','cpp'])
+export const Verdict = z.enum([
+  "accepted",
+  "wrong_answer",
+  "compilation_error",
+  "runtime_error",
+  "time_limit",
+  "memory_limit",
+  "output_limit",
+  "internal_error",
+  "cancelled",
+]);
+export const SubmissionStatus = z.enum([
+  "created",
+  "queued",
+  "assigned",
+  "compiling",
+  "running",
+  "completed",
+  "cancelled",
+]);
+export const Language = z.enum(["python", "cpp"]);
 ```
 
 ### 4.4 Job kinds, payloads, priorities
 
 ```ts
-export const JobKind = z.enum(['judge','verify','generate'])
-export const JOB_PRIORITY = { judge: 10, verify: 50, generate: 100 } as const  // lower = sooner
+export const JobKind = z.enum(["judge", "verify", "generate"]);
+export const JOB_PRIORITY = { judge: 10, verify: 50, generate: 100 } as const; // lower = sooner
 ```
 
 Payloads:
+
 - `judge`: `{ submission_id, mode: 'run'|'submit', language, problem_version_id, user_id }`
 - `verify`: `{ problem_version_id, correlation_id }`
 - `generate`: `{ request: GenerationRequest, correlation_id }`
 
 `GenerationRequest`:
+
 ```ts
 { concepts: [{id, weight}], target_rating: number, rating_tolerance: number,
   expected_minutes: [number, number], target_complexity?: {time, space},
@@ -335,6 +383,7 @@ Payloads:
 ```
 
 Idempotency keys:
+
 - judge job: `judge:<submission_id>`
 - verify job: `verify:<problem_version_id>`
 - generate job: `generate:<concept_key>:<rating_band>:<slot_index>`
@@ -345,13 +394,13 @@ Idempotency keys:
 
 Endpoint `GET /api/submissions/:id/events` (text/event-stream). Named events:
 
-| event | data |
-|---|---|
-| `status` | `{ submission_id, status, at }` |
-| `progress` | `{ submission_id, passed, total }` |
-| `verdict` | `{ submission_id, verdict, passed_tests, total_tests, runtime_ms, memory_kb, failure? }` |
-| `mastery` | `{ submission_id, changes: [{concept_id, before_rating, after_rating, before_uncertainty, after_uncertainty}], outcome, explanation }` |
-| `ping` | `{ at }` every 15s |
+| event      | data                                                                                                                                   |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`   | `{ submission_id, status, at }`                                                                                                        |
+| `progress` | `{ submission_id, passed, total }`                                                                                                     |
+| `verdict`  | `{ submission_id, verdict, passed_tests, total_tests, runtime_ms, memory_kb, failure? }`                                               |
+| `mastery`  | `{ submission_id, changes: [{concept_id, before_rating, after_rating, before_uncertainty, after_uncertainty}], outcome, explanation }` |
+| `ping`     | `{ at }` every 15s                                                                                                                     |
 
 Transport: Postgres `LISTEN/NOTIFY` on channel **`leetmind_events`**. Notify payload must stay
 under 7900 bytes and has shape `{ type, submission_id?, user_id?, ...small fields }`. The API holds
@@ -377,13 +426,13 @@ as `toPublicProblem` applies: build it in one place and never spread the raw con
 
 **Run vs submit differ only in which tests execute.**
 
-| mode | tests |
-|---|---|
-| `run` | the problem's public `examples`, exactly as printed in the statement |
+| mode     | tests                                                                        |
+| -------- | ---------------------------------------------------------------------------- |
+| `run`    | the problem's public `examples`, exactly as printed in the statement         |
 | `submit` | those same public examples **plus** `hidden_tests`, deduped by argument list |
 
 Submit is a strict superset on purpose: "solved" must mean the solution satisfied everything the
-user can see *and* everything they cannot, and the reported totals have to make that visible. A
+user can see _and_ everything they cannot, and the reported totals have to make that visible. A
 `run` never marks a problem solved and never writes a mastery event, however many examples pass.
 
 Public tests are ordered first, so `first_failing_test_index` names a case the user can read
@@ -428,20 +477,30 @@ Exported API:
 
 ```ts
 class Queue {
-  constructor(pool: Pool, opts?: {leaseSeconds?, workerId?})
-  enqueue(client: PoolClient | Pool, job: {kind, payload, priority?, maxAttempts?, runAt?,
-          idempotencyKey?, correlationId?}): Promise<Job | null>   // null when key collided
-  claim(kinds: JobKind[], workerId: string): Promise<Job | null>
-  heartbeat(jobId: string, workerId: string): Promise<boolean>     // false ⇒ lease lost, abort work
-  ack(jobId: string, workerId: string): Promise<void>              // → done
-  fail(jobId, workerId, error: string, opts?: {retryInMs?}): Promise<'retry'|'dead'>
-  reapExpired(): Promise<number>                                   // requeue expired leases
-  stats(): Promise<QueueStats>
+  constructor(pool: Pool, opts?: { leaseSeconds?; workerId? });
+  enqueue(
+    client: PoolClient | Pool,
+    job: { kind; payload; priority?; maxAttempts?; runAt?; idempotencyKey?; correlationId? },
+  ): Promise<Job | null>; // null when key collided
+  claim(kinds: JobKind[], workerId: string): Promise<Job | null>;
+  heartbeat(jobId: string, workerId: string): Promise<boolean>; // false ⇒ lease lost, abort work
+  ack(jobId: string, workerId: string): Promise<void>; // → done
+  fail(jobId, workerId, error: string, opts?: { retryInMs? }): Promise<"retry" | "dead">;
+  reapExpired(): Promise<number>; // requeue expired leases
+  stats(): Promise<QueueStats>;
 }
-export function runWorker(opts: {queue, kinds, concurrency, handler, logger, signal}): Promise<void>
+export function runWorker(opts: {
+  queue;
+  kinds;
+  concurrency;
+  handler;
+  logger;
+  signal;
+}): Promise<void>;
 ```
 
 Claim SQL (use exactly this shape):
+
 ```sql
 update jobs set status='leased', attempts=attempts+1, leased_by=$2,
   lease_expires_at=now() + ($3 || ' seconds')::interval, updated_at=now()
@@ -452,6 +511,7 @@ returning *;
 ```
 
 Rules:
+
 - `enqueue` **must** accept a caller-supplied client so it joins the caller's transaction.
 - Idempotency-key collision on enqueue → `on conflict (idempotency_key) do nothing`, return `null`.
 - `fail` increments nothing (claim already did); when `attempts >= max_attempts` → `status='dead'`.
@@ -468,29 +528,38 @@ Python mirror: `content/leetmind_content/queue.py` with the same semantics
 ## 6. `@leetmind/sandbox` — execution substrate
 
 ```ts
-export interface SandboxLimits { memoryMb, cpus, pidsLimit, wallTimeoutMs, outputLimitBytes }
+export interface SandboxLimits {
+  memoryMb;
+  cpus;
+  pidsLimit;
+  wallTimeoutMs;
+  outputLimitBytes;
+}
 export interface SandboxRequest {
-  image: string
-  files: Record<string, string>     // relative path → contents, written into the bundle dir
-  argv: string[]                    // command inside the container
-  limits: SandboxLimits
-  correlationId?: string
+  image: string;
+  files: Record<string, string>; // relative path → contents, written into the bundle dir
+  argv: string[]; // command inside the container
+  limits: SandboxLimits;
+  correlationId?: string;
 }
 export interface SandboxResult {
-  exitCode: number | null
-  timedOut: boolean
-  oomKilled: boolean
-  stdout: string; stderr: string       // truncated to outputLimitBytes, with `truncated` flags
-  stdoutTruncated: boolean; stderrTruncated: boolean
-  durationMs: number
-  imageDigest: string | null
-  usage: { maxRssKb?: number }
+  exitCode: number | null;
+  timedOut: boolean;
+  oomKilled: boolean;
+  stdout: string;
+  stderr: string; // truncated to outputLimitBytes, with `truncated` flags
+  stdoutTruncated: boolean;
+  stderrTruncated: boolean;
+  durationMs: number;
+  imageDigest: string | null;
+  usage: { maxRssKb?: number };
 }
-export async function runSandboxed(req: SandboxRequest): Promise<SandboxResult>
-export async function resolveImageDigest(image: string): Promise<string | null>
+export async function runSandboxed(req: SandboxRequest): Promise<SandboxResult>;
+export async function resolveImageDigest(image: string): Promise<string | null>;
 ```
 
 `docker run` flags (mandatory, in this order):
+
 ```
 --rm --network none --read-only
 --tmpfs /work:rw,size=64m,mode=1777,exec
@@ -500,6 +569,7 @@ export async function resolveImageDigest(image: string): Promise<string | null>
 -u 65534:65534 -w /work
 --label leetmind.sandbox=1
 ```
+
 Wall timeout is enforced by the **host** (kill the `docker run` child, then `docker kill` by label
 as a backstop). Stdout/stderr are capped by the host reader, not by the container.
 
@@ -516,10 +586,12 @@ single sentinel line, then one JSON object:
 
 The host parses the **last** occurrence of the sentinel. Anything before it is user output.
 Per-test object:
+
 ```json
 {"index":0,"status":"passed|failed|error|timeout","time_ms":1.2,"memory_kb":2048,
  "stdout":"...","error":"...","output":<json>}
 ```
+
 The harness itself never emits `expected` for hidden tests; comparison happens **inside** the
 container against the bundled expected values, and only the boolean plus a truncated `output`
 comes back.
@@ -539,13 +611,14 @@ node --import tsx packages/sandbox/src/cli.ts exec-python # reads {signature,tes
 ```
 
 Rules: JSON in / JSON out on stdin/stdout only, all logs to **stderr**, exit 0 on a successful
-*execution attempt* (even when the verdict is `wrong_answer`), non-zero only on infrastructure
+_execution attempt_ (even when the verdict is `wrong_answer`), non-zero only on infrastructure
 failure. Python wraps this in `content/leetmind_content/sandbox.py` as
 `run_python(signature, tests, comparator, source, limits) -> ExecuteResult`, resolving the repo
 root from `LEETMIND_REPO_ROOT` or by walking up for `pnpm-workspace.yaml`.
 **Python must never build `docker run` arguments itself.**
 
 Images:
+
 - `docker/runner-python/Dockerfile` — `python:3.12-slim`, no network at runtime, non-root, no pip
   packages beyond stdlib. Tag `leetmind/runner-python:1`.
 - `docker/runner-cpp/Dockerfile` — `gcc:14` or `debian:bookworm` + `g++`, compiles with
@@ -561,11 +634,12 @@ Images:
   `nlohmann/json.hpp` dominates compile time: compiling the real generated bundle takes ~3.5 s,
   while an otherwise-identical translation unit with the header removed compiles in ~148 ms — which
   is itself indistinguishable from bare container startup (~143 ms, measured over 20 iterations
-  with the production flag list). So C++ end-to-end latency is *header compilation*, not container
+  with the production flag list). So C++ end-to-end latency is _header compilation_, not container
   or cgroup mechanics. Two obvious levers if C++ latency ever matters: bake a precompiled header
   into `leetmind/runner-cpp`, or swap to a lighter JSON parser for the harness. Neither is worth
   doing until someone is actually waiting on it — recorded here so the next person measures before
   optimizing the wrong thing.
+
 - `scripts/build-images.sh` builds both.
 
 ---
@@ -578,10 +652,12 @@ and by the **judge** through a small CLI so there is exactly one implementation:
 ```
 python -m leetmind_content.harness.cli emit --language python --signature-json <path> --out <dir>
 ```
+
 …but for judge-time simplicity the judge instead writes a **static runner** into the bundle and
 passes signature + tests as JSON data files. That is the required design:
 
 **Python bundle layout** (written by judge or content worker):
+
 ```
 /bundle/runner.py        # static, language-generic driver (checked into packages/sandbox/runners/)
 /bundle/signature.json   # Signature
@@ -590,6 +666,7 @@ passes signature + tests as JSON data files. That is the required design:
 /bundle/checker.py       # optional
 /bundle/solution.py      # the user's (or reference/mutant) code
 ```
+
 `runner.py` imports `solution.py`, resolves `signature.name`, decodes args (building `TreeNode`/
 `ListNode` when the signature says so), runs each test with a per-test time budget, captures user
 stdout, encodes the return value back to JSON, compares with the comparator, and emits the
@@ -610,38 +687,74 @@ maps to `compilation_error` with the g++ stderr surfaced (path-scrubbed).
 ## 8. `@leetmind/learner` — mastery engine (pure functions, no I/O)
 
 ```ts
-export function expectedSuccess(userRating: number, problemRating: number): number
-export function blendedRating(state: Record<conceptId, {rating, uncertainty}>,
-                              weights: {id, weight}[]): {rating, uncertainty}
+export function expectedSuccess(userRating: number, problemRating: number): number;
+export function blendedRating(
+  state: Record<conceptId, { rating; uncertainty }>,
+  weights: { id; weight }[],
+): { rating; uncertainty };
 export function outcomeScore(input: {
-  verdict: Verdict | null, gaveUp: boolean, skipped: 'inability'|'preference'|null,
-  highestHint: HintLevel | null, activeMs: number, expectedMinutes: [number, number],
-  substantiveSubmissions: number, compileErrors: number
-}): { outcome: number, evidenceWeight: number, breakdown: Record<string, number> }
+  verdict: Verdict | null;
+  gaveUp: boolean;
+  skipped: "inability" | "preference" | null;
+  highestHint: HintLevel | null;
+  activeMs: number;
+  expectedMinutes: [number, number];
+  substantiveSubmissions: number;
+  compileErrors: number;
+}): { outcome: number; evidenceWeight: number; breakdown: Record<string, number> };
 export function updateConcepts(input: {
-  states: Record<conceptId, ConceptState>, weights: {id, weight}[],
-  problemRating: number, outcome: number, evidenceWeight: number
-}): { changes: ConceptChange[], explanation: string }
-export function scheduleReview(state: ConceptState, outcome: number, now: Date): {
-  next_review_at: Date, review_interval_days: number, review_ease: number, review_reps: number }
-export function decayUncertainty(state: ConceptState, now: Date): ConceptState
+  states: Record<conceptId, ConceptState>;
+  weights: { id; weight }[];
+  problemRating: number;
+  outcome: number;
+  evidenceWeight: number;
+}): { changes: ConceptChange[]; explanation: string };
+export function scheduleReview(
+  state: ConceptState,
+  outcome: number,
+  now: Date,
+): {
+  next_review_at: Date;
+  review_interval_days: number;
+  review_ease: number;
+  review_reps: number;
+};
+export function decayUncertainty(state: ConceptState, now: Date): ConceptState;
 
 // Cold start (src/coldstart.ts) — the first COLD_START_PROBLEM_COUNT problems.
-export function nextColdStartStep(orderedConcepts: string[], history: ColdStartHistoryEntry[]):
-  { concept_id: string | null, target_rating: number, rationale: string, done: boolean }
+export function nextColdStartStep(
+  orderedConcepts: string[],
+  history: ColdStartHistoryEntry[],
+): { concept_id: string | null; target_rating: number; rationale: string; done: boolean };
 
 // Teaching mode (src/teaching.ts).
-export function shouldTeach(recentNewestFirst: TeachingAttempt[]):
-  { teach: boolean, trigger: 'editorial_revealed'|'consecutive_failures'|null, reason: string }
-export function planFollowUps(input: { conceptId: string, originRating: number, now: Date }):
-  FollowUpPlan[]
+export function shouldTeach(recentNewestFirst: TeachingAttempt[]): {
+  teach: boolean;
+  trigger: "editorial_revealed" | "consecutive_failures" | null;
+  reason: string;
+};
+export function planFollowUps(input: {
+  conceptId: string;
+  originRating: number;
+  now: Date;
+}): FollowUpPlan[];
 
 // Explicit mastery (src/mastery.ts).
-export function isMastered(input: { state: ConceptState, band: ConceptBand, evidence: MasteryEvidence }):
-  { mastered: boolean, criteria: MasteryCriterion[], met: number, total: number, summary: string }
+export function isMastered(input: {
+  state: ConceptState;
+  band: ConceptBand;
+  evidence: MasteryEvidence;
+}): {
+  mastered: boolean;
+  criteria: MasteryCriterion[];
+  met: number;
+  total: number;
+  summary: string;
+};
 ```
 
 Numbers (fixed, do not improvise):
+
 - `expectedSuccess = 1 / (1 + 10 ** ((problemRating - userRating) / 400))`
 - Hint caps: `l1 → 0.9`, `l2 → 0.75`, `l3 → 0.6`, `outline → 0.4`, `editorial/give-up → 0.0`
 - Base outcome: accepted `1.0`; wrong answer with ≥1 substantive submission `0.15`;
@@ -682,13 +795,13 @@ shown and the user must submit a `transcribe`-mode submission — which runs the
 they see it pass, but writes **no learning event**, because the reveal has already been scored at
 outcome 0 and copying it out must not hand that back. `GET /api/practice/next` returns the same
 problem until an accepted transcription exists, so the step cannot be skipped by reloading. An
-episode is *derived*, never stored as status: it is open iff `scheduled_followups` rows exist for
+episode is _derived_, never stored as status: it is open iff `scheduled_followups` rows exist for
 the problem and no accepted `transcribe` submission does.
 
 Each episode owes two follow-ups, both planned at reveal time (so abandoning the first cannot skip
 the second): a `reinforce` — same concept, same `shape`, `origin_rating − 150`, due immediately —
 and a `transfer` — same concept, **different** `shape`, same rating, due in 3 days. A follow-up is
-settled by being *attempted*, not passed. Due follow-ups outrank ordinary selection.
+settled by being _attempted_, not passed. Due follow-ups outrank ordinary selection.
 
 **Explicit mastery.** A rating alone cannot distinguish three unaided solves over three weeks from
 one four-hint solve yesterday; both reach 1500. `isMastered` requires all five of: rating ≥
@@ -714,24 +827,24 @@ into `learning_events.evidence.explanation`. Every mastery change is reconstruct
 
 All routes are JSON, prefix `/api`, and every response carries `x-correlation-id`.
 
-| Method | Path | Body / query | Response |
-|---|---|---|---|
-| GET | `/health` | | `{ ok, version, db: 'up'|'down' }` |
-| GET | `/api/problems/next` | `?concept=&rating=` | `{ problem: PublicProblem, rationale: string, evidence: object }` |
-| GET | `/api/problems/:versionId` | | `{ problem: PublicProblem }` |
-| GET | `/api/problems/:versionId/reveal` | | `Reveal` (§4.5) once earned — 404 until then |
-| POST | `/api/submissions` | `{ problem_version_id, language, source, mode, active_ms?, paste_detected? }` | `{ submission_id, status }` |
-| GET | `/api/submissions/:id` | | `{ submission }` (safe projection) |
-| GET | `/api/submissions/:id/events` | | SSE |
-| POST | `/api/hints` | `{ problem_version_id, level }` | `{ level, text, penalty_cap, next_level_penalty }` |
-| GET | `/api/hints/:versionId` | | `{ taken, available, penalties, texts, editorial_md \| null, solutions \| null, transcribed }` |
-| POST | `/api/problems/:versionId/give-up` | `{ active_ms? }` | `{ editorial_md, solutions, concepts, teaching, mastery_change }` |
-| GET | `/api/progress` | | concept mastery, reviews due, stats, records, history |
-| GET | `/api/system/stats` | | queue depth/waits, workers, verdicts, buffer depth, gen pass rate, dead jobs |
-| GET | `/api/me` | | `{ user: { id, handle, email } }` |
-| GET | `/api/practice/next` | | `{ problem \| null, generating \| null, teaching \| null, followup \| null, rationale, evidence }` |
-| POST | `/api/generate-now` | `{ concepts, target_rating }` | `{ job_id }` (M3 escape hatch) |
-| GET | `/api/concepts` | | `{ concepts, edges }` |
+| Method | Path                               | Body / query                                                                  | Response                                                                                           |
+| ------ | ---------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| GET    | `/health`                          |                                                                               | `{ ok, version, db: 'up'                                                                           | 'down' }` |
+| GET    | `/api/problems/next`               | `?concept=&rating=`                                                           | `{ problem: PublicProblem, rationale: string, evidence: object }`                                  |
+| GET    | `/api/problems/:versionId`         |                                                                               | `{ problem: PublicProblem }`                                                                       |
+| GET    | `/api/problems/:versionId/reveal`  |                                                                               | `Reveal` (§4.5) once earned — 404 until then                                                       |
+| POST   | `/api/submissions`                 | `{ problem_version_id, language, source, mode, active_ms?, paste_detected? }` | `{ submission_id, status }`                                                                        |
+| GET    | `/api/submissions/:id`             |                                                                               | `{ submission }` (safe projection)                                                                 |
+| GET    | `/api/submissions/:id/events`      |                                                                               | SSE                                                                                                |
+| POST   | `/api/hints`                       | `{ problem_version_id, level }`                                               | `{ level, text, penalty_cap, next_level_penalty }`                                                 |
+| GET    | `/api/hints/:versionId`            |                                                                               | `{ taken, available, penalties, texts, editorial_md \| null, solutions \| null, transcribed }`     |
+| POST   | `/api/problems/:versionId/give-up` | `{ active_ms? }`                                                              | `{ editorial_md, solutions, concepts, teaching, mastery_change }`                                  |
+| GET    | `/api/progress`                    |                                                                               | concept mastery, reviews due, stats, records, history                                              |
+| GET    | `/api/system/stats`                |                                                                               | queue depth/waits, workers, verdicts, buffer depth, gen pass rate, dead jobs                       |
+| GET    | `/api/me`                          |                                                                               | `{ user: { id, handle, email } }`                                                                  |
+| GET    | `/api/practice/next`               |                                                                               | `{ problem \| null, generating \| null, teaching \| null, followup \| null, rationale, evidence }` |
+| POST   | `/api/generate-now`                | `{ concepts, target_rating }`                                                 | `{ job_id }` (M3 escape hatch)                                                                     |
+| GET    | `/api/concepts`                    |                                                                               | `{ concepts, edges }`                                                                              |
 
 **Hard rule:** the API never selects `problem_versions.content` into a response without passing it
 through `toPublicProblem`. Hidden tests, solutions, generator, mutants, and un-taken hints must not
@@ -747,14 +860,14 @@ transaction, then returns. Never wait for the verdict.
 Six blocking stages, run in order; first failure short-circuits and writes a
 `verification_reports` row with `passed=false, failed_stage=<name>`.
 
-| # | name | module | fails when |
-|---|---|---|---|
-| 1 | `schema` | `stage_schema.py` | pydantic parse fails; hint L1/L2 contain code fences or named algorithms; constraints unparseable; concept weights don't sum to ~1.0 |
-| 2 | `compile` | `stage_compile.py` | reference or brute force fails to import/run a smoke case in the sandbox |
-| 3 | `differential` | `stage_differential.py` | reference ≠ brute force on any of `VERIFY_DIFFERENTIAL_CASES` seeded inputs (record seeds; shrink the counterexample) |
-| 4 | `boundary` | `stage_boundary.py` | derived boundary cases (empty/min/max/dupes/extremes/negatives) + declared adversarial cases disagree or exceed limits |
-| 5 | `examples` | `stage_examples.py` | any public example is not reproduced by the reference |
-| 6 | `mutation` | `stage_mutation.py` | any provided mutant **survives** the hidden suite built in stages 3–4 |
+| #   | name           | module                  | fails when                                                                                                                           |
+| --- | -------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `schema`       | `stage_schema.py`       | pydantic parse fails; hint L1/L2 contain code fences or named algorithms; constraints unparseable; concept weights don't sum to ~1.0 |
+| 2   | `compile`      | `stage_compile.py`      | reference or brute force fails to import/run a smoke case in the sandbox                                                             |
+| 3   | `differential` | `stage_differential.py` | reference ≠ brute force on any of `VERIFY_DIFFERENTIAL_CASES` seeded inputs (record seeds; shrink the counterexample)                |
+| 4   | `boundary`     | `stage_boundary.py`     | derived boundary cases (empty/min/max/dupes/extremes/negatives) + declared adversarial cases disagree or exceed limits               |
+| 5   | `examples`     | `stage_examples.py`     | any public example is not reproduced by the reference                                                                                |
+| 6   | `mutation`     | `stage_mutation.py`     | any provided mutant **survives** the hidden suite built in stages 3–4                                                                |
 
 Stage results append to `stages jsonb`:
 `{stage, status: 'passed'|'failed'|'skipped', duration_ms, details: {...}}`.
@@ -831,7 +944,7 @@ Rules:
 5. CI and local runs must be able to execute the full suite repeatedly with **zero effect** on the
    dev database.
 
-**Known limitation, and the concrete fix (M4).** The Python fixtures assume *exclusive* ownership of
+**Known limitation, and the concrete fix (M4).** The Python fixtures assume _exclusive_ ownership of
 the test database — two concurrent `pytest` processes against the same `leetmind_test` deadlock on
 each other's truncates. That was tolerable pre-M4 (one suite at a time) but is incompatible with
 M4's chaos/concurrency suite (`apps/judge/test/chaos/`), which deliberately runs many real workers —
@@ -840,7 +953,7 @@ for the M4 reliability agent (owned by a concurrently-working agent on a connect
 this section specifies the fix precisely enough to implement without further design work, rather
 than implementing it.
 
-*Chosen mechanism: schema-per-`pytest-xdist`-worker, not database-per-process.* Postgres schemas are
+_Chosen mechanism: schema-per-`pytest-xdist`-worker, not database-per-process._ Postgres schemas are
 namespaces within one database — cheap to create/drop, and every existing connection string /
 `TEST_DATABASE_URL` / CI secret keeps pointing at the same `leetmind_test` database unchanged. A
 database-per-process design (`leetmind_test_gw0`, `leetmind_test_gw1`, ...) also works and trivially
@@ -852,6 +965,7 @@ fixture turns out to depend on session-level state that a schema boundary can't 
 extension installed database-wide).
 
 Concrete mechanism:
+
 1. `pytest-xdist` (already the standard way to parallelize pytest; add it as a dev dependency if not
    present) sets `PYTEST_XDIST_WORKER` in each worker process's environment (`"gw0"`, `"gw1"`, ...;
    unset when running plain `pytest` with no `-n` flag).
@@ -860,8 +974,8 @@ Concrete mechanism:
    to `"public"` (today's behavior, unchanged) when it isn't — so a plain single-process `pytest`
    run needs no new setup and stays exactly as fast/simple as today.
 3. Still call `assert_test_database(TEST_DATABASE_URL)` first, unconditionally (the schema split is
-   *in addition to* that guard, not a replacement for it — a worker-scoped schema inside the
-   *development* database would still be a data-loss bug waiting to happen).
+   _in addition to_ that guard, not a replacement for it — a worker-scoped schema inside the
+   _development_ database would still be a data-loss bug waiting to happen).
 4. `CREATE SCHEMA IF NOT EXISTS {schema}`, then run the **same** migrations
    (`packages/db/migrations/*.sql`, via whatever runner `content/leetmind_content/db.py` already
    uses to reach Postgres) with `search_path` set to `{schema}, public` for that worker's
@@ -876,7 +990,7 @@ Concrete mechanism:
    migration pass makes a stale leftover schema self-healing, never a data-loss risk (it's isolated
    from every other schema by construction).
 
-*This generalizes beyond Python.* While building M4's chaos suite, the same class of collision was
+_This generalizes beyond Python._ While building M4's chaos suite, the same class of collision was
 observed directly on the **TypeScript** side even though nothing in `apps/judge`/`apps/api`'s own
 vitest suites deadlocks the way `pytest`'s truncate-based fixtures do: `apps/judge/test/chaos/`'s
 claim-storm and reaper-idempotence tests enqueue against the shared `jobs` table (whose `kind`
@@ -884,27 +998,28 @@ column is restricted by a DB `CHECK` constraint to `'judge' | 'verify' | 'genera
 Python's per-table truncation — there is no way to namespace a synthetic value to dodge collision)
 and added a guard, `assertNoStrayJobs()`
 (`apps/judge/test/chaos/chaos-helpers.ts`), that fails loudly rather than silently double-processing
-a row it doesn't own. That guard *did* fire during real verification runs of this milestone, when
+a row it doesn't own. That guard _did_ fire during real verification runs of this milestone, when
 another agent's concurrently-running test process was enqueuing `'generate'`-kind jobs against the
 same `leetmind_test` database at the same time. `packages/queue`'s own suite already avoids this
 entirely (it spins up a dedicated throwaway Postgres container on its own port, per `packages/queue/
 src/test-fixture.ts` — CONTRACTS §13 rule 4), but `apps/api` and `apps/judge` do not: every
 `pnpm --filter <pkg> test` invocation is a separate OS process sharing one `leetmind_test` database
 with zero isolation between processes (vitest's own `fileParallelism: false` only serializes test
-*files* within one process, not across processes). The same schema-per-worker mechanism above
+_files_ within one process, not across processes). The same schema-per-worker mechanism above
 applies directly: each TS suite's `testSetup.ts` should derive a schema name from an analogous
 worker/process identifier (there is no `pytest-xdist`-style env var for vitest across separate
 `pnpm --filter` invocations, so this would need to be a new convention — e.g. a `TEST_WORKER_ID` env
 var CI sets per parallel job, or a fallback derived from `process.pid`), `CREATE SCHEMA IF NOT
 EXISTS` + migrate + `SET search_path` before any test runs, exactly as above. This is scoped out of
 M4 (not requested, and `apps/api`/`apps/judge`'s vitest bootstrapping is arguably not this agent's
-file boundary either) but is recorded here since it's now a *confirmed*, not merely theoretical, gap
+file boundary either) but is recorded here since it's now a _confirmed_, not merely theoretical, gap
 — multi-agent / multi-process development sessions against one shared `leetmind_test` database will
 keep tripping over it until it's fixed the same way on both sides.
 
 ## 14. Definition of done, per agent
 
 Every implementation agent must, before reporting success:
+
 1. `pnpm -w typecheck` clean for TS work (`tsc --noEmit` across the workspace), or
    `uv run ruff check . && uv run mypy leetmind_content` clean-ish for Python work.
 2. Any tests it added actually run and pass (`pnpm -w test` / `uv run pytest`).

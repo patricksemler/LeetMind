@@ -41,7 +41,12 @@ export function useActiveTime(options: UseActiveTimeOptions = {}): UseActiveTime
 
   const eligible = useCallback(() => {
     if (typeof document === "undefined") return false;
-    return document.visibilityState === "visible" && document.hasFocus() && !idleRef.current && !disabledRef.current;
+    return (
+      document.visibilityState === "visible" &&
+      document.hasFocus() &&
+      !idleRef.current &&
+      !disabledRef.current
+    );
   }, []);
 
   const setRunningState = useCallback((next: boolean) => {

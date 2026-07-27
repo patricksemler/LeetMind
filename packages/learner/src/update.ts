@@ -81,7 +81,7 @@ export function updateConcepts(input: UpdateConceptsInput): UpdateConceptsResult
     const afterUncertainty = clamp(
       Math.sqrt(1 / (1 / beforeUncertainty ** 2 + evidenceWeight / EVIDENCE_SIGMA ** 2)),
       UNCERTAINTY_FLOOR,
-      UNCERTAINTY_CEILING
+      UNCERTAINTY_CEILING,
     );
 
     return {
@@ -96,7 +96,14 @@ export function updateConcepts(input: UpdateConceptsInput): UpdateConceptsResult
     };
   });
 
-  const explanation = buildExplanation({ blended, problemRating, expected, outcome, highestHint, changes });
+  const explanation = buildExplanation({
+    blended,
+    problemRating,
+    expected,
+    outcome,
+    highestHint,
+    changes,
+  });
 
   return { changes, explanation, expected, blended, evidenceWeight };
 }
@@ -164,7 +171,9 @@ function buildExplanation(args: {
 
   // Uncertainty only ever shrinks on an evidence update, and "more confident" is the part worth
   // saying; the raw ± pair belongs in the structured data, not the prose.
-  const tightened = changes.every((c) => Math.round(c.after_uncertainty) < Math.round(c.before_uncertainty));
+  const tightened = changes.every(
+    (c) => Math.round(c.after_uncertainty) < Math.round(c.before_uncertainty),
+  );
   const confidence = tightened
     ? ` The estimate is more confident than before: give or take ${Math.round(
         Math.max(...changes.map((c) => c.after_uncertainty)),

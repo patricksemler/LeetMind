@@ -11,5 +11,7 @@ import { Markdown } from "./Markdown";
 
 export function CodeBlock({ code, language }: { code: string; language: Language }) {
   const trimmed = code.replace(/\s+$/, "");
-  return <Markdown>{`\`\`\`${language === "cpp" ? "cpp" : "python"}\n${trimmed}\n\`\`\``}</Markdown>;
+  return (
+    <Markdown>{`\`\`\`${language === "cpp" ? "cpp" : "python"}\n${trimmed}\n\`\`\``}</Markdown>
+  );
 }

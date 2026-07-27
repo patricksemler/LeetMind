@@ -83,7 +83,11 @@ describe("scoreCandidate", () => {
   it("penalizes a concept practiced earlier today", () => {
     const states = { c: makeState({ last_practiced_at: new Date(NOW.getTime() - 60_000) }) };
     const result = scoreCandidate({
-      problem: { problem_version_id: "p", difficulty_rating: 1500, concepts: [{ id: "c", weight: 1 }] },
+      problem: {
+        problem_version_id: "p",
+        difficulty_rating: 1500,
+        concepts: [{ id: "c", weight: 1 }],
+      },
       states,
       now: NOW,
     });
@@ -96,13 +100,25 @@ describe("selectNext", () => {
     const ideal = targetBand({ rating: 1500 }).ideal;
 
     const states: Record<string, ConceptState> = {
-      due_concept: makeState({ rating: 1500, uncertainty: 200, next_review_at: new Date(NOW.getTime() - 5 * DAY_MS) }),
+      due_concept: makeState({
+        rating: 1500,
+        uncertainty: 200,
+        next_review_at: new Date(NOW.getTime() - 5 * DAY_MS),
+      }),
       fresh_concept: makeState({ rating: 1500, uncertainty: 200, next_review_at: null }),
     };
 
     const candidates: CandidateProblem[] = [
-      { problem_version_id: "review-problem", difficulty_rating: ideal, concepts: [{ id: "due_concept", weight: 1 }] },
-      { problem_version_id: "other-problem", difficulty_rating: ideal, concepts: [{ id: "fresh_concept", weight: 1 }] },
+      {
+        problem_version_id: "review-problem",
+        difficulty_rating: ideal,
+        concepts: [{ id: "due_concept", weight: 1 }],
+      },
+      {
+        problem_version_id: "other-problem",
+        difficulty_rating: ideal,
+        concepts: [{ id: "fresh_concept", weight: 1 }],
+      },
     ];
 
     const result = selectNext(candidates, states, NOW);

@@ -124,7 +124,8 @@ describe.skipIf(!dockerUp)("C++ sandbox docker integration", () => {
 
   it("an infinite loop hits the per-test wall timeout", async () => {
     const spin: Signature = { name: "spin", params: [{ name: "n", type: "int" }], returns: "int" };
-    const source = "class Solution {\npublic:\n    long long spin(long long n) { while (true) {} }\n};\n";
+    const source =
+      "class Solution {\npublic:\n    long long spin(long long n) { while (true) {} }\n};\n";
     const result = await executeCpp({
       signature: spin,
       tests: [{ args: [1], expected: 1 }],
@@ -160,8 +161,13 @@ describe.skipIf(!dockerUp)("C++ sandbox docker integration", () => {
   }, 60_000);
 
   it("TreeNode round-trips correctly through decode/encode", async () => {
-    const sig: Signature = { name: "identity", params: [{ name: "root", type: "TreeNode?" }], returns: "TreeNode?" };
-    const source = "class Solution {\npublic:\n    TreeNode* identity(TreeNode* root) { return root; }\n};\n";
+    const sig: Signature = {
+      name: "identity",
+      params: [{ name: "root", type: "TreeNode?" }],
+      returns: "TreeNode?",
+    };
+    const source =
+      "class Solution {\npublic:\n    TreeNode* identity(TreeNode* root) { return root; }\n};\n";
     const result = await executeCpp({
       signature: sig,
       tests: [
@@ -179,8 +185,13 @@ describe.skipIf(!dockerUp)("C++ sandbox docker integration", () => {
   }, 60_000);
 
   it("ListNode round-trips correctly through decode/encode", async () => {
-    const sig: Signature = { name: "identity", params: [{ name: "head", type: "ListNode?" }], returns: "ListNode?" };
-    const source = "class Solution {\npublic:\n    ListNode* identity(ListNode* head) { return head; }\n};\n";
+    const sig: Signature = {
+      name: "identity",
+      params: [{ name: "head", type: "ListNode?" }],
+      returns: "ListNode?",
+    };
+    const source =
+      "class Solution {\npublic:\n    ListNode* identity(ListNode* head) { return head; }\n};\n";
     const result = await executeCpp({
       signature: sig,
       tests: [
@@ -197,13 +208,25 @@ describe.skipIf(!dockerUp)("C++ sandbox docker integration", () => {
   }, 60_000);
 
   it("unordered comparator behaves the same as Python's: any permutation passes", async () => {
-    const sig: Signature = { name: "groups", params: [{ name: "n", type: "int" }], returns: "list[list[int]]" };
+    const sig: Signature = {
+      name: "groups",
+      params: [{ name: "n", type: "int" }],
+      returns: "list[list[int]]",
+    };
     const source =
       "class Solution {\npublic:\n" +
       "    std::vector<std::vector<long long>> groups(long long n) { return {{4,3},{2,1}}; }\n};\n";
     const result = await executeCpp({
       signature: sig,
-      tests: [{ args: [0], expected: [[1, 2], [3, 4]] }],
+      tests: [
+        {
+          args: [0],
+          expected: [
+            [1, 2],
+            [3, 4],
+          ],
+        },
+      ],
       comparator: { kind: "unordered" },
       source,
       limits: baseLimits,
@@ -213,7 +236,11 @@ describe.skipIf(!dockerUp)("C++ sandbox docker integration", () => {
   }, 60_000);
 
   it("float_tol comparator accepts a small delta and rejects a large one, matching Python's tolerance", async () => {
-    const sig: Signature = { name: "approx", params: [{ name: "x", type: "float" }], returns: "float" };
+    const sig: Signature = {
+      name: "approx",
+      params: [{ name: "x", type: "float" }],
+      returns: "float",
+    };
     const source = "class Solution {\npublic:\n    double approx(double x) { return x; }\n};\n";
     const passing = await executeCpp({
       signature: sig,
@@ -245,7 +272,8 @@ describe.skipIf(!dockerUp)("C++ sandbox docker integration", () => {
       ],
       returns: "int",
     };
-    const source = "class Solution {\npublic:\n    long long add(long long a, long long b) { return a + b; }\n};\n";
+    const source =
+      "class Solution {\npublic:\n    long long add(long long a, long long b) { return a + b; }\n};\n";
     const result = await executeCpp({
       signature: sig,
       tests: [{ args: [2, 3] }], // no `expected` key
@@ -261,7 +289,11 @@ describe.skipIf(!dockerUp)("C++ sandbox docker integration", () => {
   }, 60_000);
 
   it("checker_py comparator fails fast with internal_error, never touching the sandbox", async () => {
-    const sig: Signature = { name: "identity", params: [{ name: "n", type: "int" }], returns: "int" };
+    const sig: Signature = {
+      name: "identity",
+      params: [{ name: "n", type: "int" }],
+      returns: "int",
+    };
     const result = await executeCpp({
       signature: sig,
       tests: [{ args: [1], expected: 1 }],

@@ -193,7 +193,12 @@ export function registerPracticeRoutes(fastify: FastifyInstance, deps: Deps): vo
     if (history.length < COLD_START_PROBLEM_COUNT) {
       const step = nextColdStartStep(orderedConceptIds, history);
       if (step.concept_id) {
-        const row = await findCandidateNear(userId, step.concept_id, step.target_rating, alreadySeen);
+        const row = await findCandidateNear(
+          userId,
+          step.concept_id,
+          step.target_rating,
+          alreadySeen,
+        );
         if (row) {
           const problem = await buildPublicProblem(row, userId);
           void topUp(deps, userId, step.concept_id, step.target_rating, correlationId);
@@ -227,7 +232,8 @@ export function registerPracticeRoutes(fastify: FastifyInstance, deps: Deps): vo
             job_id: generation.jobId,
             concept_id: step.concept_id,
             target_rating: step.target_rating,
-            reason: "Writing your first problem — nothing verified is in the pool at that level yet.",
+            reason:
+              "Writing your first problem — nothing verified is in the pool at that level yet.",
           },
           teaching: null,
           followup: null,

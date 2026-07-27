@@ -13,10 +13,32 @@ import { Button } from "../ui";
  */
 function Spinner({ label }: { label: string }) {
   return (
-    <span role="status" className="flex items-center px-2 text-text-dim" data-testid="action-spinner">
-      <svg className="size-4 animate-spin" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
-        <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" />
-        <path d="M14.5 8A6.5 6.5 0 0 0 8 1.5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <span
+      role="status"
+      className="flex items-center px-2 text-text-dim"
+      data-testid="action-spinner"
+    >
+      <svg
+        className="size-4 animate-spin"
+        viewBox="0 0 16 16"
+        fill="none"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <circle
+          cx="8"
+          cy="8"
+          r="6.5"
+          stroke="currentColor"
+          strokeOpacity="0.25"
+          strokeWidth="2.5"
+        />
+        <path
+          d="M14.5 8A6.5 6.5 0 0 0 8 1.5"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
       </svg>
       <span className="sr-only">{label}</span>
     </span>
@@ -69,10 +91,23 @@ export function ActionBar({
           way in through the keyboard either. */}
       <div className="flex min-h-[30px] items-center gap-2">
         {busy ? (
-          <Spinner label={submitting ? (transcribing ? "Checking your transcription…" : "Submitting…") : "Running…"} />
+          <Spinner
+            label={
+              submitting
+                ? transcribing
+                  ? "Checking your transcription…"
+                  : "Submitting…"
+                : "Running…"
+            }
+          />
         ) : (
           <>
-            <Button size="sm" variant="secondary" onClick={onRun} title="Run against the public example tests (Cmd/Ctrl + ')">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={onRun}
+              title="Run against the public example tests (Cmd/Ctrl + ')"
+            >
               Run
             </Button>
             <Button

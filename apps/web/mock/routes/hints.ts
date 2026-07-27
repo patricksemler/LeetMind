@@ -1,11 +1,28 @@
 import type { Express } from "express";
-import { ConceptSchema, GiveUpRequest, HINT_PENALTY_CAPS, type HintLevel, TakeHintRequest } from "@leetmind/shared";
+import {
+  ConceptSchema,
+  GiveUpRequest,
+  HINT_PENALTY_CAPS,
+  type HintLevel,
+  TakeHintRequest,
+} from "@leetmind/shared";
 import { CONCEPTS } from "../fixtures/concepts.js";
 import { outcomeScore, updateConcepts } from "../mastery.js";
-import { conceptState, getProblemUserState, learningEvents, problemsById, submissions } from "../state.js";
+import {
+  conceptState,
+  getProblemUserState,
+  learningEvents,
+  problemsById,
+  submissions,
+} from "../state.js";
 import { badRequest, handle, notFound, pparam } from "./helpers.js";
 
-const HINT_LADDER = ["l1_orientation", "l2_conceptual", "l3_structural", "outline"] as const satisfies readonly HintLevel[];
+const HINT_LADDER = [
+  "l1_orientation",
+  "l2_conceptual",
+  "l3_structural",
+  "outline",
+] as const satisfies readonly HintLevel[];
 
 export function registerHintRoutes(app: Express): void {
   // --- POST /api/hints -----------------------------------------------------------------------
@@ -18,7 +35,10 @@ export function registerHintRoutes(app: Express): void {
       const { problem_version_id, level } = parsed.data;
 
       if (level === "editorial") {
-        return badRequest(res, "editorial is only reached via POST /api/problems/:versionId/give-up");
+        return badRequest(
+          res,
+          "editorial is only reached via POST /api/problems/:versionId/give-up",
+        );
       }
 
       const fixture = problemsById.get(problem_version_id);
@@ -28,7 +48,8 @@ export function registerHintRoutes(app: Express): void {
       if (!userState.hintsTaken.includes(level)) userState.hintsTaken.push(level);
 
       const idx = HINT_LADDER.indexOf(level);
-      const nextLevel = idx >= 0 && idx + 1 < HINT_LADDER.length ? HINT_LADDER[idx + 1]! : "editorial";
+      const nextLevel =
+        idx >= 0 && idx + 1 < HINT_LADDER.length ? HINT_LADDER[idx + 1]! : "editorial";
 
       res.json({
         level,
@@ -47,7 +68,9 @@ export function registerHintRoutes(app: Express): void {
       const fixture = problemsById.get(pparam(req.params.versionId));
       if (!fixture) return notFound(res, `no problem version ${pparam(req.params.versionId)}`);
       const userState = getProblemUserState(pparam(req.params.versionId));
-      const taken: HintLevel[] = userState.gaveUp ? [...userState.hintsTaken, "editorial"] : [...userState.hintsTaken];
+      const taken: HintLevel[] = userState.gaveUp
+        ? [...userState.hintsTaken, "editorial"]
+        : [...userState.hintsTaken];
       const available = HINT_LADDER.filter((l) => !userState.hintsTaken.includes(l));
       // Ladder rungs only, and only ones already taken — the editorial stays behind the give-up flow.
       const texts: Record<string, string> = {};
@@ -64,7 +87,10 @@ export function registerHintRoutes(app: Express): void {
         texts,
         editorial_md: editorialTaken ? fixture.content.hints.editorial_md : null,
         solutions: editorialTaken
-          ? { python: fixture.content.reference_solution_py, cpp: fixture.content.reference_solution_cpp }
+          ? {
+              python: fixture.content.reference_solution_py,
+              cpp: fixture.content.reference_solution_cpp,
+            }
           : null,
         transcribed: userState.transcribed,
       });
@@ -85,11 +111,19 @@ export function registerHintRoutes(app: Express): void {
       const body = parsed.data;
 
       const inFlight = [...submissions.values()].some(
-        (s) => s.mode === "submit" && s.problemVersionId === versionId && s.row.status !== "completed" && s.row.status !== "cancelled",
+        (s) =>
+          s.mode === "submit" &&
+          s.problemVersionId === versionId &&
+          s.row.status !== "completed" &&
+          s.row.status !== "cancelled",
       );
       if (inFlight) {
         res.status(409).json({
-          error: { code: "conflict", message: "A submission for this problem is still being judged — wait for it to finish before giving up." },
+          error: {
+            code: "conflict",
+            message:
+              "A submission for this problem is still being judged — wait for it to finish before giving up.",
+          },
           correlation_id: res.getHeader("x-correlation-id"),
         });
         return;
@@ -152,10 +186,14 @@ export function registerHintRoutes(app: Express): void {
 
       res.json({
         editorial_md: fixture.content.hints.editorial_md,
-        solutions: { python: fixture.content.reference_solution_py, cpp: fixture.content.reference_solution_cpp },
+        solutions: {
+          python: fixture.content.reference_solution_py,
+          cpp: fixture.content.reference_solution_cpp,
+        },
         concepts,
         teaching: {
-          reason: "You needed the full solution for that one — type it out yourself before moving on.",
+          reason:
+            "You needed the full solution for that one — type it out yourself before moving on.",
           trigger: "editorial_revealed",
           transcribed: false,
         },

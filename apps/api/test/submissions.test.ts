@@ -133,7 +133,9 @@ describe.skipIf(!dbReachable)("submissions", () => {
       }),
     ).rejects.toThrow("forced failure after both writes");
 
-    const submissionRow = await queryOne("select id from submissions where id = $1", [submissionId]);
+    const submissionRow = await queryOne("select id from submissions where id = $1", [
+      submissionId,
+    ]);
     expect(submissionRow).toBeNull();
 
     const jobRow = await queryOne(
@@ -165,7 +167,13 @@ describe.skipIf(!dbReachable)("submissions", () => {
     // second judge job for the exact same submission.
     const secondEnqueue = await deps.queue.enqueue(pool, {
       kind: "judge",
-      payload: { submission_id: submissionId, mode: "submit", language: "python", problem_version_id: seeded.problemVersionId, user_id: deps.config.singleUserId },
+      payload: {
+        submission_id: submissionId,
+        mode: "submit",
+        language: "python",
+        problem_version_id: seeded.problemVersionId,
+        user_id: deps.config.singleUserId,
+      },
       idempotencyKey: judgeJobKey(submissionId),
     });
     expect(secondEnqueue).toBeNull();
@@ -211,7 +219,10 @@ describe.skipIf(!dbReachable)("submissions", () => {
     expect(stale.statusCode).toBe(201);
     const staleId = JSON.parse(stale.body).submission_id;
     submissionIds.push(staleId);
-    const row = await pool.query<{ custom_input: unknown }>("select custom_input from submissions where id = $1", [staleId]);
+    const row = await pool.query<{ custom_input: unknown }>(
+      "select custom_input from submissions where id = $1",
+      [staleId],
+    );
     expect(row.rows[0]?.custom_input).toBeNull();
   });
 
@@ -352,7 +363,10 @@ describe.skipIf(!dbReachable)("submissions", () => {
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
 
-    const nullRes = await server.inject({ method: "GET", url: `/api/problems/${seeded.problemVersionId}/submissions/latest` });
+    const nullRes = await server.inject({
+      method: "GET",
+      url: `/api/problems/${seeded.problemVersionId}/submissions/latest`,
+    });
     expect(nullRes.statusCode).toBe(200);
     expect(JSON.parse(nullRes.body).submission).toBeNull();
 
@@ -372,7 +386,10 @@ describe.skipIf(!dbReachable)("submissions", () => {
     );
     submissionIds.push(newer);
 
-    const res = await server.inject({ method: "GET", url: `/api/problems/${seeded.problemVersionId}/submissions/latest` });
+    const res = await server.inject({
+      method: "GET",
+      url: `/api/problems/${seeded.problemVersionId}/submissions/latest`,
+    });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).submission.id).toBe(newer);
   });
@@ -397,19 +414,36 @@ describe.skipIf(!dbReachable)("submissions", () => {
       kind: "wrong_answer",
       message: "output did not match",
       first_failing_test_index: 0,
-      failing_test: { index: 0, origin: "public", args: [1, 2], expected: 3, actual: -1, status: "failed" },
+      failing_test: {
+        index: 0,
+        origin: "public",
+        args: [1, 2],
+        expected: 3,
+        actual: -1,
+        status: "failed",
+      },
     });
     const hiddenFail = await insert({
       kind: "wrong_answer",
       message: "output did not match",
       first_failing_test_index: 2,
-      failing_test: { index: 2, origin: "hidden", args: [9, 9], expected: 18, actual: 0, status: "failed" },
+      failing_test: {
+        index: 2,
+        origin: "hidden",
+        args: [9, 9],
+        expected: 18,
+        actual: 0,
+        status: "failed",
+      },
     });
     // No failing case at all (a compile error) — NOT excluded: the rule is about a public case
     // having broken it, and this one has no case to point at.
     const compileFail = await insert({ kind: "compilation_error", message: "SyntaxError" });
 
-    const res = await server.inject({ method: "GET", url: `/api/problems/${seeded.problemVersionId}/submissions` });
+    const res = await server.inject({
+      method: "GET",
+      url: `/api/problems/${seeded.problemVersionId}/submissions`,
+    });
     expect(res.statusCode).toBe(200);
     const ids = JSON.parse(res.body).submissions.map((s: { id: string }) => s.id);
 

@@ -71,7 +71,7 @@ function capAndModify(
   highestHint: HintLevel | null,
   activeMs: number,
   expectedMinutes: [number, number],
-  substantiveSubmissions: number
+  substantiveSubmissions: number,
 ): { outcome: number; breakdown: Record<string, number> } {
   const cap = highestHint ? HINT_PENALTY_CAPS[highestHint] : 1;
   const capped = Math.min(base, cap);
@@ -132,7 +132,7 @@ export function outcomeScore(input: OutcomeInput): OutcomeResult {
       highestHint,
       activeMs,
       expectedMinutes,
-      substantiveSubmissions
+      substantiveSubmissions,
     );
     return { outcome, evidenceWeight: 1, breakdown };
   }
@@ -154,7 +154,7 @@ export function outcomeScore(input: OutcomeInput): OutcomeResult {
       highestHint,
       activeMs,
       expectedMinutes,
-      substantiveSubmissions
+      substantiveSubmissions,
     );
     return { outcome, evidenceWeight: 1, breakdown, errorCategory: "compilation" };
   }
@@ -188,7 +188,7 @@ export function outcomeScore(input: OutcomeInput): OutcomeResult {
       highestHint,
       activeMs,
       expectedMinutes,
-      substantiveSubmissions
+      substantiveSubmissions,
     );
     return { outcome, evidenceWeight: 1, breakdown };
   }

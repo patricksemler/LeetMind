@@ -36,16 +36,26 @@ import { hasEarnedReveal } from "./publicProblem.js";
  * the reasoning and the bound (one case per submission, never the suite). The `*_preview` strip
  * above still stands: those fields predate `failing_test` and have no such bound.
  */
-export function sanitizeFailure(failure: SubmissionFailure, mode: SubmissionMode): SubmissionFailure {
+export function sanitizeFailure(
+  failure: SubmissionFailure,
+  mode: SubmissionMode,
+): SubmissionFailure {
   if (mode !== "submit") return failure;
 
   const split = (failure as { tests?: { public_total?: number } }).tests;
   const index = failure.first_failing_test_index;
   const isPublicFailure =
-    typeof index === "number" && typeof split?.public_total === "number" && index < split.public_total;
+    typeof index === "number" &&
+    typeof split?.public_total === "number" &&
+    index < split.public_total;
   if (isPublicFailure) return failure;
 
-  const { expected_preview: _expectedPreview, input_preview: _inputPreview, actual_preview: _actualPreview, ...rest } = failure;
+  const {
+    expected_preview: _expectedPreview,
+    input_preview: _inputPreview,
+    actual_preview: _actualPreview,
+    ...rest
+  } = failure;
   return rest;
 }
 
@@ -97,7 +107,10 @@ export interface Reveal {
  * an accepted `submit` submission, or a recorded give-up (`hasEarnedReveal`, shared with
  * `PublicProblem.concepts_revealed`'s identical rule).
  */
-export async function buildReveal(userId: string, problemVersionId: string): Promise<Reveal | undefined> {
+export async function buildReveal(
+  userId: string,
+  problemVersionId: string,
+): Promise<Reveal | undefined> {
   const earned = await hasEarnedReveal(userId, problemVersionId);
   if (!earned) return undefined;
 
@@ -106,7 +119,10 @@ export async function buildReveal(userId: string, problemVersionId: string): Pro
   const content = ProblemVersionSchema.parse(versionRow.content);
 
   const ids = content.concepts.map((c) => c.id);
-  const rows = ids.length > 0 ? await query<ConceptRow>("select id, name from concepts where id = any($1)", [ids]) : [];
+  const rows =
+    ids.length > 0
+      ? await query<ConceptRow>("select id, name from concepts where id = any($1)", [ids])
+      : [];
   const nameById = new Map(rows.map((r) => [r.id, r.name]));
 
   return {
@@ -133,7 +149,11 @@ export async function buildReveal(userId: string, problemVersionId: string): Pro
 export async function isPracticeSubmission(userId: string, row: SubmissionRow): Promise<boolean> {
   if (row.mode !== "submit") return false;
   const events = await listHintEvents(userId, row.problem_version_id);
-  return events.some((h) => h.level === "editorial" && new Date(h.created_at).getTime() < new Date(row.created_at).getTime());
+  return events.some(
+    (h) =>
+      h.level === "editorial" &&
+      new Date(h.created_at).getTime() < new Date(row.created_at).getTime(),
+  );
 }
 
 /** Full client-facing submission projection: safe fields + reveal (if earned) + practice flag (if
@@ -144,7 +164,11 @@ export async function enrichSubmission(userId: string, row: SubmissionRow) {
     buildReveal(userId, row.problem_version_id),
     isPracticeSubmission(userId, row),
   ]);
-  return { ...toSafeSubmission(row), ...(reveal ? { reveal } : {}), ...(practice ? { practice: true } : {}) };
+  return {
+    ...toSafeSubmission(row),
+    ...(reveal ? { reveal } : {}),
+    ...(practice ? { practice: true } : {}),
+  };
 }
 
 interface MasteryEventData {
@@ -154,7 +178,9 @@ interface MasteryEventData {
   explanation: string;
 }
 
-export async function loadMasteryEventForSubmission(submissionId: string): Promise<MasteryEventData | null> {
+export async function loadMasteryEventForSubmission(
+  submissionId: string,
+): Promise<MasteryEventData | null> {
   const row = await queryOne<LearningEventRow>(
     `select * from learning_events where submission_id = $1 and kind = 'submission' order by created_at desc limit 1`,
     [submissionId],

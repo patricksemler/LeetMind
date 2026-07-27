@@ -21,31 +21,12 @@
   },
   "examples": [
     {
-      "args": [
-        [
-          2,
-          1,
-          5,
-          1,
-          3,
-          2
-        ],
-        3
-      ],
+      "args": [[2, 1, 5, 1, 3, 2], 3],
       "expected": 9,
       "explanation": "The 3 consecutive elements [5, 1, 3] sum to 9, which is larger than any other 3 consecutive elements in the array."
     },
     {
-      "args": [
-        [
-          2,
-          3,
-          4,
-          1,
-          5
-        ],
-        2
-      ],
+      "args": [[2, 3, 4, 1, 5], 2],
       "expected": 7,
       "explanation": "The 2 consecutive elements [3, 4] sum to 7, the largest sum among all pairs of consecutive elements."
     }
@@ -66,10 +47,7 @@
     "rating": 1100,
     "confidence": "generated"
   },
-  "expected_active_minutes": [
-    5,
-    12
-  ],
+  "expected_active_minutes": [5, 12],
   "target_complexity": {
     "time": "O(n)",
     "space": "O(1)"
@@ -81,71 +59,27 @@
   "checker_py": null,
   "hidden_tests": [
     {
-      "args": [
-        [
-          5
-        ],
-        1
-      ],
+      "args": [[5], 1],
       "expected": 5,
       "origin": "boundary"
     },
     {
-      "args": [
-        [
-          -1,
-          -2,
-          -3
-        ],
-        2
-      ],
+      "args": [[-1, -2, -3], 2],
       "expected": -3,
       "origin": "boundary"
     },
     {
-      "args": [
-        [
-          100,
-          100,
-          100,
-          -100,
-          -100
-        ],
-        3
-      ],
+      "args": [[100, 100, 100, -100, -100], 3],
       "expected": 300,
       "origin": "boundary"
     },
     {
-      "args": [
-        [
-          2,
-          1,
-          5,
-          1,
-          3,
-          2
-        ],
-        3
-      ],
+      "args": [[2, 1, 5, 1, 3, 2], 3],
       "expected": 9,
       "origin": "example"
     },
     {
-      "args": [
-        [
-          7,
-          -3,
-          2,
-          9,
-          -1,
-          4,
-          6,
-          -8,
-          5
-        ],
-        4
-      ],
+      "args": [[7, -3, 2, 9, -1, 4, 6, -8, 5], 4],
       "expected": 18,
       "origin": "random",
       "seed": 1

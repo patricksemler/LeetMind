@@ -29,9 +29,12 @@ const dbReachable = await isDatabaseReachable();
 const dockerReachable = dbReachable ? await isDockerReachable() : false;
 const canRun = dbReachable && dockerReachable;
 
-const CORRECT_CPP = "class Solution {\npublic:\n    long long solve(long long a, long long b) { return a + b; }\n};\n";
-const WRONG_CPP = "class Solution {\npublic:\n    long long solve(long long a, long long b) { return a - b; }\n};\n";
-const SYNTAX_ERROR_CPP = "class Solution {\npublic:\n    long long solve(long long a, long long b) { return this_is_not_defined; }\n};\n";
+const CORRECT_CPP =
+  "class Solution {\npublic:\n    long long solve(long long a, long long b) { return a + b; }\n};\n";
+const WRONG_CPP =
+  "class Solution {\npublic:\n    long long solve(long long a, long long b) { return a - b; }\n};\n";
+const SYNTAX_ERROR_CPP =
+  "class Solution {\npublic:\n    long long solve(long long a, long long b) { return this_is_not_defined; }\n};\n";
 /** Special-cases the public example and is wrong everywhere else — the exact behaviour hidden
  * tests exist to catch. C++ counterpart of handler.test.ts test 2a's Python source. */
 const HARDCODED_CPP =
@@ -56,7 +59,9 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
     }
   });
 
-  async function seed(opts: Parameters<typeof seedApprovedProblem>[0] = {}): Promise<SeededProblem> {
+  async function seed(
+    opts: Parameters<typeof seedApprovedProblem>[0] = {},
+  ): Promise<SeededProblem> {
     const problem = await seedApprovedProblem(opts);
     problemsToTeardown.push(problem);
     return problem;
@@ -96,7 +101,10 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
       language_version: string | null;
       flags: string | null;
       usage: Record<string, unknown> | null;
-    }>("select image_digest, language_version, flags, usage from execution_attempts where submission_id = $1", [submission.id]);
+    }>(
+      "select image_digest, language_version, flags, usage from execution_attempts where submission_id = $1",
+      [submission.id],
+    );
     expect(attemptRows[0]?.image_digest).toBeTruthy();
     expect(attemptRows[0]?.language_version).toBe("g++14");
     expect(attemptRows[0]?.flags).toContain("-std=c++20");
@@ -319,7 +327,11 @@ describe.skipIf(!canRun)("C++ judge integration (live Postgres + Docker)", () =>
     const conceptAfterRejudge = await snapshotConceptState();
     expect(conceptAfterRejudge.rating).toBe(conceptAfterJudge.rating);
 
-    const attemptRows = await query<{ attempt: number; language_version: string | null; flags: string | null }>(
+    const attemptRows = await query<{
+      attempt: number;
+      language_version: string | null;
+      flags: string | null;
+    }>(
       "select attempt, language_version, flags from execution_attempts where submission_id = $1 order by attempt asc",
       [submission.id],
     );

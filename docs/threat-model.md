@@ -7,7 +7,7 @@ implemented and test-covered today, and every gap is a real gap.
 
 The short version: **on macOS the outer security boundary is Docker Desktop's Linux VM, not the
 container.** That is an appropriate boundary for a single-user tool running its author's own code
-on their own laptop. It is *not* sufficient for public multi-tenant execution, which is why public
+on their own laptop. It is _not_ sufficient for public multi-tenant execution, which is why public
 multi-tenant execution is out of scope and disabled by design.
 
 ---
@@ -16,9 +16,9 @@ multi-tenant execution is out of scope and disabled by design.
 
 Two sources, and the second is the one people forget:
 
-| Source | Why it's untrusted |
-|---|---|
-| **User submissions** | Arbitrary Python / C++20 written by the user and executed verbatim. |
+| Source                   | Why it's untrusted                                                                                                                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **User submissions**     | Arbitrary Python / C++20 written by the user and executed verbatim.                                                                                                                                    |
 | **Model-generated code** | `reference_solution_py`, `brute_force_py`, `input_generator_py`, `checker_py`, and every entry in `mutants_py` come out of an LLM. They are executed during verification, before any human reads them. |
 
 The second category is the reason the verification gate runs **inside the same sandbox** as user
@@ -69,21 +69,21 @@ instead is state the real boundary and keep the blast radius small.
 Every flag below is applied on every execution, in this exact order, by
 `packages/sandbox/src/run.ts`, and asserted by a snapshot test so it cannot silently regress:
 
-| Control | Flag | Defends against |
-|---|---|---|
-| No network | `--network none` | Exfiltration, C2, dependency fetching, lateral movement. **Test-verified**: a socket connect from inside the sandbox fails. |
-| Read-only root | `--read-only` | Persisting anything into the image; tampering with the runner. |
-| Writable scratch only | `--tmpfs /work:rw,size=64m,mode=1777,exec` | Disk exhaustion; anything surviving the run. |
-| Non-root | `-u 65534:65534` | Privileged operations inside the container. |
-| Memory cap | `--memory`, `--memory-swap` pinned equal | Host memory exhaustion. **Test-verified.** |
-| CPU cap | `--cpus` | Starving the host. |
-| Process cap | `--pids-limit` | Fork bombs. **Test-verified.** |
-| No new privileges | `--security-opt no-new-privileges` | setuid escalation. |
-| All capabilities dropped | `--cap-drop ALL` | Kernel-adjacent capability abuse. |
-| Wall-clock timeout | Host-enforced kill + `docker kill` backstop by label | Infinite loops. **Test-verified.** |
-| Output caps | Host-side stream truncation | Log/memory exhaustion by a spewing program. **Test-verified.** |
-| Pinned image digest | Recorded on every `execution_attempts` row | Reproducibility; detecting a swapped base image. |
-| Read-only bundle mount | `-v <bundle>:/bundle:ro` | Test data tampering mid-run. |
+| Control                  | Flag                                                 | Defends against                                                                                                             |
+| ------------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| No network               | `--network none`                                     | Exfiltration, C2, dependency fetching, lateral movement. **Test-verified**: a socket connect from inside the sandbox fails. |
+| Read-only root           | `--read-only`                                        | Persisting anything into the image; tampering with the runner.                                                              |
+| Writable scratch only    | `--tmpfs /work:rw,size=64m,mode=1777,exec`           | Disk exhaustion; anything surviving the run.                                                                                |
+| Non-root                 | `-u 65534:65534`                                     | Privileged operations inside the container.                                                                                 |
+| Memory cap               | `--memory`, `--memory-swap` pinned equal             | Host memory exhaustion. **Test-verified.**                                                                                  |
+| CPU cap                  | `--cpus`                                             | Starving the host.                                                                                                          |
+| Process cap              | `--pids-limit`                                       | Fork bombs. **Test-verified.**                                                                                              |
+| No new privileges        | `--security-opt no-new-privileges`                   | setuid escalation.                                                                                                          |
+| All capabilities dropped | `--cap-drop ALL`                                     | Kernel-adjacent capability abuse.                                                                                           |
+| Wall-clock timeout       | Host-enforced kill + `docker kill` backstop by label | Infinite loops. **Test-verified.**                                                                                          |
+| Output caps              | Host-side stream truncation                          | Log/memory exhaustion by a spewing program. **Test-verified.**                                                              |
+| Pinned image digest      | Recorded on every `execution_attempts` row           | Reproducibility; detecting a swapped base image.                                                                            |
+| Read-only bundle mount   | `-v <bundle>:/bundle:ro`                             | Test data tampering mid-run.                                                                                                |
 
 Hidden tests enter the container only via that read-only bundle, for that run. **No secrets,
 credentials, or API keys exist in the runner images** — there is nothing in the sandbox worth
@@ -100,7 +100,7 @@ Stated plainly, because a threat model that only lists strengths is marketing.
    the user's own.
 2. **The Docker socket is root-equivalent.** `docker-compose.yml` mounts `/var/run/docker.sock`
    into the judge and content services so they can launch sibling containers. Anyone who achieves
-   arbitrary code execution *in the judge or content process itself* (not in the sandbox) controls
+   arbitrary code execution _in the judge or content process itself_ (not in the sandbox) controls
    the Docker daemon and therefore the VM. Those processes do not execute untrusted code in-process
    — they only spawn containers — but this is the highest-value target in the system and it should
    be understood as such. A hardened deployment would put a brokered, least-privilege
@@ -109,12 +109,12 @@ Stated plainly, because a threat model that only lists strengths is marketing.
    the sandbox and anything else on the machine.
 4. **Host resource exhaustion in aggregate.** Per-container limits are enforced; there is no global
    admission control, so N concurrent executions can still collectively load the machine.
-5. **Malicious problem content that is *correct*.** The six-stage gate proves a problem is
+5. **Malicious problem content that is _correct_.** The six-stage gate proves a problem is
    internally consistent — reference agrees with brute force, examples reproduce, mutants die. It
-   does not prove the problem is *good*, interesting, or free of subtly misleading framing.
+   does not prove the problem is _good_, interesting, or free of subtly misleading framing.
    Correctness ≠ quality; PLAN.md §12 names this as the product's ceiling risk.
 6. **Supply chain.** Base images (`python:3.12-slim`, `gcc:14`) and the vendored `json.hpp` are
-   trusted as-is. Digests are recorded, so a change is *detectable* after the fact, but nothing
+   trusted as-is. Digests are recorded, so a change is _detectable_ after the fact, but nothing
    verifies them ahead of time.
 
 ---

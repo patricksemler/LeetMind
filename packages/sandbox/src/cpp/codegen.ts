@@ -82,7 +82,9 @@ export function generateMainCpp(signature: Signature): string {
   // C++ translation unit. Fail loudly here rather than let the compiler (or worse, the compiler
   // successfully accepting something unintended) be the first thing to notice.
   if (!CPP_IDENTIFIER.test(signature.name)) {
-    throw new Error(`generateMainCpp: signature.name is not a valid identifier: ${JSON.stringify(signature.name)}`);
+    throw new Error(
+      `generateMainCpp: signature.name is not a valid identifier: ${JSON.stringify(signature.name)}`,
+    );
   }
 
   const paramAsts = signature.params.map((p) => parseParamType(p.type));

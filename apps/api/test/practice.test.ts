@@ -34,7 +34,11 @@ describe("chooseTarget (pure)", () => {
       two_pointers: state("two_pointers", 1100),
       sliding_window: state("sliding_window", 1300),
     };
-    const target = chooseTarget(states, ordered, new Set(["arrays_hashing", "two_pointers", "sliding_window"]));
+    const target = chooseTarget(
+      states,
+      ordered,
+      new Set(["arrays_hashing", "two_pointers", "sliding_window"]),
+    );
     expect(target?.conceptId).toBe("two_pointers");
     expect(target?.why).toContain("weakest");
   });
@@ -74,7 +78,9 @@ describe.skipIf(!dbReachable)("GET /api/practice/next", () => {
   });
 
   afterEach(async () => {
-    await pool.query("delete from jobs where kind = 'generate' and idempotency_key like 'generate:practice:%'");
+    await pool.query(
+      "delete from jobs where kind = 'generate' and idempotency_key like 'generate:practice:%'",
+    );
     await cleanup(pool, {
       problemVersionIds: problemVersionIds.splice(0),
       problemIds: problemIds.splice(0),
@@ -159,8 +165,16 @@ describe.skipIf(!dbReachable)("GET /api/practice/next", () => {
     await setAttempted("two_pointers", 1100);
 
     // One candidate per concept, both comfortably inside their band.
-    const weak = await seedApprovedProblem(pool, { conceptId: "two_pointers", difficultyRating: 1100, title: "Weak concept problem" });
-    const strong = await seedApprovedProblem(pool, { conceptId: "arrays_hashing", difficultyRating: 1500, title: "Strong concept problem" });
+    const weak = await seedApprovedProblem(pool, {
+      conceptId: "two_pointers",
+      difficultyRating: 1100,
+      title: "Weak concept problem",
+    });
+    const strong = await seedApprovedProblem(pool, {
+      conceptId: "arrays_hashing",
+      difficultyRating: 1500,
+      title: "Strong concept problem",
+    });
     for (const s of [weak, strong]) {
       problemVersionIds.push(s.problemVersionId);
       problemIds.push(s.problemId);
@@ -232,7 +246,11 @@ describe.skipIf(!dbReachable)("GET /api/practice/next", () => {
 
     // A single in-band candidate is below PRACTICE_BUFFER_WATERMARK, so serving it should also
     // commission a replacement — that is what keeps the loop from stalling on the next request.
-    const only = await seedApprovedProblem(pool, { conceptId: "two_pointers", difficultyRating: 1100, title: "Last one in the band" });
+    const only = await seedApprovedProblem(pool, {
+      conceptId: "two_pointers",
+      difficultyRating: 1100,
+      title: "Last one in the band",
+    });
     problemVersionIds.push(only.problemVersionId);
     problemIds.push(only.problemId);
 
@@ -262,7 +280,11 @@ describe.skipIf(!dbReachable)("GET /api/practice/next", () => {
     await exitColdStart();
     await setAttempted("two_pointers", 1100);
 
-    const seeded = await seedApprovedProblem(pool, { conceptId: "two_pointers", difficultyRating: 1100, title: "Already skipped in the baseline" });
+    const seeded = await seedApprovedProblem(pool, {
+      conceptId: "two_pointers",
+      difficultyRating: 1100,
+      title: "Already skipped in the baseline",
+    });
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
 
@@ -287,7 +309,11 @@ describe.skipIf(!dbReachable)("GET /api/practice/next", () => {
     await exitColdStart();
     await setAttempted("two_pointers", 1100);
 
-    const seeded = await seedApprovedProblem(pool, { conceptId: "two_pointers", difficultyRating: 1100, title: "Already attempted" });
+    const seeded = await seedApprovedProblem(pool, {
+      conceptId: "two_pointers",
+      difficultyRating: 1100,
+      title: "Already attempted",
+    });
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
 

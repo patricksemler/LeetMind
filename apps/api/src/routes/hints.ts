@@ -41,7 +41,6 @@ function penaltiesRecord(): Record<string, number> {
 }
 
 export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void {
-
   fastify.post("/api/hints", async (request, reply) => {
     const userId = request.userId;
     const body = TakeHintRequest.parse(request.body);
@@ -64,10 +63,13 @@ export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void 
       for (let i = 0; i < rungIndex; i += 1) {
         const prerequisite = HINT_RUNGS[i];
         if (prerequisite && !taken.has(prerequisite)) {
-          throw badRequest(`Hints must be taken in order — take "${prerequisite}" before "${body.level}"`, {
-            requested: body.level,
-            missing_prerequisite: prerequisite,
-          });
+          throw badRequest(
+            `Hints must be taken in order — take "${prerequisite}" before "${body.level}"`,
+            {
+              requested: body.level,
+              missing_prerequisite: prerequisite,
+            },
+          );
         }
       }
 
@@ -91,43 +93,46 @@ export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void 
     });
   });
 
-  fastify.get<{ Params: { versionId: string } }>("/api/hints/:versionId", async (request, reply) => {
-    const userId = request.userId;
-    const versionId = requireId(request.params.versionId, "versionId");
-    const versionRow = await getApprovedProblemVersion(versionId);
-    if (!versionRow) throw notFound("Problem version not found or not approved");
-    const content = ProblemVersionSchema.parse(versionRow.content);
+  fastify.get<{ Params: { versionId: string } }>(
+    "/api/hints/:versionId",
+    async (request, reply) => {
+      const userId = request.userId;
+      const versionId = requireId(request.params.versionId, "versionId");
+      const versionRow = await getApprovedProblemVersion(versionId);
+      if (!versionRow) throw notFound("Problem version not found or not approved");
+      const content = ProblemVersionSchema.parse(versionRow.content);
 
-    const hintEvents = await listHintEvents(userId, versionId);
-    const taken = hintEvents.map((h) => h.level);
-    const nextRung = HINT_RUNGS.find((l) => !taken.includes(l));
+      const hintEvents = await listHintEvents(userId, versionId);
+      const taken = hintEvents.map((h) => h.level);
+      const nextRung = HINT_RUNGS.find((l) => !taken.includes(l));
 
-    // Text for the rungs this user has already taken, so the client can redraw the ladder from one
-    // read instead of re-POSTing /api/hints per rung to reconstruct it. Strictly rungs already in
-    // `taken`, and never `editorial` — an un-taken hint still never leaves the server.
-    const texts: Record<string, string> = {};
-    for (const rung of HINT_RUNGS) {
-      if (taken.includes(rung)) texts[rung] = content.hints[rung];
-    }
+      // Text for the rungs this user has already taken, so the client can redraw the ladder from one
+      // read instead of re-POSTing /api/hints per rung to reconstruct it. Strictly rungs already in
+      // `taken`, and never `editorial` — an un-taken hint still never leaves the server.
+      const texts: Record<string, string> = {};
+      for (const rung of HINT_RUNGS) {
+        if (taken.includes(rung)) texts[rung] = content.hints[rung];
+      }
 
-    // Once the editorial has genuinely been revealed — by giving up, or by practice opening a
-    // teaching episode — this endpoint must serve it too. Otherwise the full solution exists only
-    // in the give-up response body, and a page reload mid-teaching-episode leaves the user staring
-    // at a problem they have been told to transcribe with nothing to transcribe from.
-    const editorialTaken = taken.includes("editorial");
+      // Once the editorial has genuinely been revealed — by giving up, or by practice opening a
+      // teaching episode — this endpoint must serve it too. Otherwise the full solution exists only
+      // in the give-up response body, and a page reload mid-teaching-episode leaves the user staring
+      // at a problem they have been told to transcribe with nothing to transcribe from.
+      const editorialTaken = taken.includes("editorial");
 
-    reply.send({
-      taken,
-      available: nextRung ? [nextRung] : [],
-      penalties: penaltiesRecord(),
-      texts,
-      editorial_md: editorialTaken ? content.hints.editorial_md : null,
-      solutions: editorialTaken
-        ? { python: content.reference_solution_py, cpp: content.reference_solution_cpp }
-        : null,
-      transcribed: editorialTaken ? await hasTranscribed(userId, versionId) : false,
-    });
-  });
+      reply.send({
+        taken,
+        available: nextRung ? [nextRung] : [],
+        penalties: penaltiesRecord(),
+        texts,
+        editorial_md: editorialTaken ? content.hints.editorial_md : null,
+        solutions: editorialTaken
+          ? { python: content.reference_solution_py, cpp: content.reference_solution_cpp }
+          : null,
+        transcribed: editorialTaken ? await hasTranscribed(userId, versionId) : false,
+      });
+    },
+  );
 
   fastify.post<{ Params: { versionId: string } }>(
     "/api/problems/:versionId/give-up",
@@ -146,11 +151,17 @@ export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void 
       // directions for the same evidence — confirmed live (solve +7.4, give-up -12.6, correct
       // resubmit -11.8, every time).
       if (await hasInFlightSubmission(userId, versionId)) {
-        throw conflict("A submission for this problem is still being judged — wait for it to finish before giving up.");
+        throw conflict(
+          "A submission for this problem is still being judged — wait for it to finish before giving up.",
+        );
       }
 
       const conceptIds = content.concepts.map((c) => c.id);
-      const idempotencyKey = learningEventKey({ kind: "give_up", userId, problemVersionId: versionId });
+      const idempotencyKey = learningEventKey({
+        kind: "give_up",
+        userId,
+        problemVersionId: versionId,
+      });
 
       // A give-up after an accepted solve would score a recorded success at 0% and apply a
       // negative delta on top of it. The UI disables the control once solved, but a stale or
@@ -186,7 +197,8 @@ export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void 
       //
       // Idempotent through the (user, origin, kind) unique key, so a replayed give-up — which the
       // block above already handles for the learning event — cannot stack duplicate debts.
-      const primaryConcept = content.concepts.find((c) => c.role === "primary") ?? content.concepts[0];
+      const primaryConcept =
+        content.concepts.find((c) => c.role === "primary") ?? content.concepts[0];
       if (primaryConcept) {
         await queueFollowUps({
           userId,
@@ -210,7 +222,8 @@ export function registerHintRoutes(fastify: FastifyInstance, _deps: Deps): void 
         // The write-it-out step. Server-authoritative: `GET /api/practice/next` will keep
         // returning this problem until an accepted `transcribe` submission exists for it.
         teaching: {
-          reason: "You needed the full solution for that one — type it out yourself before moving on.",
+          reason:
+            "You needed the full solution for that one — type it out yourself before moving on.",
           trigger: "editorial_revealed",
           transcribed: false,
         },

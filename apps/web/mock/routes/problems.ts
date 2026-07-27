@@ -1,7 +1,13 @@
 import type { Express } from "express";
 import { toPublicProblem } from "@leetmind/shared";
 import { buildMockReveal } from "../reveal.js";
-import { conceptState, getProblemUserState, hasSolvedOrGivenUp, problemFixtures, problemsById } from "../state.js";
+import {
+  conceptState,
+  getProblemUserState,
+  hasSolvedOrGivenUp,
+  problemFixtures,
+  problemsById,
+} from "../state.js";
 import { handle, notFound, pparam } from "./helpers.js";
 
 export function registerProblemRoutes(app: Express): void {
@@ -11,12 +17,17 @@ export function registerProblemRoutes(app: Express): void {
     "/api/problems/next",
     handle((req, res) => {
       const concept = typeof req.query.concept === "string" ? req.query.concept : undefined;
-      const ratingParam = typeof req.query.rating === "string" ? Number(req.query.rating) : undefined;
+      const ratingParam =
+        typeof req.query.rating === "string" ? Number(req.query.rating) : undefined;
 
-      let candidates = problemFixtures.filter((p) => !getProblemUserState(p.problemVersionId).solved);
+      let candidates = problemFixtures.filter(
+        (p) => !getProblemUserState(p.problemVersionId).solved,
+      );
       if (candidates.length === 0) candidates = problemFixtures;
       if (concept) {
-        const withConcept = candidates.filter((p) => p.content.concepts.some((c) => c.id === concept));
+        const withConcept = candidates.filter((p) =>
+          p.content.concepts.some((c) => c.id === concept),
+        );
         if (withConcept.length > 0) candidates = withConcept;
       }
 
@@ -24,7 +35,9 @@ export function registerProblemRoutes(app: Express): void {
       const targetRating = ratingParam ?? weakest?.[1].rating ?? 1200;
 
       candidates.sort(
-        (a, b) => Math.abs(a.content.difficulty.rating - targetRating) - Math.abs(b.content.difficulty.rating - targetRating),
+        (a, b) =>
+          Math.abs(a.content.difficulty.rating - targetRating) -
+          Math.abs(b.content.difficulty.rating - targetRating),
       );
       const chosen = candidates[0] ?? problemFixtures[0]!;
 
@@ -64,7 +77,8 @@ export function registerProblemRoutes(app: Express): void {
         return st.gaveUp && !st.transcribed;
       });
       if (teachingFixture) {
-        const reason = "You needed the full solution for that one — type it out yourself before moving on.";
+        const reason =
+          "You needed the full solution for that one — type it out yourself before moving on.";
         res.json({
           problem: toPublicProblem({
             problemVersionId: teachingFixture.problemVersionId,
@@ -110,7 +124,9 @@ export function registerProblemRoutes(app: Express): void {
 
       const targetRating = weakest?.[1].rating ?? 1200;
       const chosen = [...unsolved].sort(
-        (a, b) => Math.abs(a.content.difficulty.rating - targetRating) - Math.abs(b.content.difficulty.rating - targetRating),
+        (a, b) =>
+          Math.abs(a.content.difficulty.rating - targetRating) -
+          Math.abs(b.content.difficulty.rating - targetRating),
       )[0]!;
 
       res.json({

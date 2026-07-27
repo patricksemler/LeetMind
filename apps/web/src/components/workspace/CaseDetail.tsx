@@ -72,7 +72,9 @@ export function CaseDetail({
   return (
     <div className="space-y-2.5 font-mono text-xs">
       <div>
-        <div className="mb-1 font-sans text-[11px] uppercase tracking-wide text-text-faint">Input</div>
+        <div className="mb-1 font-sans text-[11px] uppercase tracking-wide text-text-faint">
+          Input
+        </div>
         <div className="space-y-1 rounded-md border border-border bg-bg-inset p-2.5">
           {argLines(signature, args).map((line) => (
             <div key={line.name}>
@@ -84,13 +86,19 @@ export function CaseDetail({
       </div>
 
       <div>
-        <div className="mb-1 font-sans text-[11px] uppercase tracking-wide text-text-faint">Expected</div>
-        <div className="rounded-md border border-border bg-bg-inset p-2.5 text-text">{formatValue(expected)}</div>
+        <div className="mb-1 font-sans text-[11px] uppercase tracking-wide text-text-faint">
+          Expected
+        </div>
+        <div className="rounded-md border border-border bg-bg-inset p-2.5 text-text">
+          {formatValue(expected)}
+        </div>
       </div>
 
       {showOutput && (
         <div>
-          <div className="mb-1 font-sans text-[11px] uppercase tracking-wide text-text-faint">Your output</div>
+          <div className="mb-1 font-sans text-[11px] uppercase tracking-wide text-text-faint">
+            Your output
+          </div>
           <div
             className={`rounded-md border p-2.5 ${
               passed

@@ -80,7 +80,11 @@ async function authHeaders(): Promise<Record<string, string>> {
 async function request<T>(path: string, schema: Schema<T>, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
-    headers: { "content-type": "application/json", ...(await authHeaders()), ...(init?.headers ?? {}) },
+    headers: {
+      "content-type": "application/json",
+      ...(await authHeaders()),
+      ...(init?.headers ?? {}),
+    },
   });
 
   const correlationId = res.headers.get("x-correlation-id") ?? undefined;
@@ -149,7 +153,8 @@ export const api = {
 
   progress: () => request("/api/progress", ProgressResponse),
 
-  generateNow: (body: GenerateNowRequest) => postJson("/api/generate-now", body, GenerateNowResponse),
+  generateNow: (body: GenerateNowRequest) =>
+    postJson("/api/generate-now", body, GenerateNowResponse),
 
   concepts: () => request("/api/concepts", GetConceptsResponse),
 };

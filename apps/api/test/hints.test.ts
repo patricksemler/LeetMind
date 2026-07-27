@@ -102,7 +102,10 @@ describe.skipIf(!dbReachable)("hint ladder", () => {
       payload: { problem_version_id: seeded.problemVersionId, level: "l1_orientation" },
     });
 
-    const res = await server.inject({ method: "GET", url: `/api/hints/${seeded.problemVersionId}` });
+    const res = await server.inject({
+      method: "GET",
+      url: `/api/hints/${seeded.problemVersionId}`,
+    });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.taken).toEqual(["l1_orientation"]);
@@ -116,7 +119,10 @@ describe.skipIf(!dbReachable)("hint ladder", () => {
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
 
-    const before = await server.inject({ method: "GET", url: `/api/hints/${seeded.problemVersionId}` });
+    const before = await server.inject({
+      method: "GET",
+      url: `/api/hints/${seeded.problemVersionId}`,
+    });
     expect(JSON.parse(before.body).texts).toEqual({});
 
     for (const level of ["l1_orientation", "l2_conceptual"]) {
@@ -127,7 +133,10 @@ describe.skipIf(!dbReachable)("hint ladder", () => {
       });
     }
 
-    const res = await server.inject({ method: "GET", url: `/api/hints/${seeded.problemVersionId}` });
+    const res = await server.inject({
+      method: "GET",
+      url: `/api/hints/${seeded.problemVersionId}`,
+    });
     const body = JSON.parse(res.body);
     // The read is enough to redraw the ladder — the client never has to re-POST to get text back.
     expect(Object.keys(body.texts).sort()).toEqual(["l1_orientation", "l2_conceptual"]);

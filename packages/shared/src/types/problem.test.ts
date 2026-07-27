@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { type ProblemVersion, ProblemVersionSchema, starterCodeFor, toPublicProblem } from "./problem.js";
+import {
+  type ProblemVersion,
+  ProblemVersionSchema,
+  starterCodeFor,
+  toPublicProblem,
+} from "./problem.js";
 
 function makeProblemVersion(overrides: Partial<ProblemVersion> = {}): ProblemVersion {
   const base: ProblemVersion = {
@@ -82,7 +87,9 @@ describe("ProblemVersionSchema", () => {
     const bad = makeProblemVersion({
       concepts: [{ id: "sliding_window", role: "secondary", weight: 1 }],
     });
-    expect(() => ProblemVersionSchema.parse(bad)).toThrow(/exactly one concept must have role='primary'/);
+    expect(() => ProblemVersionSchema.parse(bad)).toThrow(
+      /exactly one concept must have role='primary'/,
+    );
   });
 
   it("rejects more than one primary concept", () => {
@@ -92,7 +99,9 @@ describe("ProblemVersionSchema", () => {
         { id: "arrays_hashing", role: "primary", weight: 0.5 },
       ],
     });
-    expect(() => ProblemVersionSchema.parse(bad)).toThrow(/exactly one concept must have role='primary'/);
+    expect(() => ProblemVersionSchema.parse(bad)).toThrow(
+      /exactly one concept must have role='primary'/,
+    );
   });
 });
 
@@ -301,8 +310,6 @@ describe("cross-language null tolerance (regression)", () => {
   });
 
   it("still rejects a non-string checker_py", () => {
-    expect(() =>
-      ProblemVersionSchema.parse({ ...makeProblemVersion(), checker_py: 42 }),
-    ).toThrow();
+    expect(() => ProblemVersionSchema.parse({ ...makeProblemVersion(), checker_py: 42 })).toThrow();
   });
 });

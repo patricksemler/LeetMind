@@ -3,13 +3,7 @@
 import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { ZodError } from "zod";
-import {
-  AppError,
-  isId,
-  newId,
-  toErrorResponse,
-  withContext,
-} from "@leetmind/shared";
+import { AppError, isId, newId, toErrorResponse, withContext } from "@leetmind/shared";
 import { registerAuth } from "./auth.js";
 import type { Deps } from "./deps.js";
 import { registerRoutes } from "./routes/index.js";

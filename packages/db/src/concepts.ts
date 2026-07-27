@@ -24,7 +24,9 @@ export async function getConceptState(
 ): Promise<UserConceptStateRow | null> {
   const sql = "select * from user_concept_state where user_id = $1 and concept_id = $2";
   const params = [userId, conceptId];
-  return client ? queryOneWith<UserConceptStateRow>(client, sql, params) : queryOne<UserConceptStateRow>(sql, params);
+  return client
+    ? queryOneWith<UserConceptStateRow>(client, sql, params)
+    : queryOne<UserConceptStateRow>(sql, params);
 }
 
 /**
@@ -63,7 +65,10 @@ export async function listConceptStates(userId: string): Promise<UserConceptStat
  * mastery update). Must run inside the caller's transaction so it lands atomically with the
  * `learning_events` row that justifies it.
  */
-export async function upsertConceptState(client: PoolClient, state: UserConceptStateRow): Promise<UserConceptStateRow> {
+export async function upsertConceptState(
+  client: PoolClient,
+  state: UserConceptStateRow,
+): Promise<UserConceptStateRow> {
   const sql = `
     insert into user_concept_state (
       user_id, concept_id, rating, uncertainty, attempts, solves, unassisted_solves, skips,
@@ -118,7 +123,9 @@ export async function upsertConceptState(client: PoolClient, state: UserConceptS
     state.mastered_at,
   ]);
   if (!row) {
-    throw new Error(`upsertConceptState: failed to read back state for ${state.user_id}/${state.concept_id}`);
+    throw new Error(
+      `upsertConceptState: failed to read back state for ${state.user_id}/${state.concept_id}`,
+    );
   }
   return row;
 }

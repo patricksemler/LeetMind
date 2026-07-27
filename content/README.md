@@ -18,7 +18,7 @@ uv run python -m leetmind_content.workers.content_worker
 ```
 
 **Run this ON THE HOST, not in Docker, when `GENERATOR_INVOKER=claude`** (the default). The
-worker shells out to the `claude` CLI to generate problems, and it needs your *host* machine's
+worker shells out to the `claude` CLI to generate problems, and it needs your _host_ machine's
 authenticated `claude` login — running it inside a container means either bind-mounting your
 `~/.claude` credentials in (works, but is the secondary path; see `docker-compose.yml`'s
 `content` service comment) or not being able to generate at all. `GENERATOR_INVOKER=stub` (a

@@ -19,7 +19,8 @@ import { CodeBlock } from "./CodeBlock";
  * step — a compile error, a timeout — keep their own names, because "rejected" would hide the one
  * thing that makes them different. */
 function verdictLabel(submission: Submission): string {
-  if (submission.status !== "completed") return submission.status === "cancelled" ? "cancelled" : "judging";
+  if (submission.status !== "completed")
+    return submission.status === "cancelled" ? "cancelled" : "judging";
   if (submission.verdict === "wrong_answer") return "rejected";
   return (submission.verdict ?? "pending").replace(/_/g, " ");
 }
@@ -75,7 +76,8 @@ export function SubmissionsPanel({
   if (history.length === 0) {
     return (
       <div className="p-5 text-sm text-text-faint">
-        No submissions yet. Submit to run your code against the hidden tests as well as the examples.
+        No submissions yet. Submit to run your code against the hidden tests as well as the
+        examples.
       </div>
     );
   }
@@ -105,7 +107,9 @@ export function SubmissionsPanel({
                 // aloud, "✗ Python 5/6" is not a sentence. Which attempt this is comes from the
                 // enclosing <ol>, which screen readers announce as position in the list.
                 aria-label={`${verdictLabel(s)} — ${s.language === "cpp" ? "C++" : "Python"}, ${dateLabel(s.created_at)}${
-                  s.status === "completed" ? `, ${s.passed_tests} of ${s.total_tests} tests passed` : ""
+                  s.status === "completed"
+                    ? `, ${s.passed_tests} of ${s.total_tests} tests passed`
+                    : ""
                 }`}
                 // The WHOLE row carries the outcome, not a badge inside a neutral row: a list of
                 // attempts is scanned, and a tinted row with a mark reads in one pass. Selection is
@@ -123,7 +127,11 @@ export function SubmissionsPanel({
                 <span
                   aria-hidden="true"
                   className={`shrink-0 text-[13px] leading-none ${
-                    outcome === "passed" ? "text-verdict-accepted" : outcome === "failed" ? "text-verdict-error" : "text-text-faint"
+                    outcome === "passed"
+                      ? "text-verdict-accepted"
+                      : outcome === "failed"
+                        ? "text-verdict-error"
+                        : "text-text-faint"
                   }`}
                 >
                   {outcome === "passed" ? "✓" : outcome === "failed" ? "✗" : "·"}
@@ -138,7 +146,9 @@ export function SubmissionsPanel({
                 {/* The count lives in the detail below, where it sits beside the verdict it
                     qualifies. In the row the mark already says pass or fail, so this slot carries
                     the one thing the row can't otherwise tell you: which attempt, and when. */}
-                <span className="shrink-0 font-mono text-[11px] text-text-faint">{dateLabel(s.created_at)}</span>
+                <span className="shrink-0 font-mono text-[11px] text-text-faint">
+                  {dateLabel(s.created_at)}
+                </span>
               </button>
             </li>
           );

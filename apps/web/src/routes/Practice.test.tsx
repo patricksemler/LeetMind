@@ -143,7 +143,15 @@ describe("Practice", () => {
   it("renders a waiting state — not an empty one — while a problem is being generated", async () => {
     vi.mocked(api.concepts).mockResolvedValue({
       concepts: [
-        { id: "two_pointers", name: "Two Pointers", description: "", misconceptions: [], min_rating: 800, max_rating: 2400, sort_order: 1 },
+        {
+          id: "two_pointers",
+          name: "Two Pointers",
+          description: "",
+          misconceptions: [],
+          min_rating: 800,
+          max_rating: 2400,
+          sort_order: 1,
+        },
       ],
       edges: [],
     });

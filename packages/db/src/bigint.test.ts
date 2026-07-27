@@ -8,7 +8,9 @@ import { getPool } from "./pool.js";
 // parser to make the declared types honest; this test is what stops it being removed.
 describe("bigint columns are parsed as numbers, not strings", () => {
   afterAll(async () => {
-    await getPool().end().catch(() => undefined);
+    await getPool()
+      .end()
+      .catch(() => undefined);
   });
 
   it("returns int8 as a JS number", async () => {

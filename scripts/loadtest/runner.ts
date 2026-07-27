@@ -47,7 +47,11 @@ async function runSession(opts: {
         language,
         source,
       });
-      const result = await waitForTerminal({ apiBase: opts.apiBase, submissionId, timeoutMs: waitTimeoutMs });
+      const result = await waitForTerminal({
+        apiBase: opts.apiBase,
+        submissionId,
+        timeoutMs: waitTimeoutMs,
+      });
       opts.onSubmissionDone({
         submissionId,
         language,

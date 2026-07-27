@@ -45,7 +45,10 @@ export function tail(text: string, max = STDERR_TAIL_MAX): string {
  * own without duplicating the rest of this pipeline (timeout/OOM/truncation/per-test mapping,
  * which are all language-agnostic — the sentinel protocol is shared).
  */
-export function classifyPythonOpaqueFailure(sandboxResult: SandboxResult): { verdict: Verdict; message: string } {
+export function classifyPythonOpaqueFailure(sandboxResult: SandboxResult): {
+  verdict: Verdict;
+  message: string;
+} {
   const looksLikeUserTraceback = /Traceback \(most recent call last\)/.test(sandboxResult.stderr);
   const verdict: Verdict = looksLikeUserTraceback ? "runtime_error" : "internal_error";
   return {
@@ -104,7 +107,8 @@ export interface BuildExecutionResultInput {
 }
 
 function defaultClassifyHarnessError(harness: HarnessResult): Verdict {
-  const isSyntaxError = harness.error_kind === "syntax_error" || /SyntaxError/.test(harness.error ?? "");
+  const isSyntaxError =
+    harness.error_kind === "syntax_error" || /SyntaxError/.test(harness.error ?? "");
   return isSyntaxError ? "compilation_error" : "runtime_error";
 }
 
@@ -226,10 +230,7 @@ export function buildExecutionResult(input: BuildExecutionResultInput): Executio
   const passedTests = perTest.filter((t) => t.passed).length;
   const memoryKb = perTest.length > 0 ? Math.max(...perTest.map((t) => t.memoryKb)) : null;
 
-  const finalize = (
-    verdict: Verdict,
-    failure?: ExecutionFailure,
-  ): ExecutionResult => ({
+  const finalize = (verdict: Verdict, failure?: ExecutionFailure): ExecutionResult => ({
     verdict,
     passedTests,
     totalTests,
@@ -282,7 +283,11 @@ export function buildExecutionResult(input: BuildExecutionResultInput): Executio
   return finalize(
     "accepted",
     revealInputs
-      ? { kind: "ok", message: "Ran successfully.", ...previewFields(tests, harness, 0, revealInputs) }
+      ? {
+          kind: "ok",
+          message: "Ran successfully.",
+          ...previewFields(tests, harness, 0, revealInputs),
+        }
       : undefined,
   );
 }
@@ -316,7 +321,8 @@ export async function executePython(opts: ExecutePythonOptions): Promise<Executi
   } = opts;
 
   const perTestTimeoutMs =
-    opts.perTestTimeoutMs ?? Math.max(1000, Math.floor(limits.wallTimeoutMs / Math.max(tests.length, 1)));
+    opts.perTestTimeoutMs ??
+    Math.max(1000, Math.floor(limits.wallTimeoutMs / Math.max(tests.length, 1)));
 
   const files = buildPythonBundle({
     signature,

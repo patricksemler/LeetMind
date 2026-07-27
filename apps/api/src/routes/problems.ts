@@ -12,7 +12,12 @@ import type { Deps } from "../deps.js";
 import { buildPublicProblem, type PublicProblemWithNames } from "../mappers/publicProblem.js";
 import { buildReveal } from "../mappers/submission.js";
 import { requireId } from "../server.js";
-import { DEFAULT_RATING, defaultConceptState, toPoolCandidate, type PoolCandidate } from "../lib/candidatePool.js";
+import {
+  DEFAULT_RATING,
+  defaultConceptState,
+  toPoolCandidate,
+  type PoolCandidate,
+} from "../lib/candidatePool.js";
 
 /** Progressive rating-band widenings tried, in order, before giving up on "the ideal band". */
 const WIDEN_STEPS = [0, 200, 400, 800];
@@ -101,7 +106,11 @@ export function registerProblemRoutes(fastify: FastifyInstance, _deps: Deps): vo
     if (!versionRow) {
       // Unreachable in practice (picked.candidate always comes from candidateRows), but keep the
       // response contract honest rather than throwing 500 on a selection bug.
-      reply.send({ problem: null, rationale: "Selection produced no matching candidate.", evidence: {} });
+      reply.send({
+        problem: null,
+        rationale: "Selection produced no matching candidate.",
+        evidence: {},
+      });
       return;
     }
 
@@ -114,19 +123,28 @@ export function registerProblemRoutes(fastify: FastifyInstance, _deps: Deps): vo
     reply.send({
       problem,
       rationale,
-      evidence: { factors: picked.factors, score: picked.score, widened, window: usedWindow, candidate_count: candidateRows.length },
+      evidence: {
+        factors: picked.factors,
+        score: picked.score,
+        widened,
+        window: usedWindow,
+        candidate_count: candidateRows.length,
+      },
     });
   });
 
-  fastify.get<{ Params: { versionId: string } }>("/api/problems/:versionId", async (request, reply) => {
-    const userId = request.userId;
-    const versionId = requireId(request.params.versionId, "versionId");
-    const versionRow = await getApprovedProblemVersion(versionId);
-    if (!versionRow) throw notFound("Problem version not found or not approved");
+  fastify.get<{ Params: { versionId: string } }>(
+    "/api/problems/:versionId",
+    async (request, reply) => {
+      const userId = request.userId;
+      const versionId = requireId(request.params.versionId, "versionId");
+      const versionRow = await getApprovedProblemVersion(versionId);
+      if (!versionRow) throw notFound("Problem version not found or not approved");
 
-    const problem: PublicProblemWithNames = await buildPublicProblem(versionRow, userId);
-    reply.send({ problem });
-  });
+      const problem: PublicProblemWithNames = await buildPublicProblem(versionRow, userId);
+      reply.send({ problem });
+    },
+  );
 
   /**
    * The reveal this user has ALREADY earned on this version — same allowlisted payload, same
@@ -136,11 +154,14 @@ export function registerProblemRoutes(fastify: FastifyInstance, _deps: Deps): vo
    * concepts revealed) and no solution anywhere on screen. Nothing here is reachable that the
    * verdict/give-up payloads didn't already carry — un-earned is a 404.
    */
-  fastify.get<{ Params: { versionId: string } }>("/api/problems/:versionId/reveal", async (request, reply) => {
-    const userId = request.userId;
-    const versionId = requireId(request.params.versionId, "versionId");
-    const reveal = await buildReveal(userId, versionId);
-    if (!reveal) throw notFound("No reveal earned for this problem version");
-    reply.send(reveal);
-  });
+  fastify.get<{ Params: { versionId: string } }>(
+    "/api/problems/:versionId/reveal",
+    async (request, reply) => {
+      const userId = request.userId;
+      const versionId = requireId(request.params.versionId, "versionId");
+      const reveal = await buildReveal(userId, versionId);
+      if (!reveal) throw notFound("No reveal earned for this problem version");
+      reply.send(reveal);
+    },
+  );
 }

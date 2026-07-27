@@ -41,19 +41,25 @@ export async function setup(): Promise<void> {
     return;
   }
 
-  const running = docker(
-    ["ps", "--filter", `name=^/${CONTAINER}$`, "--format", "{{.Names}}"],
-    { allowFailure: true },
-  ).trim();
+  const running = docker(["ps", "--filter", `name=^/${CONTAINER}$`, "--format", "{{.Names}}"], {
+    allowFailure: true,
+  }).trim();
   if (running === CONTAINER) return;
 
   docker(["rm", "-f", CONTAINER], { allowFailure: true });
   docker([
-    "run", "-d", "--name", CONTAINER,
-    "-e", "POSTGRES_USER=leetmind",
-    "-e", "POSTGRES_PASSWORD=leetmind",
-    "-e", "POSTGRES_DB=leetmind_queue_test",
-    "-p", `${PORT}:5432`,
+    "run",
+    "-d",
+    "--name",
+    CONTAINER,
+    "-e",
+    "POSTGRES_USER=leetmind",
+    "-e",
+    "POSTGRES_PASSWORD=leetmind",
+    "-e",
+    "POSTGRES_DB=leetmind_queue_test",
+    "-p",
+    `${PORT}:5432`,
     IMAGE,
   ]);
   startedByUs = true;

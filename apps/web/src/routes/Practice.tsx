@@ -25,13 +25,7 @@ import { buttonClassName } from "../components/ui/Button";
  * hammering the API for the whole wait. */
 const GENERATING_POLL_MS = 2000;
 
-function GeneratingPanel({
-  conceptLabel,
-  reason,
-}: {
-  conceptLabel: string;
-  reason: string;
-}) {
+function GeneratingPanel({ conceptLabel, reason }: { conceptLabel: string; reason: string }) {
   return (
     <Panel className="max-w-md p-6 text-center">
       <div className="mb-3 flex items-center justify-center gap-2">
@@ -44,9 +38,9 @@ function GeneratingPanel({
       <h1 className="font-display text-xl text-text">Writing you a new problem</h1>
       <p className="mt-2 text-sm text-text-dim">{reason}</p>
       <p className="mt-3 text-xs text-text-faint">
-        Targeting <strong className="text-text-dim">{conceptLabel}</strong>. It's generated, then run through the
-        verification gate — reference vs brute force on hundreds of inputs, boundary cases, and mutation testing —
-        before you ever see it. That takes a minute or two.
+        Targeting <strong className="text-text-dim">{conceptLabel}</strong>. It's generated, then
+        run through the verification gate — reference vs brute force on hundreds of inputs, boundary
+        cases, and mutation testing — before you ever see it. That takes a minute or two.
       </p>
       <p className="mt-3 text-xs text-text-faint">This page updates itself when it's ready.</p>
     </Panel>
@@ -71,7 +65,12 @@ export function Practice() {
   }
 
   if (nextQuery.isError) {
-    return <QueryError message="Couldn't work out what's next." onRetry={() => void nextQuery.refetch()} />;
+    return (
+      <QueryError
+        message="Couldn't work out what's next."
+        onRetry={() => void nextQuery.refetch()}
+      />
+    );
   }
 
   const data = nextQuery.data;
@@ -95,7 +94,9 @@ export function Practice() {
       <div className="flex h-full items-center justify-center p-6">
         <Panel className="max-w-md p-6 text-center">
           <h1 className="font-display text-xl text-text">Nothing to practise right now</h1>
-          <p className="mt-2 text-sm text-text-dim">{data?.rationale ?? "No problem is available."}</p>
+          <p className="mt-2 text-sm text-text-dim">
+            {data?.rationale ?? "No problem is available."}
+          </p>
           <Button variant="secondary" className="mt-5" onClick={() => void nextQuery.refetch()}>
             Check again
           </Button>
@@ -123,7 +124,9 @@ export function Practice() {
           {teaching ? (
             <Badge tone="warn">worked example</Badge>
           ) : followup ? (
-            <Badge tone="accent">{followup.kind === "reinforce" ? "your turn" : "checking it stuck"}</Badge>
+            <Badge tone="accent">
+              {followup.kind === "reinforce" ? "your turn" : "checking it stuck"}
+            </Badge>
           ) : (
             <Badge tone="accent">next up</Badge>
           )}
@@ -141,7 +144,10 @@ export function Practice() {
         </p>
 
         <div className="mt-5 flex items-center gap-2">
-          <Link to={`/problem/${problem.problem_version_id}`} className={buttonClassName({ variant: "primary" })}>
+          <Link
+            to={`/problem/${problem.problem_version_id}`}
+            className={buttonClassName({ variant: "primary" })}
+          >
             {teaching ? "Work through it" : "Start"}
           </Link>
           {/* Hidden during a teaching episode and on a follow-up. Both exist precisely because the

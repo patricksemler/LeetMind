@@ -19,7 +19,11 @@ const logger = createLogger("sandbox");
  * 137 alone can also mean "we killed it for the wall timeout" (ruled out via `!timedOut`) or an
  * unrelated SIGKILL.
  */
-export function looksLikeOomFallback(exitCode: number | null, stderr: string, timedOut: boolean): boolean {
+export function looksLikeOomFallback(
+  exitCode: number | null,
+  stderr: string,
+  timedOut: boolean,
+): boolean {
   if (timedOut) return false;
   if (exitCode !== 137) return false;
   return /MemoryError|Killed|Out of memory|Cannot allocate memory|OOM/i.test(stderr);
@@ -35,19 +39,29 @@ export function looksLikeOomFallback(exitCode: number | null, stderr: string, ti
  * that entirely rather than fighting it). Call `start()` BEFORE `docker run`, `stop()` after it
  * exits.
  */
-export function watchForOomEvent(dockerBin: string, containerName: string): { stop: () => Promise<boolean> } {
+export function watchForOomEvent(
+  dockerBin: string,
+  containerName: string,
+): { stop: () => Promise<boolean> } {
   let oomSeen = false;
   let spawnFailed = false;
 
-  const child = spawn(dockerBin, ["events", "--filter", `container=${containerName}`, "--filter", "event=oom"], {
-    stdio: ["ignore", "pipe", "ignore"],
-  });
+  const child = spawn(
+    dockerBin,
+    ["events", "--filter", `container=${containerName}`, "--filter", "event=oom"],
+    {
+      stdio: ["ignore", "pipe", "ignore"],
+    },
+  );
   child.stdout.on("data", () => {
     oomSeen = true;
   });
   child.on("error", (err) => {
     spawnFailed = true;
-    logger.warn({ err: String(err), containerName }, "docker events OOM watcher failed to spawn; falling back to the stderr heuristic");
+    logger.warn(
+      { err: String(err), containerName },
+      "docker events OOM watcher failed to spawn; falling back to the stderr heuristic",
+    );
   });
 
   return {

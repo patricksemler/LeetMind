@@ -165,7 +165,11 @@ export function useSubmissionEvents(
       const attempt = attemptRef.current;
       attemptRef.current += 1;
       const delay = Math.min(maxBackoffRef.current, baseBackoffRef.current * 2 ** attempt);
-      setState((prev) => ({ ...prev, connectionState: "reconnecting", reconnectAttempts: attempt + 1 }));
+      setState((prev) => ({
+        ...prev,
+        connectionState: "reconnecting",
+        reconnectAttempts: attempt + 1,
+      }));
       timerRef.current = setTimeout(() => void connect(id), delay);
     }
 
@@ -240,7 +244,6 @@ export function useSubmissionEvents(
       stoppedRef.current = true;
       stopStream();
     };
-     
   }, [submissionId, enabled]);
 
   return state;

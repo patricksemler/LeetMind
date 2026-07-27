@@ -59,7 +59,10 @@ export function registerGenerateRoutes(fastify: FastifyInstance, deps: Deps): vo
     if (!job) {
       // Unreachable in practice (idempotency key is always fresh), but keep the response
       // contract honest rather than sending `job_id: undefined`.
-      reply.status(500).send({ error: { code: "internal_error", message: "job enqueue collided" }, correlation_id: correlationId });
+      reply.status(500).send({
+        error: { code: "internal_error", message: "job enqueue collided" },
+        correlation_id: correlationId,
+      });
       return;
     }
 

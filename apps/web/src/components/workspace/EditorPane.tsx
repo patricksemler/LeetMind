@@ -43,7 +43,9 @@ function resolveMonacoTheme(): MonacoThemeName {
   const explicit = document.documentElement.dataset.theme;
   if (explicit === "light") return "leetmind-light";
   if (explicit === "dark") return "leetmind-dark";
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "leetmind-light" : "leetmind-dark";
+  return window.matchMedia("(prefers-color-scheme: light)").matches
+    ? "leetmind-light"
+    : "leetmind-dark";
 }
 
 /** Tracks which Monaco theme should be active, mirroring index.css's own precedence: an explicit

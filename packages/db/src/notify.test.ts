@@ -16,7 +16,10 @@ describe("notify payload-size guard", () => {
     await notify(client, payload);
 
     expect(client.query).toHaveBeenCalledTimes(1);
-    const [sql, params] = (client.query as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown[]];
+    const [sql, params] = (client.query as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      unknown[],
+    ];
     expect(sql).toContain("pg_notify('leetmind_events'");
     expect(params).toEqual([JSON.stringify(payload)]);
   });
@@ -27,7 +30,9 @@ describe("notify payload-size guard", () => {
     const payload: NotifyPayload = { type: "status", blob: "x".repeat(MAX_NOTIFY_PAYLOAD_BYTES) };
 
     await expect(notify(client, payload)).rejects.toThrow(AppError);
-    await expect(notify(client, payload)).rejects.toMatchObject({ code: "notify_payload_too_large" });
+    await expect(notify(client, payload)).rejects.toMatchObject({
+      code: "notify_payload_too_large",
+    });
     expect(client.query).not.toHaveBeenCalled();
   });
 
@@ -40,6 +45,8 @@ describe("notify payload-size guard", () => {
     await expect(notify(okClient, { type: "t", blob: "x".repeat(fill) })).resolves.toBeUndefined();
 
     const overClient = fakeClient();
-    await expect(notify(overClient, { type: "t", blob: "x".repeat(fill + 1) })).rejects.toThrow(AppError);
+    await expect(notify(overClient, { type: "t", blob: "x".repeat(fill + 1) })).rejects.toThrow(
+      AppError,
+    );
   });
 });

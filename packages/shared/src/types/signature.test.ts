@@ -46,7 +46,19 @@ describe("parseParamType", () => {
   });
 
   it("round-trips through paramTypeToString", () => {
-    for (const t of ["int", "float", "bool", "str", "TreeNode", "TreeNode?", "ListNode", "ListNode?", "list[int]", "list[list[int]]", "list[list[list[bool]]]"]) {
+    for (const t of [
+      "int",
+      "float",
+      "bool",
+      "str",
+      "TreeNode",
+      "TreeNode?",
+      "ListNode",
+      "ListNode?",
+      "list[int]",
+      "list[list[int]]",
+      "list[list[list[bool]]]",
+    ]) {
       expect(paramTypeToString(parseParamType(t))).toBe(t);
     }
   });

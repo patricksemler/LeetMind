@@ -15,7 +15,13 @@ export function registerSystemRoutes(fastify: FastifyInstance, deps: Deps): void
     const userId = request.userId;
     const [queueStats, workers, verdicts, bufferDepth, passRate, modelRuns] = await Promise.all([
       deps.queue.stats(),
-      query<{ worker_id: string; kind: string; last_seen_at: Date; meta: Record<string, unknown>; stale: boolean }>(
+      query<{
+        worker_id: string;
+        kind: string;
+        last_seen_at: Date;
+        meta: Record<string, unknown>;
+        stale: boolean;
+      }>(
         `select worker_id, kind, last_seen_at, meta,
                 (now() - last_seen_at) > interval '${STALE_WORKER_SECONDS} seconds' as stale
            from worker_heartbeats

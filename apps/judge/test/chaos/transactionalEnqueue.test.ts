@@ -110,7 +110,9 @@ describe.skipIf(!dbReachable)("chaos 6: transactional enqueue under rollback", (
 
     const submissionRows = await query("select id from submissions where id = $1", [submissionId]);
     expect(submissionRows).toHaveLength(1);
-    const jobRows = await query<{ id: string }>("select id from jobs where idempotency_key = $1", [idempotencyKey]);
+    const jobRows = await query<{ id: string }>("select id from jobs where idempotency_key = $1", [
+      idempotencyKey,
+    ]);
     expect(jobRows).toHaveLength(1);
 
     // Clean up this one's own rows (this test's own submission + job, per §13 rule 3).

@@ -1,7 +1,12 @@
 // Entrypoint: load config, resolve the sandbox image (fail fast if missing), start the reaper and
 // the job-claiming worker loop, graceful shutdown on SIGINT/SIGTERM. CONTRACTS.md apps/judge brief.
 import { closePool } from "@leetmind/db";
-import { installShutdownHandlers, runWorker, startReaper, type Logger as QueueLogger } from "@leetmind/queue";
+import {
+  installShutdownHandlers,
+  runWorker,
+  startReaper,
+  type Logger as QueueLogger,
+} from "@leetmind/queue";
 import { ensureImage } from "@leetmind/sandbox";
 import { createLogger } from "@leetmind/shared";
 import { buildJudgeDeps } from "./deps.js";
@@ -25,10 +30,16 @@ async function main(): Promise<void> {
   const reaper = startReaper({ queue, signal: controller.signal, logger: queueLogger });
   const strandedSweep = startStrandedSweep(deps, { signal: controller.signal });
 
-  await queue.upsertWorkerHeartbeat(config.judgeWorkerId, "judge", { concurrency: config.judgeConcurrency });
+  await queue.upsertWorkerHeartbeat(config.judgeWorkerId, "judge", {
+    concurrency: config.judgeConcurrency,
+  });
 
   logger.info(
-    { worker_id: config.judgeWorkerId, concurrency: config.judgeConcurrency, image: config.sandboxPythonImage },
+    {
+      worker_id: config.judgeWorkerId,
+      concurrency: config.judgeConcurrency,
+      image: config.sandboxPythonImage,
+    },
     "judge worker starting",
   );
 

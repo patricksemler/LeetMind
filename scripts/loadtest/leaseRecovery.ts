@@ -26,9 +26,10 @@ interface JobRow {
 async function pollJobLeasedBy(submissionId: string, timeoutMs: number): Promise<string | null> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    const rows = await query<JobRow>(`select status, leased_by from jobs where idempotency_key = $1`, [
-      `judge:${submissionId}`,
-    ]);
+    const rows = await query<JobRow>(
+      `select status, leased_by from jobs where idempotency_key = $1`,
+      [`judge:${submissionId}`],
+    );
     const row = rows[0];
     if (row && row.status === "leased" && row.leased_by) return row.leased_by;
     await sleep(50);
@@ -86,8 +87,13 @@ export async function runLeaseRecoveryUnderLoad(opts: {
   const killedAt = Date.now();
   await victim.kill();
 
-  const recoveryBudgetMs = opts.profile.queueLeaseSeconds * 1000 + opts.profile.queueReaperIntervalMs + 20_000;
-  const result = await waitForTerminal({ apiBase: opts.apiBase, submissionId, timeoutMs: recoveryBudgetMs });
+  const recoveryBudgetMs =
+    opts.profile.queueLeaseSeconds * 1000 + opts.profile.queueReaperIntervalMs + 20_000;
+  const result = await waitForTerminal({
+    apiBase: opts.apiBase,
+    submissionId,
+    timeoutMs: recoveryBudgetMs,
+  });
   const recoveredAt = result.timedOutWaiting ? null : Date.now();
 
   return {

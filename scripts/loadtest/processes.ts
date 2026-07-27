@@ -125,7 +125,11 @@ export function spawnApi(opts: { databaseUrl: string; port: number }): ManagedPr
   });
 }
 
-export function spawnJudgeWorker(opts: { databaseUrl: string; workerId: string; profile: LoadProfile }): ManagedProcess {
+export function spawnJudgeWorker(opts: {
+  databaseUrl: string;
+  workerId: string;
+  profile: LoadProfile;
+}): ManagedProcess {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     DATABASE_URL: opts.databaseUrl,

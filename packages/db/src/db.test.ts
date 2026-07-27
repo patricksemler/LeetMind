@@ -26,7 +26,10 @@ const EXPECTED_TABLES = [
 
 async function isDatabaseReachable(): Promise<boolean> {
   const config = loadBaseConfig();
-  const client = new Client({ connectionString: config.databaseUrl, connectionTimeoutMillis: 1000 });
+  const client = new Client({
+    connectionString: config.databaseUrl,
+    connectionTimeoutMillis: 1000,
+  });
   try {
     await client.connect();
     await client.end();
@@ -66,10 +69,14 @@ describe.skipIf(!dbReachable)("live database: migrations + seed", () => {
     const client = new Client({ connectionString: loadBaseConfig().databaseUrl });
     await client.connect();
     try {
-      const concepts = await client.query<{ count: number }>("select count(*)::int as count from concepts");
+      const concepts = await client.query<{ count: number }>(
+        "select count(*)::int as count from concepts",
+      );
       expect(concepts.rows[0]?.count).toBe(20);
 
-      const edges = await client.query<{ count: number }>("select count(*)::int as count from concept_edges");
+      const edges = await client.query<{ count: number }>(
+        "select count(*)::int as count from concept_edges",
+      );
       expect(edges.rows[0]?.count).toBe(20);
 
       const users = await client.query<{ count: number }>(

@@ -1,5 +1,5 @@
-import type { Queue } from './queue.js';
-import type { Logger } from './types.js';
+import type { Queue } from "./queue.js";
+import type { Logger } from "./types.js";
 
 export interface StartReaperOpts {
   queue: Queue;
@@ -31,11 +31,11 @@ export function startReaper(opts: StartReaperOpts): ReaperHandle {
       .reapExpired()
       .then((count) => {
         if (count > 0) {
-          logger?.info({ count }, 'reaper: requeued/deadened expired leases');
+          logger?.info({ count }, "reaper: requeued/deadened expired leases");
         }
       })
       .catch((err) => {
-        logger?.error({ err }, 'reaper: reapExpired() threw');
+        logger?.error({ err }, "reaper: reapExpired() threw");
       })
       .finally(() => {
         running = false;
@@ -49,7 +49,7 @@ export function startReaper(opts: StartReaperOpts): ReaperHandle {
     if (opts.signal.aborted) {
       stop();
     } else {
-      opts.signal.addEventListener('abort', stop, { once: true });
+      opts.signal.addEventListener("abort", stop, { once: true });
     }
   }
 

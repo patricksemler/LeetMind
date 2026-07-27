@@ -3,7 +3,15 @@
 // @leetmind/sandbox request shapes, and dispatching to the right language's executor. Kept
 // separate so rejudge.ts (which must reproduce the exact same test selection AND execution path
 // against a submission's ORIGINAL pinned content) never drifts from the judge's own logic.
-import { executeCpp, executePython, type BundleTestCase, type ComparatorSpec, type ExecutionResult, type SandboxLimits, type Signature } from "@leetmind/sandbox";
+import {
+  executeCpp,
+  executePython,
+  type BundleTestCase,
+  type ComparatorSpec,
+  type ExecutionResult,
+  type SandboxLimits,
+  type Signature,
+} from "@leetmind/sandbox";
 import type { Language, ProblemVersion, SandboxConfig, SubmissionMode } from "@leetmind/shared";
 
 export interface SelectedTests {
@@ -45,7 +53,12 @@ export function selectTests(content: ProblemVersion, mode: SubmissionMode): Sele
   }));
 
   if (mode === "run") {
-    return { tests: publicTests, revealInputs: true, publicCount: publicTests.length, hiddenCount: 0 };
+    return {
+      tests: publicTests,
+      revealInputs: true,
+      publicCount: publicTests.length,
+      hiddenCount: 0,
+    };
   }
 
   const seen = new Set(publicTests.map((t) => argsKey(t.args)));
@@ -83,7 +96,12 @@ export function summarizeTestOrigins(
   perTest: readonly { index: number; passed: boolean }[],
 ): TestOriginSummary {
   const passedByIndex = new Map(perTest.map((t) => [t.index, t.passed]));
-  const summary: TestOriginSummary = { public_passed: 0, public_total: 0, hidden_passed: 0, hidden_total: 0 };
+  const summary: TestOriginSummary = {
+    public_passed: 0,
+    public_total: 0,
+    hidden_passed: 0,
+    hidden_total: 0,
+  };
   tests.forEach((test, index) => {
     // A test with no `expected` is ungraded and excluded from totals everywhere else too
     // (`buildExecutionResult`), so it must not inflate these either.
@@ -239,8 +257,22 @@ export interface ExecuteSubmissionOutput {
  * `apps/judge/src/rejudge.ts` both call this instead of branching on `language` themselves, so the
  * two flows (live judge, historical rejudge) can never drift on which executor a language maps to.
  */
-export async function executeSubmission(input: ExecuteSubmissionInput): Promise<ExecuteSubmissionOutput> {
-  const { language, signature, tests, comparator, source, limits, pythonImage, cppImage, checkerSource, revealInputs, correlationId } = input;
+export async function executeSubmission(
+  input: ExecuteSubmissionInput,
+): Promise<ExecuteSubmissionOutput> {
+  const {
+    language,
+    signature,
+    tests,
+    comparator,
+    source,
+    limits,
+    pythonImage,
+    cppImage,
+    checkerSource,
+    revealInputs,
+    correlationId,
+  } = input;
 
   if (language === "python") {
     const result = await executePython({

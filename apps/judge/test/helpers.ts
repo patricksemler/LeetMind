@@ -42,7 +42,10 @@ export const TEST_CONCEPT_ID = "arrays_hashing";
 
 export async function isDatabaseReachable(): Promise<boolean> {
   const config = loadBaseConfig();
-  const client = new Client({ connectionString: config.databaseUrl, connectionTimeoutMillis: 1500 });
+  const client = new Client({
+    connectionString: config.databaseUrl,
+    connectionTimeoutMillis: 1500,
+  });
   try {
     await client.connect();
     await client.end();
@@ -63,7 +66,11 @@ export async function isDockerReachable(): Promise<boolean> {
 }
 
 export interface SeedProblemOpts {
-  hiddenTests?: { args: unknown[]; expected: unknown; origin?: "example" | "random" | "boundary" | "adversarial" }[];
+  hiddenTests?: {
+    args: unknown[];
+    expected: unknown;
+    origin?: "example" | "random" | "boundary" | "adversarial";
+  }[];
   examples?: { args: unknown[]; expected: unknown; explanation?: string }[];
   signature?: Signature;
   expectedActiveMinutes?: [number, number];
@@ -94,11 +101,13 @@ export async function seedApprovedProblem(opts: SeedProblemOpts = {}): Promise<S
   const problemId = newId();
   const versionId = newId();
   const signature = opts.signature ?? DEFAULT_SIGNATURE;
-  const examples = (opts.examples ?? [{ args: [1, 2], expected: 3, explanation: "1 + 2 = 3" }]).map((e) => ({
-    args: e.args,
-    expected: e.expected,
-    explanation: e.explanation ?? "",
-  }));
+  const examples = (opts.examples ?? [{ args: [1, 2], expected: 3, explanation: "1 + 2 = 3" }]).map(
+    (e) => ({
+      args: e.args,
+      expected: e.expected,
+      explanation: e.explanation ?? "",
+    }),
+  );
   const hiddenTests = (
     opts.hiddenTests ?? [
       { args: [1, 2], expected: 3, origin: "example" as const },
@@ -134,11 +143,19 @@ export async function seedApprovedProblem(opts: SeedProblemOpts = {}): Promise<S
       outline: "return a + b",
       editorial_md: "# Editorial\nAdd the two numbers and return the result.",
     },
-    provenance: { mode: "novel", model: "test-fixture", prompt_version: "v1", generated_at: new Date().toISOString() },
+    provenance: {
+      mode: "novel",
+      model: "test-fixture",
+      prompt_version: "v1",
+      generated_at: new Date().toISOString(),
+    },
     state: "approved",
   };
 
-  await query("insert into problems (id, internal_name) values ($1, $2)", [problemId, content.internal_name]);
+  await query("insert into problems (id, internal_name) values ($1, $2)", [
+    problemId,
+    content.internal_name,
+  ]);
   await withTransaction((client) =>
     insertProblemVersion(client, {
       id: versionId,
@@ -168,7 +185,9 @@ export async function seedApprovedProblem(opts: SeedProblemOpts = {}): Promise<S
 export async function teardownProblem(problem: SeededProblem): Promise<void> {
   await query("delete from hint_events where problem_version_id = $1", [problem.versionId]);
   await query("delete from learning_events where problem_version_id = $1", [problem.versionId]);
-  await query("delete from jobs where kind = 'judge' and payload->>'problem_version_id' = $1", [problem.versionId]);
+  await query("delete from jobs where kind = 'judge' and payload->>'problem_version_id' = $1", [
+    problem.versionId,
+  ]);
   await query("delete from submissions where problem_version_id = $1", [problem.versionId]);
   await query("delete from problem_concepts where problem_version_id = $1", [problem.versionId]);
   await query("delete from problem_versions where id = $1", [problem.versionId]);
@@ -215,9 +234,14 @@ export async function reloadSubmission(id: string): Promise<SubmissionRow> {
   return row;
 }
 
-export async function snapshotConceptState(conceptId = TEST_CONCEPT_ID): Promise<UserConceptStateRow> {
+export async function snapshotConceptState(
+  conceptId = TEST_CONCEPT_ID,
+): Promise<UserConceptStateRow> {
   const row = await getConceptState(TEST_USER_ID, conceptId);
-  if (!row) throw new Error(`test fixture: no user_concept_state for ${TEST_USER_ID}/${conceptId} (taxonomy seed missing?)`);
+  if (!row)
+    throw new Error(
+      `test fixture: no user_concept_state for ${TEST_USER_ID}/${conceptId} (taxonomy seed missing?)`,
+    );
   return row;
 }
 
@@ -226,9 +250,10 @@ export async function restoreConceptState(snapshot: UserConceptStateRow): Promis
 }
 
 export async function countLearningEvents(submissionId: string): Promise<number> {
-  const rows = await query<{ count: string }>("select count(*)::text as count from learning_events where submission_id = $1", [
-    submissionId,
-  ]);
+  const rows = await query<{ count: string }>(
+    "select count(*)::text as count from learning_events where submission_id = $1",
+    [submissionId],
+  );
   return Number(rows[0]?.count ?? 0);
 }
 
@@ -274,7 +299,12 @@ export async function reloadBaselineItem(id: string): Promise<BaselineItemRow> {
  * "practice" assertions key off of. */
 export async function recordGiveUp(versionId: string): Promise<void> {
   await withTransaction((client) =>
-    insertHintEvent(client, { id: newId(), user_id: TEST_USER_ID, problem_version_id: versionId, level: "editorial" }),
+    insertHintEvent(client, {
+      id: newId(),
+      user_id: TEST_USER_ID,
+      problem_version_id: versionId,
+      level: "editorial",
+    }),
   );
 }
 
@@ -289,7 +319,10 @@ export function silentLogger(): QueueLogger {
   return logger;
 }
 
-export function makeJudgeJob(payload: JudgeJobPayload, overrides: Partial<Job<JudgeJobPayload>> = {}): Job<JudgeJobPayload> {
+export function makeJudgeJob(
+  payload: JudgeJobPayload,
+  overrides: Partial<Job<JudgeJobPayload>> = {},
+): Job<JudgeJobPayload> {
   const now = new Date();
   return {
     id: newId(),
@@ -317,7 +350,10 @@ export function makeJudgeJob(payload: JudgeJobPayload, overrides: Partial<Job<Ju
  * writing a terminal verdict; a `Job` object with no backing row is indistinguishable from one
  * whose lease was already reassigned. `on conflict (id) do nothing` makes this safe to call more
  * than once for the same job id. */
-export async function insertTestJudgeJob(job: Job<JudgeJobPayload>, leasedBy: string): Promise<void> {
+export async function insertTestJudgeJob(
+  job: Job<JudgeJobPayload>,
+  leasedBy: string,
+): Promise<void> {
   await query(
     `insert into jobs (id, kind, priority, payload, status, attempts, max_attempts, run_at, lease_expires_at, leased_by, idempotency_key, correlation_id)
      values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -366,9 +402,10 @@ export function makeCtx(overrides: Partial<WorkerContext> = {}): WorkerContext {
 
 /** `JudgeDeps` for tests: real config/pool/queue, optionally with sandbox limits overridden
  * (e.g. a short `wallTimeoutMs` for the timeout test) so integration tests stay fast. */
-export function testJudgeDeps(sandboxOverrides: Partial<ReturnType<typeof loadSandboxConfig>> = {}): JudgeDeps {
+export function testJudgeDeps(
+  sandboxOverrides: Partial<ReturnType<typeof loadSandboxConfig>> = {},
+): JudgeDeps {
   const config = loadJudgeConfig();
   const sandbox = { ...loadSandboxConfig(), ...sandboxOverrides };
   return buildJudgeDeps(config, sandbox);
 }
-

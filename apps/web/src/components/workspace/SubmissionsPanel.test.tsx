@@ -69,13 +69,25 @@ const HIDDEN_FAILURE = submission({
 
 describe("SubmissionsPanel", () => {
   it("says what to do rather than showing an empty list before the first submit", () => {
-    render(<SubmissionsPanel problem={problem()} submissions={[]} selectedId={null} onSelect={vi.fn()} />);
+    render(
+      <SubmissionsPanel
+        problem={problem()}
+        submissions={[]}
+        selectedId={null}
+        onSelect={vi.fn()}
+      />,
+    );
     expect(screen.getByText(/no submissions yet/i)).toBeInTheDocument();
   });
 
   it("renders a failing hidden case as a full case — input, expected, and the user's output", () => {
     render(
-      <SubmissionsPanel problem={problem()} submissions={[HIDDEN_FAILURE]} selectedId="s1" onSelect={vi.fn()} />,
+      <SubmissionsPanel
+        problem={problem()}
+        submissions={[HIDDEN_FAILURE]}
+        selectedId="s1"
+        onSelect={vi.fn()}
+      />,
     );
 
     // The whole point of the change: a hidden failure is actionable, not just "a hidden test failed".
@@ -91,7 +103,12 @@ describe("SubmissionsPanel", () => {
 
   it("labels a wrong answer as rejected, with the case count but not the public/hidden split", () => {
     render(
-      <SubmissionsPanel problem={problem()} submissions={[HIDDEN_FAILURE]} selectedId="s1" onSelect={vi.fn()} />,
+      <SubmissionsPanel
+        problem={problem()}
+        submissions={[HIDDEN_FAILURE]}
+        selectedId="s1"
+        onSelect={vi.fn()}
+      />,
     );
     expect(screen.getAllByText(/rejected/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/wrong answer/i)).not.toBeInTheDocument();
@@ -117,7 +134,12 @@ describe("SubmissionsPanel", () => {
 
   it("shows the submitted code under the failing case", () => {
     const { container } = render(
-      <SubmissionsPanel problem={problem()} submissions={[HIDDEN_FAILURE]} selectedId="s1" onSelect={vi.fn()} />,
+      <SubmissionsPanel
+        problem={problem()}
+        submissions={[HIDDEN_FAILURE]}
+        selectedId="s1"
+        onSelect={vi.fn()}
+      />,
     );
     expect(screen.getByText("Code")).toBeInTheDocument();
     // Highlighting splits the source across spans, so assert on the rendered text as a whole.
@@ -143,7 +165,12 @@ describe("SubmissionsPanel", () => {
   it("lists nothing for an attempt that is still being judged", () => {
     // Not a placeholder row, not a blank detail — an unjudged attempt has no verdict, no counts and
     // no failing case, so it simply isn't in the tab until the judge comes back.
-    const inFlight = submission({ id: "s-judging", status: "running", verdict: null, passed_tests: 0 });
+    const inFlight = submission({
+      id: "s-judging",
+      status: "running",
+      verdict: null,
+      passed_tests: 0,
+    });
     const { container } = render(
       <SubmissionsPanel
         problem={problem()}
@@ -163,9 +190,19 @@ describe("SubmissionsPanel", () => {
   });
 
   it("says 'no submissions yet' while the first attempt is still being judged", () => {
-    const inFlight = submission({ id: "s-judging", status: "queued", verdict: null, passed_tests: 0 });
+    const inFlight = submission({
+      id: "s-judging",
+      status: "queued",
+      verdict: null,
+      passed_tests: 0,
+    });
     render(
-      <SubmissionsPanel problem={problem()} submissions={[inFlight]} selectedId="s-judging" onSelect={vi.fn()} />,
+      <SubmissionsPanel
+        problem={problem()}
+        submissions={[inFlight]}
+        selectedId="s-judging"
+        onSelect={vi.fn()}
+      />,
     );
     expect(screen.getByText(/no submissions yet/i)).toBeInTheDocument();
   });
@@ -174,7 +211,14 @@ describe("SubmissionsPanel", () => {
     const many = Array.from({ length: 8 }, (_, i) =>
       submission({ id: `s${i}`, created_at: `2026-07-${20 + i}T10:00:00.000Z` }),
     ).reverse(); // newest first, as the API returns them
-    render(<SubmissionsPanel problem={problem()} submissions={many} selectedId="s7" onSelect={vi.fn()} />);
+    render(
+      <SubmissionsPanel
+        problem={problem()}
+        submissions={many}
+        selectedId="s7"
+        onSelect={vi.fn()}
+      />,
+    );
 
     expect(screen.getAllByRole("button")).toHaveLength(5);
     // The five newest — the three oldest are dropped, not the other way round.
@@ -187,7 +231,12 @@ describe("SubmissionsPanel", () => {
     // judged row. Showing the newest row's verdict and code under the heading of the one just
     // submitted would be a lie about which attempt is on screen.
     const { container } = render(
-      <SubmissionsPanel problem={problem()} submissions={[HIDDEN_FAILURE]} selectedId="s-not-here" onSelect={vi.fn()} />,
+      <SubmissionsPanel
+        problem={problem()}
+        submissions={[HIDDEN_FAILURE]}
+        selectedId="s-not-here"
+        onSelect={vi.fn()}
+      />,
     );
     expect(screen.queryByText("Input")).not.toBeInTheDocument();
     expect(container.textContent).not.toContain("def solve(): ...");
@@ -208,7 +257,12 @@ describe("SubmissionsPanel", () => {
       },
     });
     const { container } = render(
-      <SubmissionsPanel problem={problem()} submissions={[accepted]} selectedId="s1" onSelect={vi.fn()} />,
+      <SubmissionsPanel
+        problem={problem()}
+        submissions={[accepted]}
+        selectedId="s1"
+        onSelect={vi.fn()}
+      />,
     );
 
     expect(screen.getAllByText(/accepted/i).length).toBeGreaterThan(0);

@@ -112,8 +112,9 @@ export function Progress() {
                   label={`${asStr(c.name) || asStr(c.concept_id)} rating`}
                 />
                 <div className="mt-1.5 text-xs text-text-faint">
-                  {asNum(c.attempts)} attempts · {asNum(c.solves)} solved · {asNum(c.unassisted_solves)} unassisted ·
-                  streak {asNum(c.current_streak)} (best {asNum(c.best_streak)})
+                  {asNum(c.attempts)} attempts · {asNum(c.solves)} solved ·{" "}
+                  {asNum(c.unassisted_solves)} unassisted · streak {asNum(c.current_streak)} (best{" "}
+                  {asNum(c.best_streak)})
                 </div>
               </Panel>
             );
@@ -124,13 +125,18 @@ export function Progress() {
       <section>
         <h2 className="mb-3 font-display text-lg text-text">Reviews due</h2>
         {reviews_due.length === 0 ? (
-          <p className="text-sm text-text-faint">Nothing due — spaced review will surface concepts here as they age.</p>
+          <p className="text-sm text-text-faint">
+            Nothing due — spaced review will surface concepts here as they age.
+          </p>
         ) : (
           <div className="space-y-1.5">
             {reviews_due.map((r) => {
               const conceptId = asStr(r.concept_id);
               return (
-                <div key={conceptId} className="flex items-center justify-between rounded-md border border-border bg-bg-raised px-3 py-2 text-sm">
+                <div
+                  key={conceptId}
+                  className="flex items-center justify-between rounded-md border border-border bg-bg-raised px-3 py-2 text-sm"
+                >
                   <span className="text-text">{nameByConceptId.get(conceptId) || conceptId}</span>
                   <Badge tone="warn">{formatDaysOverdue(asNum(r.days_overdue))}</Badge>
                 </div>
@@ -167,8 +173,12 @@ export function Progress() {
         <div>
           <h2 className="mb-3 font-display text-lg text-text">Active time</h2>
           <Panel className="p-4">
-            <div className="text-2xl font-display text-text">{formatMs(asNum(stats.median_active_ms))}</div>
-            <p className="mt-1 text-xs text-text-faint">median active time per submission ({totalAttempts} total)</p>
+            <div className="text-2xl font-display text-text">
+              {formatMs(asNum(stats.median_active_ms))}
+            </div>
+            <p className="mt-1 text-xs text-text-faint">
+              median active time per submission ({totalAttempts} total)
+            </p>
           </Panel>
         </div>
       </section>
@@ -194,7 +204,9 @@ export function Progress() {
           {records.highest_unassisted_difficulty_solved ? (
             <p className="text-sm text-text">
               Highest unassisted solve: rating{" "}
-              <span className="font-mono">{asNum(records.highest_unassisted_difficulty_solved)}</span>
+              <span className="font-mono">
+                {asNum(records.highest_unassisted_difficulty_solved)}
+              </span>
             </p>
           ) : (
             <p className="text-sm text-text-faint">No unassisted solves recorded yet.</p>
@@ -211,9 +223,15 @@ export function Progress() {
             {history.map((h, i) => {
               const kind = asStr(h.kind);
               return (
-                <div key={asStr(h.id) || i} className="flex items-center justify-between rounded-md border border-border bg-bg-raised px-3 py-2 text-sm">
+                <div
+                  key={asStr(h.id) || i}
+                  className="flex items-center justify-between rounded-md border border-border bg-bg-raised px-3 py-2 text-sm"
+                >
                   <span className="text-text">{HISTORY_KIND_LABEL[kind] ?? kind}</span>
-                  <span className="text-text-faint" title={`outcome ${asNum(h.outcome).toFixed(2)}`}>
+                  <span
+                    className="text-text-faint"
+                    title={`outcome ${asNum(h.outcome).toFixed(2)}`}
+                  >
                     {outcomeLabel(asNum(h.outcome))} · {formatDate(h.created_at as string)}
                   </span>
                 </div>

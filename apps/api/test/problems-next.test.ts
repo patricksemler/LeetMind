@@ -33,7 +33,10 @@ describe.skipIf(!dbReachable)("GET /api/problems/next", () => {
   });
 
   it("returns 200 with problem: null (not 500) when the pool is empty for a concept", async () => {
-    const res = await server.inject({ method: "GET", url: "/api/problems/next?concept=shortest_paths" });
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/problems/next?concept=shortest_paths",
+    });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.problem).toBeNull();
@@ -42,11 +45,17 @@ describe.skipIf(!dbReachable)("GET /api/problems/next", () => {
   });
 
   it("selects an approved unattempted problem near the target band and explains why", async () => {
-    const seeded = await seedApprovedProblem(pool, { conceptId: "arrays_hashing", difficultyRating: 1150 });
+    const seeded = await seedApprovedProblem(pool, {
+      conceptId: "arrays_hashing",
+      difficultyRating: 1150,
+    });
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
 
-    const res = await server.inject({ method: "GET", url: "/api/problems/next?concept=arrays_hashing&rating=1200" });
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/problems/next?concept=arrays_hashing&rating=1200",
+    });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.problem).not.toBeNull();

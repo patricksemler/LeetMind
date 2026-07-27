@@ -13,7 +13,13 @@ const SUPABASE_URL = "https://test-project.supabase.co";
 const JWT_SECRET = "test-only-symmetric-secret-at-least-32-chars";
 const ISSUER = `${SUPABASE_URL}/auth/v1`;
 
-async function signToken(claims: { sub: string; email?: string; expiresIn?: string; issuer?: string; audience?: string }) {
+async function signToken(claims: {
+  sub: string;
+  email?: string;
+  expiresIn?: string;
+  issuer?: string;
+  audience?: string;
+}) {
   return new SignJWT({ ...(claims.email ? { email: claims.email } : {}) })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(claims.sub)
@@ -76,11 +82,17 @@ describe("loadApiConfig auth resolution", () => {
   });
 
   it("refuses to boot in production without a Supabase project rather than serving one shared account", () => {
-    expect(() => loadApiConfig({ ...base, NODE_ENV: "production" } as NodeJS.ProcessEnv)).toThrow(/SUPABASE_URL/);
+    expect(() => loadApiConfig({ ...base, NODE_ENV: "production" } as NodeJS.ProcessEnv)).toThrow(
+      /SUPABASE_URL/,
+    );
   });
 
   it("honours an explicit AUTH_REQUIRED=false even in production", () => {
-    const config = loadApiConfig({ ...base, NODE_ENV: "production", AUTH_REQUIRED: "false" } as NodeJS.ProcessEnv);
+    const config = loadApiConfig({
+      ...base,
+      NODE_ENV: "production",
+      AUTH_REQUIRED: "false",
+    } as NodeJS.ProcessEnv);
     expect(config.authRequired).toBe(false);
   });
 });
@@ -107,10 +119,15 @@ describe.skipIf(!dbReachable)("authenticated requests", () => {
   afterEach(async () => {
     if (createdAuthIds.length > 0) {
       const ids = createdAuthIds.splice(0);
-      await pool.query("delete from user_concept_state where user_id in (select id from users where auth_user_id = any($1))", [ids]);
+      await pool.query(
+        "delete from user_concept_state where user_id in (select id from users where auth_user_id = any($1))",
+        [ids],
+      );
       await pool.query("delete from users where auth_user_id = any($1)", [ids]);
       // Un-claim the legacy row so the claim test is repeatable.
-      await pool.query("update users set auth_user_id = null, email = null where id = $1", [config.singleUserId]);
+      await pool.query("update users set auth_user_id = null, email = null where id = $1", [
+        config.singleUserId,
+      ]);
     }
   });
 
@@ -134,16 +151,26 @@ describe.skipIf(!dbReachable)("authenticated requests", () => {
     createdAuthIds.push(sub);
     const token = await signToken({ sub, email: "newcomer@example.com" });
 
-    const first = await server.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${token}` } });
+    const first = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { authorization: `Bearer ${token}` },
+    });
     expect(first.statusCode).toBe(200);
     const firstBody = JSON.parse(first.body);
     expect(firstBody.user.email).toBe("newcomer@example.com");
     expect(firstBody.user.handle).toBe("newcomer");
 
-    const second = await server.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${token}` } });
+    const second = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { authorization: `Bearer ${token}` },
+    });
     expect(JSON.parse(second.body).user.id).toBe(firstBody.user.id);
 
-    const rows = await pool.query("select count(*)::int as n from users where auth_user_id = $1", [sub]);
+    const rows = await pool.query("select count(*)::int as n from users where auth_user_id = $1", [
+      sub,
+    ]);
     expect(rows.rows[0].n).toBe(1);
   });
 
@@ -155,12 +182,16 @@ describe.skipIf(!dbReachable)("authenticated requests", () => {
     const a = await server.inject({
       method: "GET",
       url: "/api/me",
-      headers: { authorization: `Bearer ${await signToken({ sub: subA, email: "a@example.com" })}` },
+      headers: {
+        authorization: `Bearer ${await signToken({ sub: subA, email: "a@example.com" })}`,
+      },
     });
     const b = await server.inject({
       method: "GET",
       url: "/api/me",
-      headers: { authorization: `Bearer ${await signToken({ sub: subB, email: "b@example.com" })}` },
+      headers: {
+        authorization: `Bearer ${await signToken({ sub: subB, email: "b@example.com" })}`,
+      },
     });
 
     expect(JSON.parse(a.body).user.id).not.toBe(JSON.parse(b.body).user.id);
@@ -174,12 +205,16 @@ describe.skipIf(!dbReachable)("authenticated requests", () => {
     const a = await server.inject({
       method: "GET",
       url: "/api/me",
-      headers: { authorization: `Bearer ${await signToken({ sub: subA, email: "sam@one.example" })}` },
+      headers: {
+        authorization: `Bearer ${await signToken({ sub: subA, email: "sam@one.example" })}`,
+      },
     });
     const b = await server.inject({
       method: "GET",
       url: "/api/me",
-      headers: { authorization: `Bearer ${await signToken({ sub: subB, email: "sam@two.example" })}` },
+      headers: {
+        authorization: `Bearer ${await signToken({ sub: subB, email: "sam@two.example" })}`,
+      },
     });
 
     expect(a.statusCode).toBe(200);
@@ -196,7 +231,9 @@ describe.skipIf(!dbReachable)("authenticated requests", () => {
     const strangerRes = await server.inject({
       method: "GET",
       url: "/api/me",
-      headers: { authorization: `Bearer ${await signToken({ sub: stranger, email: "someone-else@example.com" })}` },
+      headers: {
+        authorization: `Bearer ${await signToken({ sub: stranger, email: "someone-else@example.com" })}`,
+      },
     });
     expect(JSON.parse(strangerRes.body).user.id).not.toBe(config.singleUserId);
 
@@ -204,24 +241,37 @@ describe.skipIf(!dbReachable)("authenticated requests", () => {
     const ownerRes = await server.inject({
       method: "GET",
       url: "/api/me",
-      headers: { authorization: `Bearer ${await signToken({ sub: owner, email: "Legacy-Owner@Example.com" })}` },
+      headers: {
+        authorization: `Bearer ${await signToken({ sub: owner, email: "Legacy-Owner@Example.com" })}`,
+      },
     });
     expect(JSON.parse(ownerRes.body).user.id).toBe(config.singleUserId);
   });
 
   it("rejects an expired token with a message that tells the client to sign in again", async () => {
     const token = await signToken({ sub: `auth-${newId()}`, expiresIn: "-1h" });
-    const res = await server.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${token}` } });
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { authorization: `Bearer ${token}` },
+    });
     expect(res.statusCode).toBe(401);
     expect(JSON.parse(res.body).error.message).toMatch(/expired/i);
   });
 
   it("rejects a token from a different issuer or audience — a valid signature is not enough", async () => {
-    const wrongIssuer = await signToken({ sub: `auth-${newId()}`, issuer: "https://evil.example/auth/v1" });
+    const wrongIssuer = await signToken({
+      sub: `auth-${newId()}`,
+      issuer: "https://evil.example/auth/v1",
+    });
     const wrongAudience = await signToken({ sub: `auth-${newId()}`, audience: "anon" });
 
     for (const token of [wrongIssuer, wrongAudience]) {
-      const res = await server.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${token}` } });
+      const res = await server.inject({
+        method: "GET",
+        url: "/api/me",
+        headers: { authorization: `Bearer ${token}` },
+      });
       expect(res.statusCode).toBe(401);
     }
   });
@@ -235,7 +285,11 @@ describe.skipIf(!dbReachable)("authenticated requests", () => {
       .setExpirationTime("1h")
       .sign(new TextEncoder().encode("a-completely-different-secret-32-chars"));
 
-    const res = await server.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${forged}` } });
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/me",
+      headers: { authorization: `Bearer ${forged}` },
+    });
     expect(res.statusCode).toBe(401);
   });
 
@@ -253,7 +307,10 @@ describe.skipIf(!dbReachable)("authenticated requests", () => {
     expect(sse.statusCode).toBe(404);
 
     // The same trick on any other route stays unauthorized.
-    const me = await server.inject({ method: "GET", url: `/api/me?access_token=${encodeURIComponent(token)}` });
+    const me = await server.inject({
+      method: "GET",
+      url: `/api/me?access_token=${encodeURIComponent(token)}`,
+    });
     expect(me.statusCode).toBe(401);
   });
 });

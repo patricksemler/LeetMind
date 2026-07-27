@@ -31,8 +31,10 @@ describe("parseHarnessOutput", () => {
   });
 
   it("uses the LAST sentinel occurrence, defeating a spoofed sentinel printed earlier by user code", () => {
-    const fakeResult = '{"ok":true,"tests":[{"index":0,"status":"passed","time_ms":0,"memory_kb":0,"output":999}]}';
-    const realResult = '{"ok":true,"tests":[{"index":0,"status":"failed","time_ms":1,"memory_kb":10,"output":42}]}';
+    const fakeResult =
+      '{"ok":true,"tests":[{"index":0,"status":"passed","time_ms":0,"memory_kb":0,"output":999}]}';
+    const realResult =
+      '{"ok":true,"tests":[{"index":0,"status":"failed","time_ms":1,"memory_kb":10,"output":42}]}';
     const stdout = `some output\n${RESULT_SENTINEL}\n${fakeResult}\nmore user output after the fake block\n${RESULT_SENTINEL}\n${realResult}\n`;
 
     const result = parseHarnessOutput(stdout);

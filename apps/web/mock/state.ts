@@ -2,13 +2,7 @@
  * All in-memory state for the mock server. Single user (docs/CONTRACTS.md §1 single-user mode),
  * reset on process restart.
  */
-import type {
-  HintLevel,
-  Language,
-  Submission,
-  SubmissionMode,
-  Verdict,
-} from "@leetmind/shared";
+import type { HintLevel, Language, Submission, SubmissionMode, Verdict } from "@leetmind/shared";
 import { newId } from "@leetmind/shared";
 import { CONCEPTS } from "./fixtures/concepts.js";
 import { PROBLEM_FIXTURES, type ProblemFixture } from "./fixtures/problems.js";
@@ -98,9 +92,45 @@ for (const c of CONCEPTS) {
   const arrays = conceptState.get("arrays_hashing");
   const bsearch = conceptState.get("binary_search");
   const window_ = conceptState.get("sliding_window");
-  if (arrays) Object.assign(arrays, { rating: 1310, uncertainty: 190, attempts: 9, solves: 7, unassisted_solves: 5, current_streak: 3, best_streak: 4, total_active_ms: 41 * 60_000, last_practiced_at: "2026-07-20T14:00:00.000Z" });
-  if (bsearch) Object.assign(bsearch, { rating: 1180, uncertainty: 230, attempts: 5, solves: 3, unassisted_solves: 2, current_streak: 1, best_streak: 2, total_active_ms: 22 * 60_000, last_practiced_at: "2026-07-18T09:00:00.000Z", next_review_at: "2026-07-23T09:00:00.000Z", review_interval_days: 4, review_reps: 2 });
-  if (window_) Object.assign(window_, { rating: 1090, uncertainty: 300, attempts: 2, solves: 1, unassisted_solves: 0, current_streak: 0, best_streak: 1, total_active_ms: 14 * 60_000, last_practiced_at: "2026-07-15T09:00:00.000Z" });
+  if (arrays)
+    Object.assign(arrays, {
+      rating: 1310,
+      uncertainty: 190,
+      attempts: 9,
+      solves: 7,
+      unassisted_solves: 5,
+      current_streak: 3,
+      best_streak: 4,
+      total_active_ms: 41 * 60_000,
+      last_practiced_at: "2026-07-20T14:00:00.000Z",
+    });
+  if (bsearch)
+    Object.assign(bsearch, {
+      rating: 1180,
+      uncertainty: 230,
+      attempts: 5,
+      solves: 3,
+      unassisted_solves: 2,
+      current_streak: 1,
+      best_streak: 2,
+      total_active_ms: 22 * 60_000,
+      last_practiced_at: "2026-07-18T09:00:00.000Z",
+      next_review_at: "2026-07-23T09:00:00.000Z",
+      review_interval_days: 4,
+      review_reps: 2,
+    });
+  if (window_)
+    Object.assign(window_, {
+      rating: 1090,
+      uncertainty: 300,
+      attempts: 2,
+      solves: 1,
+      unassisted_solves: 0,
+      current_streak: 0,
+      best_streak: 1,
+      total_active_ms: 14 * 60_000,
+      last_practiced_at: "2026-07-15T09:00:00.000Z",
+    });
 })();
 
 // --- submissions -----------------------------------------------------------------------------

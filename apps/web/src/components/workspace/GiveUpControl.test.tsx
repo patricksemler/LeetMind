@@ -13,12 +13,31 @@ import { api } from "../../lib/api";
 
 const RESPONSE: GiveUpResponse = {
   editorial_md: "Maintain a hash map of values seen so far.",
-  solutions: { python: "def pairSumIndices(nums, target):\n    ...\n", cpp: "int pairSumIndices() { return 0; }\n" },
+  solutions: {
+    python: "def pairSumIndices(nums, target):\n    ...\n",
+    cpp: "int pairSumIndices() { return 0; }\n",
+  },
   concepts: [
-    { id: "arrays_hashing", name: "Arrays & Hashing", description: "", misconceptions: [], min_rating: 800, max_rating: 2400, sort_order: 0 },
+    {
+      id: "arrays_hashing",
+      name: "Arrays & Hashing",
+      description: "",
+      misconceptions: [],
+      min_rating: 800,
+      max_rating: 2400,
+      sort_order: 0,
+    },
   ],
   mastery_change: {
-    changes: [{ concept_id: "arrays_hashing", before_rating: 1200, after_rating: 1180, before_uncertainty: 300, after_uncertainty: 280 }],
+    changes: [
+      {
+        concept_id: "arrays_hashing",
+        before_rating: 1200,
+        after_rating: 1180,
+        before_uncertainty: 300,
+        after_uncertainty: 280,
+      },
+    ],
     outcome: 0,
     explanation: "Give-up floors the outcome at 0.",
   },
@@ -58,7 +77,10 @@ describe("GiveUpControl", () => {
 
     await user.click(screen.getByRole("button", { name: /^see solution$/i }));
 
-    expect(api.giveUp).toHaveBeenCalledWith("v1", { baseline_item_id: undefined, active_ms: 12345 });
+    expect(api.giveUp).toHaveBeenCalledWith("v1", {
+      baseline_item_id: undefined,
+      active_ms: 12345,
+    });
     expect(await screen.findByTestId("reveal")).toBeInTheDocument();
     expect(screen.getByTestId("editorial")).toHaveTextContent("Maintain a hash map");
     expect(screen.getByTestId("concepts")).toHaveTextContent("Arrays & Hashing");

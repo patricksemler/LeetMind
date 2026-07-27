@@ -26,7 +26,9 @@ const STALE_WORKER_SECONDS = 30;
 // docs/measurements.md) is per-execution container startup, not algorithm run time — a 10s bucket
 // exists because that's the default SANDBOX_WALL_TIMEOUT_MS (docs/CONTRACTS.md §2), so "did this
 // submission time out" is directly readable off the histogram.
-const LATENCY_BUCKETS_MS = [100, 250, 500, 1000, 2000, 3000, 5000, 8000, 12000, 20000, 30000] as const;
+const LATENCY_BUCKETS_MS = [
+  100, 250, 500, 1000, 2000, 3000, 5000, 8000, 12000, 20000, 30000,
+] as const;
 
 interface MetricLine {
   name: string;
@@ -63,7 +65,11 @@ class MetricsWriter {
     this.lines.push(`# TYPE ${metric.name} ${metric.type}`);
   }
 
-  sample(name: string, labels: Record<string, string | number>, value: number | null | undefined): void {
+  sample(
+    name: string,
+    labels: Record<string, string | number>,
+    value: number | null | undefined,
+  ): void {
     this.lines.push(`${name}${formatLabels(labels)} ${formatValue(value)}`);
   }
 
@@ -86,7 +92,11 @@ function bucketKey(ms: number): string {
  * _sum/_count — the standard Prometheus histogram shape — for created→completed submission
  * latency. Cumulative filters (`diff_ms <= X`) computed in SQL rather than in JS so a scrape never
  * has to pull one row per submission across the network. */
-async function loadLatencyHistogram(): Promise<{ buckets: { le: number; count: number }[]; count: number; sumMs: number }> {
+async function loadLatencyHistogram(): Promise<{
+  buckets: { le: number; count: number }[];
+  count: number;
+  sumMs: number;
+}> {
   const bucketExprs = LATENCY_BUCKETS_MS.map(
     (ms) => `count(*) filter (where diff_ms <= ${ms})::bigint as ${bucketKey(ms)}`,
   ).join(",\n      ");
@@ -105,7 +115,10 @@ async function loadLatencyHistogram(): Promise<{ buckets: { le: number; count: n
   const row = rows[0];
   const count = Number(row?.count ?? 0);
   const sumMs = Number(row?.sum ?? 0);
-  const buckets = LATENCY_BUCKETS_MS.map((le) => ({ le, count: Number(row?.[bucketKey(le)] ?? 0) }));
+  const buckets = LATENCY_BUCKETS_MS.map((le) => ({
+    le,
+    count: Number(row?.[bucketKey(le)] ?? 0),
+  }));
   return { buckets, count, sumMs };
 }
 
@@ -118,46 +131,52 @@ export function registerMetricsRoutes(fastify: FastifyInstance, deps: Deps): voi
   const userId = deps.config.singleUserId;
 
   fastify.get("/metrics", async (_request, reply) => {
-    const [queueStats, workers, verdictCounts, bufferDepth, stageRows, latency] = await Promise.all([
-      // Same call `/api/system/stats` makes (@leetmind/queue already owns this query) — queue
-      // depth by kind/status, oldest queued age, wait-time percentiles, lease recovery, dead jobs.
-      deps.queue.stats(),
-      query<{ worker_id: string; kind: string; last_seen_at: Date; stale: boolean }>(
-        `select worker_id, kind, last_seen_at,
+    const [queueStats, workers, verdictCounts, bufferDepth, stageRows, latency] = await Promise.all(
+      [
+        // Same call `/api/system/stats` makes (@leetmind/queue already owns this query) — queue
+        // depth by kind/status, oldest queued age, wait-time percentiles, lease recovery, dead jobs.
+        deps.queue.stats(),
+        query<{ worker_id: string; kind: string; last_seen_at: Date; stale: boolean }>(
+          `select worker_id, kind, last_seen_at,
                 (now() - last_seen_at) > interval '${STALE_WORKER_SECONDS} seconds' as stale
            from worker_heartbeats
           order by worker_id asc`,
-      ),
-      // All-time verdict counts — same `submissions` table system.ts's 24h-windowed query reads,
-      // without the window: a Prometheus counter is cumulative by convention (Grafana computes
-      // rate()/increase() over whatever window a panel wants), so windowing it here would be both
-      // redundant with Grafana's own range queries and a second place the "last 24h" definition
-      // could drift from the /system page's.
-      query<{ verdict: string; count: number }>(
-        `select verdict, count(*)::int as count
+        ),
+        // All-time verdict counts — same `submissions` table system.ts's 24h-windowed query reads,
+        // without the window: a Prometheus counter is cumulative by convention (Grafana computes
+        // rate()/increase() over whatever window a panel wants), so windowing it here would be both
+        // redundant with Grafana's own range queries and a second place the "last 24h" definition
+        // could drift from the /system page's.
+        query<{ verdict: string; count: number }>(
+          `select verdict, count(*)::int as count
            from submissions
           where verdict is not null
           group by verdict
           order by verdict`,
-      ),
-      countApprovedUnattemptedByBand(userId),
-      // Identical query to system.ts's generation-pass-rate-by-stage.
-      query<{ stage: string; passed: number; total: number }>(
-        `select stage_info->>'stage' as stage,
+        ),
+        countApprovedUnattemptedByBand(userId),
+        // Identical query to system.ts's generation-pass-rate-by-stage.
+        query<{ stage: string; passed: number; total: number }>(
+          `select stage_info->>'stage' as stage,
                 count(*) filter (where stage_info->>'status' = 'passed')::int as passed,
                 count(*)::int as total
            from verification_reports vr
            cross join lateral jsonb_array_elements(vr.stages) as stage_info
           group by stage_info->>'stage'
           order by stage`,
-      ),
-      loadLatencyHistogram(),
-    ]);
+        ),
+        loadLatencyHistogram(),
+      ],
+    );
 
     const w = new MetricsWriter();
 
     // --- queue depth by kind and status --------------------------------------------------------
-    w.declare({ name: "leetmind_queue_depth", help: "Number of jobs by kind and status.", type: "gauge" });
+    w.declare({
+      name: "leetmind_queue_depth",
+      help: "Number of jobs by kind and status.",
+      type: "gauge",
+    });
     for (const k of queueStats.kinds) {
       for (const [status, count] of Object.entries(k.counts)) {
         w.sample("leetmind_queue_depth", { kind: k.kind, status }, count);
@@ -186,7 +205,11 @@ export function registerMetricsRoutes(fastify: FastifyInstance, deps: Deps): voi
     w.sample("leetmind_queue_wait_ms", { quantile: "0.95" }, queueStats.wait_time_ms.p95);
 
     // --- dead-job count ---------------------------------------------------------------------------
-    w.declare({ name: "leetmind_queue_dead_jobs", help: "Total jobs currently in status=dead.", type: "gauge" });
+    w.declare({
+      name: "leetmind_queue_dead_jobs",
+      help: "Total jobs currently in status=dead.",
+      type: "gauge",
+    });
     w.sample("leetmind_queue_dead_jobs", {}, queueStats.dead_count);
 
     // --- lease recovery (chaos/reliability signal, cheap to expose since Queue.stats() already
@@ -196,10 +219,26 @@ export function registerMetricsRoutes(fastify: FastifyInstance, deps: Deps): voi
       help: "Jobs ever tagged with the lease-expired marker, bucketed by outcome (see @leetmind/queue LeaseRecoveryStats doc comment for precision caveats).",
       type: "gauge",
     });
-    w.sample("leetmind_queue_lease_recovery", { outcome: "reaped_total" }, queueStats.lease_recovery.reaped_total);
-    w.sample("leetmind_queue_lease_recovery", { outcome: "recovered" }, queueStats.lease_recovery.recovered);
-    w.sample("leetmind_queue_lease_recovery", { outcome: "still_pending" }, queueStats.lease_recovery.still_pending);
-    w.sample("leetmind_queue_lease_recovery", { outcome: "dead_after_reap" }, queueStats.lease_recovery.dead_after_reap);
+    w.sample(
+      "leetmind_queue_lease_recovery",
+      { outcome: "reaped_total" },
+      queueStats.lease_recovery.reaped_total,
+    );
+    w.sample(
+      "leetmind_queue_lease_recovery",
+      { outcome: "recovered" },
+      queueStats.lease_recovery.recovered,
+    );
+    w.sample(
+      "leetmind_queue_lease_recovery",
+      { outcome: "still_pending" },
+      queueStats.lease_recovery.still_pending,
+    );
+    w.sample(
+      "leetmind_queue_lease_recovery",
+      { outcome: "dead_after_reap" },
+      queueStats.lease_recovery.dead_after_reap,
+    );
 
     // --- worker liveness -------------------------------------------------------------------------
     w.declare({
@@ -249,8 +288,16 @@ export function registerMetricsRoutes(fastify: FastifyInstance, deps: Deps): voi
       type: "counter",
     });
     for (const row of stageRows) {
-      w.sample("leetmind_generation_stage_total", { stage: row.stage, result: "passed" }, row.passed);
-      w.sample("leetmind_generation_stage_total", { stage: row.stage, result: "failed" }, row.total - row.passed);
+      w.sample(
+        "leetmind_generation_stage_total",
+        { stage: row.stage, result: "passed" },
+        row.passed,
+      );
+      w.sample(
+        "leetmind_generation_stage_total",
+        { stage: row.stage, result: "failed" },
+        row.total - row.passed,
+      );
     }
 
     // --- buffer depth per concept x rating band ---------------------------------------------------
@@ -263,8 +310,6 @@ export function registerMetricsRoutes(fastify: FastifyInstance, deps: Deps): voi
       w.sample("leetmind_buffer_depth", { concept: row.concept_id, band: row.band }, row.count);
     }
 
-    reply
-      .header("content-type", "text/plain; version=0.0.4; charset=utf-8")
-      .send(w.toString());
+    reply.header("content-type", "text/plain; version=0.0.4; charset=utf-8").send(w.toString());
   });
 }

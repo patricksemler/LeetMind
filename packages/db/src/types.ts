@@ -61,9 +61,9 @@ export interface ProblemRow {
   retired_at: Date | null;
 }
 
-export type ProblemVersionState = 'candidate' | 'verifying' | 'approved' | 'rejected' | 'retired';
-export type DifficultyConfidence = 'generated' | 'verified' | 'calibrated';
-export type Comparator = 'exact' | 'float_tol' | 'unordered' | 'checker_py';
+export type ProblemVersionState = "candidate" | "verifying" | "approved" | "rejected" | "retired";
+export type DifficultyConfidence = "generated" | "verified" | "calibrated";
+export type Comparator = "exact" | "float_tol" | "unordered" | "checker_py";
 
 /**
  * What a problem asks you to produce — orthogonal to the concept that solves it. Mirrors the
@@ -71,16 +71,16 @@ export type Comparator = 'exact' | 'float_tol' | 'unordered' | 'checker_py';
  * "same concept, different form" needs its own axis.
  */
 export type ProblemShape =
-  | 'find_pair'
-  | 'count_occurrences'
-  | 'find_extremum'
-  | 'check_property'
-  | 'build_output'
-  | 'in_place_transform'
-  | 'simulate_process'
-  | 'partition_group'
-  | 'path_or_order'
-  | 'optimize_value';
+  | "find_pair"
+  | "count_occurrences"
+  | "find_extremum"
+  | "check_property"
+  | "build_output"
+  | "in_place_transform"
+  | "simulate_process"
+  | "partition_group"
+  | "path_or_order"
+  | "optimize_value";
 
 export interface ProblemVersionRow {
   id: Uuid;
@@ -102,7 +102,7 @@ export interface ProblemVersionRow {
   approved_at: Date | null;
 }
 
-export type ConceptRole = 'primary' | 'secondary';
+export type ConceptRole = "primary" | "secondary";
 
 export interface ProblemConceptRow {
   problem_version_id: Uuid;
@@ -125,7 +125,7 @@ export interface VerificationReportRow {
   created_at: Date;
 }
 
-export type BaselineSessionStatus = 'active' | 'completed' | 'abandoned';
+export type BaselineSessionStatus = "active" | "completed" | "abandoned";
 
 export interface BaselineSessionRow {
   id: Uuid;
@@ -137,12 +137,7 @@ export interface BaselineSessionRow {
 }
 
 export type BaselineItemState =
-  | 'pending'
-  | 'active'
-  | 'solved'
-  | 'skipped_inability'
-  | 'skipped_preference'
-  | 'gave_up';
+  "pending" | "active" | "solved" | "skipped_inability" | "skipped_preference" | "gave_up";
 
 export interface BaselineItemRow {
   id: Uuid;
@@ -157,33 +152,32 @@ export interface BaselineItemRow {
   completed_at: Date | null;
 }
 
-export type SubmissionMode = 'run' | 'submit' | 'transcribe';
-export type Language = 'python' | 'cpp';
+export type SubmissionMode = "run" | "submit" | "transcribe";
+export type Language = "python" | "cpp";
 export type SubmissionStatus =
-  | 'created'
-  | 'queued'
-  | 'assigned'
-  | 'compiling'
-  | 'running'
-  | 'completed'
-  | 'cancelled';
+  "created" | "queued" | "assigned" | "compiling" | "running" | "completed" | "cancelled";
 export type Verdict =
-  | 'accepted'
-  | 'wrong_answer'
-  | 'compilation_error'
-  | 'runtime_error'
-  | 'time_limit'
-  | 'memory_limit'
-  | 'output_limit'
-  | 'internal_error'
-  | 'cancelled';
+  | "accepted"
+  | "wrong_answer"
+  | "compilation_error"
+  | "runtime_error"
+  | "time_limit"
+  | "memory_limit"
+  | "output_limit"
+  | "internal_error"
+  | "cancelled";
 
 export interface SubmissionFailure {
   kind: string;
   message: string;
   first_failing_test_index?: number;
   /** Pass counts split by whether the user can see the test (written by the judge). */
-  tests?: { public_passed: number; public_total: number; hidden_passed: number; hidden_total: number };
+  tests?: {
+    public_passed: number;
+    public_total: number;
+    hidden_passed: number;
+    hidden_total: number;
+  };
   stderr_tail?: string;
   input_preview?: unknown;
   expected_preview?: unknown;
@@ -252,7 +246,8 @@ export interface ExecutionAttemptRow {
   finished_at: Date | null;
 }
 
-export type HintLevel = 'l1_orientation' | 'l2_conceptual' | 'l3_structural' | 'outline' | 'editorial';
+export type HintLevel =
+  "l1_orientation" | "l2_conceptual" | "l3_structural" | "outline" | "editorial";
 
 export interface HintEventRow {
   id: Uuid;
@@ -262,7 +257,8 @@ export interface HintEventRow {
   created_at: Date;
 }
 
-export type LearningEventKind = 'submission' | 'skip' | 'give_up' | 'diagnostic' | 'review' | 'decay';
+export type LearningEventKind =
+  "submission" | "skip" | "give_up" | "diagnostic" | "review" | "decay";
 
 export interface LearningEventRow {
   id: Uuid;
@@ -279,9 +275,9 @@ export interface LearningEventRow {
   created_at: Date;
 }
 
-export type FollowUpKind = 'reinforce' | 'transfer';
-export type ShapeMatch = 'same' | 'different';
-export type TeachingTrigger = 'editorial_revealed' | 'consecutive_failures';
+export type FollowUpKind = "reinforce" | "transfer";
+export type ShapeMatch = "same" | "different";
+export type TeachingTrigger = "editorial_revealed" | "consecutive_failures";
 
 /**
  * A problem owed to the user after a teaching episode (migration 007). Mirrors
@@ -306,8 +302,8 @@ export interface ScheduledFollowupRow {
   created_at: Date;
 }
 
-export type ModelRunKind = 'generate' | 'repair';
-export type ModelRunStatus = 'ok' | 'schema_error' | 'invoke_error';
+export type ModelRunKind = "generate" | "repair";
+export type ModelRunStatus = "ok" | "schema_error" | "invoke_error";
 
 export interface ModelRunRow {
   id: Uuid;
@@ -328,8 +324,8 @@ export interface ModelRunRow {
   created_at: Date;
 }
 
-export type JobKind = 'judge' | 'verify' | 'generate';
-export type JobStatus = 'queued' | 'leased' | 'done' | 'failed' | 'dead' | 'cancelled';
+export type JobKind = "judge" | "verify" | "generate";
+export type JobStatus = "queued" | "leased" | "done" | "failed" | "dead" | "cancelled";
 
 export interface JobRow {
   id: Uuid;

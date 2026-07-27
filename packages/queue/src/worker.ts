@@ -1,8 +1,8 @@
 // @leetmind/shared per docs/CONTRACTS.md: runWithContext(ctx, fn) using AsyncLocalStorage.
-import { runWithContext } from '@leetmind/shared';
+import { runWithContext } from "@leetmind/shared";
 
-import type { Queue } from './queue.js';
-import type { Job, Logger } from './types.js';
+import type { Queue } from "./queue.js";
+import type { Job, Logger } from "./types.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 500;
 const DEFAULT_HEARTBEAT_MS = 10_000;
@@ -51,7 +51,7 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
       clearTimeout(timer);
       resolve();
     };
-    signal.addEventListener('abort', onAbort, { once: true });
+    signal.addEventListener("abort", onAbort, { once: true });
   });
 }
 
@@ -81,20 +81,22 @@ export async function runWorker<TPayload = unknown>(opts: RunWorkerOpts<TPayload
   const inFlight = new Map<string, InFlight>();
 
   const workerHeartbeatTimer = setInterval(() => {
-    queue.upsertWorkerHeartbeat(workerId, kinds.join(','), {
-      concurrency,
-      in_flight: inFlight.size,
-      pid: typeof process !== 'undefined' ? process.pid : undefined,
-    }).catch((err) => {
-      logger.error({ err, worker_id: workerId }, 'worker_heartbeats upsert failed');
-    });
+    queue
+      .upsertWorkerHeartbeat(workerId, kinds.join(","), {
+        concurrency,
+        in_flight: inFlight.size,
+        pid: typeof process !== "undefined" ? process.pid : undefined,
+      })
+      .catch((err) => {
+        logger.error({ err, worker_id: workerId }, "worker_heartbeats upsert failed");
+      });
   }, heartbeatMs);
   workerHeartbeatTimer.unref?.();
   // Fire-and-forget one immediately so a freshly-started worker is visible
   // without waiting a full interval.
   queue
-    .upsertWorkerHeartbeat(workerId, kinds.join(','), { concurrency, in_flight: 0 })
-    .catch((err) => logger.error({ err, worker_id: workerId }, 'worker_heartbeats upsert failed'));
+    .upsertWorkerHeartbeat(workerId, kinds.join(","), { concurrency, in_flight: 0 })
+    .catch((err) => logger.error({ err, worker_id: workerId }, "worker_heartbeats upsert failed"));
 
   function startJob(job: Job): void {
     const abortController = new AbortController();
@@ -114,14 +116,14 @@ export async function runWorker<TPayload = unknown>(opts: RunWorkerOpts<TPayload
           .then((ok) => {
             if (!ok && !entry.leaseLost) {
               entry.leaseLost = true;
-              jobLogger.warn({ job_id: job.id }, 'lease lost, aborting job');
+              jobLogger.warn({ job_id: job.id }, "lease lost, aborting job");
               abortController.abort();
               // No point continuing to poll a lease we no longer hold.
               clearInterval(entry.heartbeatTimer);
             }
           })
           .catch((err) => {
-            jobLogger.error({ err, job_id: job.id }, 'heartbeat failed');
+            jobLogger.error({ err, job_id: job.id }, "heartbeat failed");
           });
       }, heartbeatMs),
     };
@@ -150,7 +152,7 @@ export async function runWorker<TPayload = unknown>(opts: RunWorkerOpts<TPayload
           () => handler(job as Job<TPayload>, ctx),
         );
         if (entry.leaseLost) {
-          jobLogger.warn({ job_id: job.id }, 'handler completed after lease loss; not acking');
+          jobLogger.warn({ job_id: job.id }, "handler completed after lease loss; not acking");
           return;
         }
         await queue.ack(job.id, workerId);
@@ -158,16 +160,16 @@ export async function runWorker<TPayload = unknown>(opts: RunWorkerOpts<TPayload
         if (entry.leaseLost) {
           jobLogger.warn(
             { job_id: job.id, err },
-            'handler threw after lease loss; not failing (already reclaimed)',
+            "handler threw after lease loss; not failing (already reclaimed)",
           );
           return;
         }
         const message = err instanceof Error ? err.message : String(err);
         try {
           const result = await queue.fail(job.id, workerId, message);
-          jobLogger.error({ job_id: job.id, err: message, result }, 'job failed');
+          jobLogger.error({ job_id: job.id, err: message, result }, "job failed");
         } catch (failErr) {
-          jobLogger.error({ job_id: job.id, err: failErr }, 'queue.fail() itself threw');
+          jobLogger.error({ job_id: job.id, err: failErr }, "queue.fail() itself threw");
         }
       } finally {
         clearInterval(entry.heartbeatTimer);
@@ -212,6 +214,6 @@ export function installShutdownHandlers(controller: AbortController): void {
       controller.abort();
     }
   };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }

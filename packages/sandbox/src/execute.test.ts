@@ -60,7 +60,7 @@ describe("buildExecutionResult — verdict mapping table", () => {
     const result = buildExecutionResult({
       sandboxResult: makeSandboxResult({
         exitCode: 1,
-        stderr: "Traceback (most recent call last):\n  File \"/bundle/runner.py\"\nZeroDivisionError",
+        stderr: 'Traceback (most recent call last):\n  File "/bundle/runner.py"\nZeroDivisionError',
       }),
       tests: oneTest,
     });

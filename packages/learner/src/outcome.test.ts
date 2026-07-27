@@ -74,7 +74,7 @@ describe("outcomeScore — table rows (CONTRACTS.md §8)", () => {
 describe("outcomeScore — modifiers", () => {
   it("a fast solve adds up to +0.1 when uncapped", () => {
     const r = outcomeScore(
-      baseInput({ verdict: "accepted", activeMs: 5 * 60_000 /* under low band of 10 */ })
+      baseInput({ verdict: "accepted", activeMs: 5 * 60_000 /* under low band of 10 */ }),
     );
     // base 1.0 + 0.1 modifier would be 1.1, but overall clamp holds it at the cap (1.0) since no
     // hint was taken (cap === 1) — so the *effective* gain is 0, even though the modifier itself
@@ -89,7 +89,7 @@ describe("outcomeScore — modifiers", () => {
         verdict: "accepted",
         highestHint: "l2_conceptual", // cap 0.75
         activeMs: 5 * 60_000, // under low band -> +0.1 modifier
-      })
+      }),
     );
     // capped = min(1.0, 0.75) = 0.75; +0.1 modifier would be 0.85, but the final clamp is to the
     // CAP (0.75), not just to [0,1] — so the outcome must stay at exactly 0.75.
@@ -126,7 +126,7 @@ describe("outcomeScore — modifiers", () => {
         highestHint: "l2_conceptual",
         activeMs: 5 * 60_000,
         substantiveSubmissions: 3,
-      })
+      }),
     );
     const sum = Object.values(r.breakdown).reduce((a, b) => a + b, 0);
     expect(sum).toBeCloseTo(r.outcome, 10);

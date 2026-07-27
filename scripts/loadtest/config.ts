@@ -69,7 +69,8 @@ function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
   const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n)) throw new Error(`loadtest config: ${name}="${raw}" is not a valid integer`);
+  if (!Number.isFinite(n))
+    throw new Error(`loadtest config: ${name}="${raw}" is not a valid integer`);
   return n;
 }
 
@@ -77,10 +78,19 @@ export function loadProfile(): LoadProfile {
   return {
     ...DEFAULT_PROFILE,
     concurrentSessions: envInt("LOADTEST_CONCURRENT_SESSIONS", DEFAULT_PROFILE.concurrentSessions),
-    submissionsPerSession: envInt("LOADTEST_SUBMISSIONS_PER_SESSION", DEFAULT_PROFILE.submissionsPerSession),
+    submissionsPerSession: envInt(
+      "LOADTEST_SUBMISSIONS_PER_SESSION",
+      DEFAULT_PROFILE.submissionsPerSession,
+    ),
     judgeWorkerProcesses: envInt("LOADTEST_JUDGE_WORKERS", DEFAULT_PROFILE.judgeWorkerProcesses),
-    judgeConcurrencyPerWorker: envInt("LOADTEST_JUDGE_CONCURRENCY", DEFAULT_PROFILE.judgeConcurrencyPerWorker),
-    sandboxWallTimeoutMs: envInt("LOADTEST_SANDBOX_WALL_TIMEOUT_MS", DEFAULT_PROFILE.sandboxWallTimeoutMs),
+    judgeConcurrencyPerWorker: envInt(
+      "LOADTEST_JUDGE_CONCURRENCY",
+      DEFAULT_PROFILE.judgeConcurrencyPerWorker,
+    ),
+    sandboxWallTimeoutMs: envInt(
+      "LOADTEST_SANDBOX_WALL_TIMEOUT_MS",
+      DEFAULT_PROFILE.sandboxWallTimeoutMs,
+    ),
   };
 }
 

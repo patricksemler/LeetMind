@@ -30,11 +30,15 @@ export interface ScheduleReviewResult {
  * `interval * ease` step, matching standard SM-2 (E-Factor is updated before it's used to project
  * the next interval).
  */
-export function scheduleReview(state: ConceptState, outcome: number, now: Date): ScheduleReviewResult {
+export function scheduleReview(
+  state: ConceptState,
+  outcome: number,
+  now: Date,
+): ScheduleReviewResult {
   const newEase = clamp(
     state.review_ease + (0.1 - (1 - outcome) * (0.5 + (1 - outcome) * 0.4)),
     EASE_MIN,
-    EASE_MAX
+    EASE_MAX,
   );
 
   let newInterval: number;

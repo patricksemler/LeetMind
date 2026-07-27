@@ -11,7 +11,8 @@
 
 /** Default `TEST_DATABASE_URL` per docs/CONTRACTS.md §13 — same instance as `DATABASE_URL`, but
  * the `leetmind_test` database instead of `leetmind`. */
-export const DEFAULT_TEST_DATABASE_URL = "postgres://leetmind:leetmind@localhost:5432/leetmind_test";
+export const DEFAULT_TEST_DATABASE_URL =
+  "postgres://leetmind:leetmind@localhost:5432/leetmind_test";
 
 /** Returns `TEST_DATABASE_URL`, or the documented default. Tests should call this instead of
  * reading `DATABASE_URL` (which defaults to the development database) directly. */

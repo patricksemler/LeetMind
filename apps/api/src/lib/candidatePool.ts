@@ -90,13 +90,17 @@ export function toPoolCandidate(row: ProblemVersionRow): PoolCandidate | null {
   };
   const rawConcepts = Array.isArray(content?.concepts) ? content.concepts : [];
   const concepts = rawConcepts
-    .filter((c): c is { id: string; weight: number } => typeof c?.id === "string" && typeof c?.weight === "number")
+    .filter(
+      (c): c is { id: string; weight: number } =>
+        typeof c?.id === "string" && typeof c?.weight === "number",
+    )
     .map((c) => ({ id: c.id, weight: c.weight }));
   if (concepts.length === 0) return null;
 
-  const minutes = Array.isArray(content.expected_active_minutes) && content.expected_active_minutes.length === 2
-    ? (content.expected_active_minutes as [number, number])
-    : ([row.expected_min_minutes ?? 10, row.expected_max_minutes ?? 25] as [number, number]);
+  const minutes =
+    Array.isArray(content.expected_active_minutes) && content.expected_active_minutes.length === 2
+      ? (content.expected_active_minutes as [number, number])
+      : ([row.expected_min_minutes ?? 10, row.expected_max_minutes ?? 25] as [number, number]);
 
   return {
     problem_version_id: row.id,
@@ -135,7 +139,10 @@ export async function findCandidateNear(
     });
     const usable = rows.filter((r) => !excludeIds.has(r.id));
     if (usable.length === 0) continue;
-    usable.sort((a, b) => Math.abs(a.difficulty_rating - targetRating) - Math.abs(b.difficulty_rating - targetRating));
+    usable.sort(
+      (a, b) =>
+        Math.abs(a.difficulty_rating - targetRating) - Math.abs(b.difficulty_rating - targetRating),
+    );
     return usable[0]!;
   }
   return null;

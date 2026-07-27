@@ -5,7 +5,13 @@
 // parsed + validated against `NotifyPayloadSchema` and dispatched only to the subscribers
 // registered for that `submission_id`. Reconnects with backoff if the connection drops.
 import { Client } from "pg";
-import { createLogger, loadBaseConfig, NOTIFY_CHANNEL, NotifyPayloadSchema, type NotifyPayload } from "@leetmind/shared";
+import {
+  createLogger,
+  loadBaseConfig,
+  NOTIFY_CHANNEL,
+  NotifyPayloadSchema,
+  type NotifyPayload,
+} from "@leetmind/shared";
 
 const logger = createLogger("api-sse");
 
@@ -93,7 +99,10 @@ class NotifyBus {
   private scheduleReconnect(): void {
     if (this.stopped || this.reconnectTimer) return;
     this.reconnectAttempt += 1;
-    const delay = Math.min(MAX_RECONNECT_DELAY_MS, BASE_RECONNECT_DELAY_MS * 2 ** this.reconnectAttempt);
+    const delay = Math.min(
+      MAX_RECONNECT_DELAY_MS,
+      BASE_RECONNECT_DELAY_MS * 2 ** this.reconnectAttempt,
+    );
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect().catch((err) => logger.error({ err }, "LISTEN reconnect attempt threw"));

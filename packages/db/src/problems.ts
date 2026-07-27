@@ -101,7 +101,11 @@ export async function setProblemVersionState(
     where id = $1
     returning *
   `;
-  const row = await queryOneWith<ProblemVersionRow>(client, sql, [id, state, opts.rejectedReason ?? null]);
+  const row = await queryOneWith<ProblemVersionRow>(client, sql, [
+    id,
+    state,
+    opts.rejectedReason ?? null,
+  ]);
   if (!row) {
     throw new Error(`setProblemVersionState: no problem_version with id ${id}`);
   }
@@ -125,7 +129,7 @@ export interface ListApprovedUnattemptedFilter {
    * shape guarantee is best-effort. Callers that need the distinction can check `row.shape`.
    */
   shape?: ProblemShape | null;
-  matchShape?: 'same' | 'different';
+  matchShape?: "same" | "different";
 }
 
 /** Approved problem versions this user has never submitted against, optionally filtered by concept/rating band. */
@@ -160,7 +164,7 @@ export async function listApprovedUnattempted(
   if (filter.shape && filter.matchShape) {
     // `pv.shape is null or ...` — see ListApprovedUnattemptedFilter.shape for why unknown shapes
     // stay eligible in both directions.
-    const op = filter.matchShape === 'same' ? '=' : '<>';
+    const op = filter.matchShape === "same" ? "=" : "<>";
     conditions.push(`(pv.shape is null or pv.shape ${op} $${idx})`);
     params.push(filter.shape);
     idx += 1;
@@ -187,7 +191,9 @@ export interface ApprovedUnattemptedBandCount {
 }
 
 /** Approved-and-unattempted problem counts per concept x 200-wide rating band, for the replenishment worker's watermark check. */
-export async function countApprovedUnattemptedByBand(userId: string): Promise<ApprovedUnattemptedBandCount[]> {
+export async function countApprovedUnattemptedByBand(
+  userId: string,
+): Promise<ApprovedUnattemptedBandCount[]> {
   const sql = `
     select
       pc.concept_id as concept_id,

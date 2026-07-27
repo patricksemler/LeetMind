@@ -20,7 +20,13 @@ import {
   type SubmissionRow,
 } from "@leetmind/db";
 import type { JobHandler, WorkerContext } from "@leetmind/queue";
-import { failedPublicCase, newId, ProblemVersionSchema, type JudgeJobPayload, type SubmissionStatus } from "@leetmind/shared";
+import {
+  failedPublicCase,
+  newId,
+  ProblemVersionSchema,
+  type JudgeJobPayload,
+  type SubmissionStatus,
+} from "@leetmind/shared";
 import type { JudgeDeps } from "./deps.js";
 import {
   buildComparatorSpec,
@@ -37,7 +43,11 @@ import { applyMastery } from "./mastery.js";
  * Writes `submissions.status = status` and the matching SSE `status` notify in one transaction.
  * Returns the updated row.
  */
-async function transitionStatus(userId: string, submissionId: string, status: SubmissionStatus): Promise<SubmissionRow> {
+async function transitionStatus(
+  userId: string,
+  submissionId: string,
+  status: SubmissionStatus,
+): Promise<SubmissionRow> {
   return withTransaction(async (client) => {
     const row = await updateSubmissionStatus(client, submissionId, status);
     await notify(client, {
@@ -72,12 +82,18 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
     // suite): if a previous delivery already drove this submission to completion, ack and return
     // immediately without touching anything else.
     if (submission.status === "completed") {
-      logger.info({ submission_id: submissionId }, "submission already completed; duplicate delivery, ack only");
+      logger.info(
+        { submission_id: submissionId },
+        "submission already completed; duplicate delivery, ack only",
+      );
       return;
     }
 
     if (ctx.signal.aborted) {
-      logger.warn({ submission_id: submissionId }, "lease already lost before starting; aborting without a verdict");
+      logger.warn(
+        { submission_id: submissionId },
+        "lease already lost before starting; aborting without a verdict",
+      );
       return;
     }
 
@@ -89,7 +105,10 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
 
     await transitionStatus(userId, submissionId, "assigned");
     if (ctx.signal.aborted) {
-      logger.warn({ submission_id: submissionId }, "lease lost after 'assigned'; aborting without a verdict");
+      logger.warn(
+        { submission_id: submissionId },
+        "lease lost after 'assigned'; aborting without a verdict",
+      );
       return;
     }
 
@@ -99,18 +118,30 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
     // can only ever emit a true `{passed, total}` at the very start (0/n) and at completion — no
     // faked intermediate progress.
     await withTransaction((client) =>
-      notify(client, { type: "progress", submission_id: submissionId, user_id: userId, passed: 0, total: tests.length }),
+      notify(client, {
+        type: "progress",
+        submission_id: submissionId,
+        user_id: userId,
+        passed: 0,
+        total: tests.length,
+      }),
     );
 
     await transitionStatus(userId, submissionId, "compiling");
     if (ctx.signal.aborted) {
-      logger.warn({ submission_id: submissionId }, "lease lost after 'compiling'; aborting without a verdict");
+      logger.warn(
+        { submission_id: submissionId },
+        "lease lost after 'compiling'; aborting without a verdict",
+      );
       return;
     }
 
     await transitionStatus(userId, submissionId, "running");
     if (ctx.signal.aborted) {
-      logger.warn({ submission_id: submissionId }, "lease lost after 'running'; aborting without a verdict");
+      logger.warn(
+        { submission_id: submissionId },
+        "lease lost after 'running'; aborting without a verdict",
+      );
       return;
     }
 
@@ -118,12 +149,19 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
     // solely on the background heartbeat timer) and bail out immediately if it's already gone.
     const heartbeatOk = await ctx.heartbeat();
     if (!heartbeatOk) {
-      logger.warn({ submission_id: submissionId }, "lease lost before sandbox execution; aborting without a verdict");
+      logger.warn(
+        { submission_id: submissionId },
+        "lease lost before sandbox execution; aborting without a verdict",
+      );
       return;
     }
 
     const limits = buildLimits(deps.sandbox);
-    const { result: executionResult, languageVersion, flags } = await executeSubmission({
+    const {
+      result: executionResult,
+      languageVersion,
+      flags,
+    } = await executeSubmission({
       language: submission.language,
       signature: content.signature,
       tests,
@@ -149,7 +187,8 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
       return;
     }
 
-    const { verdict, passedTests, totalTests, runtimeMs, memoryKb, perTest, raw, compile } = executionResult;
+    const { verdict, passedTests, totalTests, runtimeMs, memoryKb, perTest, raw, compile } =
+      executionResult;
 
     // The public/hidden split rides along on `failure` rather than in its own column: it is only
     // ever needed when something failed, and `submissions.failure` is already a jsonb the API
@@ -162,7 +201,11 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
           ...executionResult.failure,
           tests: summarizeTestOrigins(tests, perTest),
           ...(() => {
-            const detail = failingTestDetail(tests, perTest, executionResult.failure.first_failing_test_index);
+            const detail = failingTestDetail(
+              tests,
+              perTest,
+              executionResult.failure.first_failing_test_index,
+            );
             return detail ? { failing_test: detail } : {};
           })(),
         }
@@ -217,7 +260,13 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
           // C++ only (CONTRACTS §7: "record both durations") — the compile sandbox invocation's
           // own wall time and image digest, distinct from the run step's (already `image_digest`
           // above and folded into `runtimeMs`).
-          ...(compile ? { compile_ok: compile.ok, compile_duration_ms: compile.durationMs, compile_image_digest: compile.imageDigest } : {}),
+          ...(compile
+            ? {
+                compile_ok: compile.ok,
+                compile_duration_ms: compile.durationMs,
+                compile_image_digest: compile.imageDigest,
+              }
+            : {}),
         },
         per_test: perTest,
         exit_code: raw.sandbox.exitCode,
@@ -239,11 +288,24 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
       // give-up used to poison ALL later scoring, applying a fresh negative delta on every
       // subsequent resubmission, even a fully correct one). Checked once here and reused for both
       // the mastery gate below and the `practice` flag the client uses to label the result.
-      const gaveUpAlready = mode === "submit" && (await hasGivenUp(userId, submission.problem_version_id, client));
+      const gaveUpAlready =
+        mode === "submit" && (await hasGivenUp(userId, submission.problem_version_id, client));
 
       const completedAt = new Date().toISOString();
-      await notify(client, { type: "status", submission_id: submissionId, user_id: userId, status: "completed", at: completedAt });
-      await notify(client, { type: "progress", submission_id: submissionId, user_id: userId, passed: passedTests, total: totalTests });
+      await notify(client, {
+        type: "status",
+        submission_id: submissionId,
+        user_id: userId,
+        status: "completed",
+        at: completedAt,
+      });
+      await notify(client, {
+        type: "progress",
+        submission_id: submissionId,
+        user_id: userId,
+        passed: passedTests,
+        total: totalTests,
+      });
       await notify(client, {
         type: "verdict",
         submission_id: submissionId,
@@ -283,6 +345,9 @@ export function createJudgeHandler(deps: JudgeDeps): JobHandler<JudgeJobPayload>
       }
     });
 
-    logger.info({ submission_id: submissionId, verdict, passed_tests: passedTests, total_tests: totalTests }, "judge job complete");
+    logger.info(
+      { submission_id: submissionId, verdict, passed_tests: passedTests, total_tests: totalTests },
+      "judge job complete",
+    );
   };
 }

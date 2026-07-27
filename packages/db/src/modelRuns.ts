@@ -21,7 +21,10 @@ export interface NewModelRunInput {
 }
 
 /** Records one generator/repair invocation — written for every attempt, including failures (CONTRACTS.md §11). */
-export async function insertModelRun(client: PoolClient, row: NewModelRunInput): Promise<ModelRunRow> {
+export async function insertModelRun(
+  client: PoolClient,
+  row: NewModelRunInput,
+): Promise<ModelRunRow> {
   const sql = `
     insert into model_runs (
       id, kind, invoker, model, prompt_version, request, duration_ms, output_hash,

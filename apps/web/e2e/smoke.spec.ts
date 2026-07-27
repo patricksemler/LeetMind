@@ -31,14 +31,22 @@ async function signInIfRequired(page: import("@playwright/test").Page) {
   if (!E2E_EMAIL || !E2E_PASSWORD) return;
   await page.goto("/login");
   // Already signed in from a previous run: the guard bounces straight back to practice.
-  if (!(await page.getByLabel("Email").isVisible({ timeout: 3000 }).catch(() => false))) return;
+  if (
+    !(await page
+      .getByLabel("Email")
+      .isVisible({ timeout: 3000 })
+      .catch(() => false))
+  )
+    return;
   await page.getByLabel("Email").fill(E2E_EMAIL);
   await page.getByLabel("Password").fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/(?!login)/, { timeout: 15_000 });
 }
 
-test("baseline -> solve -> live verdict -> item completes -> practice serves next -> progress reflects it", async ({ page }) => {
+test("baseline -> solve -> live verdict -> item completes -> practice serves next -> progress reflects it", async ({
+  page,
+}) => {
   await signInIfRequired(page);
 
   await page.goto("/baseline");
@@ -65,7 +73,6 @@ test("baseline -> solve -> live verdict -> item completes -> practice serves nex
   const editor = page.locator(".monaco-editor").first();
   await expect(editor).toBeVisible({ timeout: 15_000 });
   await page.evaluate((code) => {
-     
     const monaco = (window as any).monaco;
     monaco.editor.getModels()[0].setValue(code);
   }, CORRECT_SOLUTION);
@@ -89,7 +96,10 @@ test("baseline -> solve -> live verdict -> item completes -> practice serves nex
   // "generating" state. What it must NOT do is dead-end.
   await page.goto("/");
   await expect(
-    page.getByRole("link", { name: "Start" }).or(page.getByText(/Writing you a new problem/i)).first(),
+    page
+      .getByRole("link", { name: "Start" })
+      .or(page.getByText(/Writing you a new problem/i))
+      .first(),
   ).toBeVisible({ timeout: 20_000 });
 
   // And Progress must reflect the solve — at least one concept now shows a non-default rating

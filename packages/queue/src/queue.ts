@@ -1,6 +1,6 @@
-import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import type { Pool, PoolClient, QueryResultRow } from "pg";
 // @leetmind/shared per docs/CONTRACTS.md: createLogger(service), newId(), JobKind, JOB_PRIORITY.
-import { createLogger, newId, JOB_PRIORITY, type JobKind } from '@leetmind/shared';
+import { createLogger, newId, JOB_PRIORITY, type JobKind } from "@leetmind/shared";
 
 import type {
   DeadJobInfo,
@@ -13,7 +13,7 @@ import type {
   QueueKindStats,
   QueueOpts,
   QueueStats,
-} from './types.js';
+} from "./types.js";
 
 export type Executor = Pool | PoolClient;
 
@@ -65,7 +65,7 @@ export class Queue {
     this.pool = pool;
     this.leaseSeconds = opts?.leaseSeconds ?? DEFAULT_LEASE_SECONDS;
     this.workerId = opts?.workerId;
-    this.logger = opts?.logger ?? (createLogger('queue') as unknown as Logger);
+    this.logger = opts?.logger ?? (createLogger("queue") as unknown as Logger);
   }
 
   /**
@@ -80,8 +80,7 @@ export class Queue {
     job: EnqueueInput<TKind, TPayload>,
   ): Promise<Job<TPayload> | null> {
     const id = newId();
-    const priority =
-      job.priority ?? (JOB_PRIORITY as Record<string, number>)[job.kind] ?? 100;
+    const priority = job.priority ?? (JOB_PRIORITY as Record<string, number>)[job.kind] ?? 100;
     const maxAttempts = job.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
     // Default run_at to the *server's* clock (coalesce in SQL), not the
     // caller's JS Date.now(): if the app process's clock and Postgres's
@@ -151,15 +150,10 @@ export class Queue {
    * (default: exponential backoff with jitter, see backoffMs()).
    * `attempts` is not incremented here -- claim() already incremented it.
    */
-  async fail(
-    jobId: string,
-    workerId: string,
-    error: string,
-    opts?: FailOpts,
-  ): Promise<FailResult> {
+  async fail(jobId: string, workerId: string, error: string, opts?: FailOpts): Promise<FailResult> {
     const client = await this.pool.connect();
     try {
-      await client.query('begin');
+      await client.query("begin");
       const { rows } = await client.query<{ attempts: number; max_attempts: number }>(
         `select attempts, max_attempts from jobs
          where id=$1 and leased_by=$2 and status='leased'
@@ -167,10 +161,8 @@ export class Queue {
         [jobId, workerId],
       );
       if (rows.length === 0) {
-        await client.query('rollback');
-        throw new Error(
-          `Queue.fail: job ${jobId} is not currently leased by worker ${workerId}`,
-        );
+        await client.query("rollback");
+        throw new Error(`Queue.fail: job ${jobId} is not currently leased by worker ${workerId}`);
       }
       const { attempts, max_attempts: maxAttempts } = rows[0]!;
 
@@ -180,8 +172,8 @@ export class Queue {
            where id=$1 and leased_by=$2;`,
           [jobId, workerId, error],
         );
-        await client.query('commit');
-        return 'dead';
+        await client.query("commit");
+        return "dead";
       }
 
       const retryInMs = opts?.retryInMs ?? backoffMs(attempts);
@@ -191,10 +183,10 @@ export class Queue {
          where id=$1 and leased_by=$2;`,
         [jobId, workerId, error, retryInMs],
       );
-      await client.query('commit');
-      return 'retry';
+      await client.query("commit");
+      return "retry";
     } catch (err) {
-      await client.query('rollback').catch(() => {});
+      await client.query("rollback").catch(() => {});
       throw err;
     } finally {
       client.release();
@@ -258,7 +250,7 @@ export class Queue {
     for (const row of result.rows) {
       this.logger.warn(
         { job_id: row.id, kind: row.kind, leased_by: row.leased_by, outcome: row.outcome },
-        'reaped expired lease',
+        "reaped expired lease",
       );
     }
 
@@ -277,16 +269,17 @@ export class Queue {
    * dashboard percentile, not used for anything correctness-critical.
    */
   async stats(): Promise<QueueStats> {
-    const [countsRes, oldestRes, waitRes, deadCountRes, recentDeadRes, leaseRecoveryRes] = await Promise.all([
-      this.pool.query<{ kind: string; status: string; count: string }>(
-        `select kind, status, count(*)::text as count from jobs group by kind, status;`,
-      ),
-      this.pool.query<{ kind: string; oldest_ms: string | null }>(
-        `select kind, extract(epoch from (now() - min(created_at))) * 1000 as oldest_ms
+    const [countsRes, oldestRes, waitRes, deadCountRes, recentDeadRes, leaseRecoveryRes] =
+      await Promise.all([
+        this.pool.query<{ kind: string; status: string; count: string }>(
+          `select kind, status, count(*)::text as count from jobs group by kind, status;`,
+        ),
+        this.pool.query<{ kind: string; oldest_ms: string | null }>(
+          `select kind, extract(epoch from (now() - min(created_at))) * 1000 as oldest_ms
          from jobs where status='queued' group by kind;`,
-      ),
-      this.pool.query<{ p50: string | null; p95: string | null }>(
-        `select
+        ),
+        this.pool.query<{ p50: string | null; p95: string | null }>(
+          `select
            percentile_cont(0.5) within group (order by wait_ms) as p50,
            percentile_cont(0.95) within group (order by wait_ms) as p95
          from (
@@ -297,18 +290,20 @@ export class Queue {
            where lease_expires_at is not null
              and (lease_expires_at - ($1 || ' seconds')::interval) >= now() - interval '1 hour'
          ) t;`,
-        [this.leaseSeconds],
-      ),
-      this.pool.query<{ count: string }>(`select count(*)::text as count from jobs where status='dead';`),
-      this.pool.query(
-        `select *, extract(epoch from (now() - updated_at)) * 1000 as age_ms
+          [this.leaseSeconds],
+        ),
+        this.pool.query<{ count: string }>(
+          `select count(*)::text as count from jobs where status='dead';`,
+        ),
+        this.pool.query(
+          `select *, extract(epoch from (now() - updated_at)) * 1000 as age_ms
          from jobs where status='dead' order by updated_at desc limit 20;`,
-      ),
-      // See LeaseRecoveryStats's doc comment (types.ts) for the precision caveat on this marker.
-      this.pool.query<{ status: string; count: string }>(
-        `select status, count(*)::text as count from jobs where last_error = 'lease expired' group by status;`,
-      ),
-    ]);
+        ),
+        // See LeaseRecoveryStats's doc comment (types.ts) for the precision caveat on this marker.
+        this.pool.query<{ status: string; count: string }>(
+          `select status, count(*)::text as count from jobs where last_error = 'lease expired' group by status;`,
+        ),
+      ]);
 
     const kindMap = new Map<string, QueueKindStats>();
     for (const row of countsRes.rows) {
@@ -339,9 +334,10 @@ export class Queue {
     for (const row of leaseRecoveryRes.rows) {
       const count = Number(row.count);
       leaseRecovery.reaped_total += count;
-      if (row.status === 'done') leaseRecovery.recovered += count;
-      else if (row.status === 'dead') leaseRecovery.dead_after_reap += count;
-      else if (row.status === 'queued' || row.status === 'leased') leaseRecovery.still_pending += count;
+      if (row.status === "done") leaseRecovery.recovered += count;
+      else if (row.status === "dead") leaseRecovery.dead_after_reap += count;
+      else if (row.status === "queued" || row.status === "leased")
+        leaseRecovery.still_pending += count;
     }
 
     return {
@@ -364,9 +360,9 @@ export class Queue {
   async listDeadJobs(opts?: { limit?: number; kind?: string }): Promise<DeadJobInfo[]> {
     const limit = opts?.limit ?? 50;
     const params: unknown[] = [limit];
-    let kindFilter = '';
+    let kindFilter = "";
     if (opts?.kind) {
-      kindFilter = 'and kind = $2';
+      kindFilter = "and kind = $2";
       params.push(opts.kind);
     }
     const result = await this.pool.query(

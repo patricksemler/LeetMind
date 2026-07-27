@@ -1,8 +1,8 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    environment: 'node',
+    environment: "node",
     testTimeout: 20_000,
     hookTimeout: 20_000,
     // Both test files run schema setup (`create table if not exists ...`)
@@ -12,6 +12,6 @@ export default defineConfig({
     fileParallelism: false,
     // Starts the dedicated throwaway Postgres if it isn't already up. Without this the whole
     // suite silently SKIPS when the container is absent — see src/globalSetup.ts.
-    globalSetup: ['./src/globalSetup.ts'],
+    globalSetup: ["./src/globalSetup.ts"],
   },
 });

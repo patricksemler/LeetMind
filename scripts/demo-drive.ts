@@ -225,5 +225,7 @@ try {
     process.exitCode = 2;
   }
 } finally {
-  await getPool().end().catch(() => undefined);
+  await getPool()
+    .end()
+    .catch(() => undefined);
 }

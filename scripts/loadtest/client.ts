@@ -90,7 +90,12 @@ export async function waitForTerminal(opts: {
       signal: controller.signal,
     });
     if (!res.ok || !res.body) {
-      return { verdict: null, timedOutWaiting: false, sawRunning, error: `SSE connect failed: ${res.status}` };
+      return {
+        verdict: null,
+        timedOutWaiting: false,
+        sawRunning,
+        error: `SSE connect failed: ${res.status}`,
+      };
     }
 
     const reader = res.body.getReader();
@@ -124,7 +129,12 @@ export async function waitForTerminal(opts: {
         }
       }
     }
-    return { verdict: null, timedOutWaiting: false, sawRunning, error: "SSE stream closed without a verdict event" };
+    return {
+      verdict: null,
+      timedOutWaiting: false,
+      sawRunning,
+      error: "SSE stream closed without a verdict event",
+    };
   } catch (err) {
     const aborted = controller.signal.aborted;
     return {

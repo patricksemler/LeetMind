@@ -48,7 +48,16 @@ describe.skipIf(!dbReachable)("reconcileStrandedSubmissions (integration: live P
     await query(
       `insert into jobs (id, kind, payload, status, attempts, max_attempts)
        values ($1, 'judge', $2::jsonb, 'dead', 3, 3)`,
-      [jobId, JSON.stringify({ submission_id: submissionId, mode: "submit", language: "python", problem_version_id: "irrelevant", user_id: TEST_USER_ID })],
+      [
+        jobId,
+        JSON.stringify({
+          submission_id: submissionId,
+          mode: "submit",
+          language: "python",
+          problem_version_id: "irrelevant",
+          user_id: TEST_USER_ID,
+        }),
+      ],
     );
     jobIdsToDelete.push(jobId);
     return jobId;
@@ -56,7 +65,12 @@ describe.skipIf(!dbReachable)("reconcileStrandedSubmissions (integration: live P
 
   it("completes a stranded non-terminal submission with internal_error once its judge job is dead", async () => {
     const problem = await seed();
-    const submission = await insertTestSubmission({ versionId: problem.versionId, source: "irrelevant", mode: "submit", status: "running" });
+    const submission = await insertTestSubmission({
+      versionId: problem.versionId,
+      source: "irrelevant",
+      mode: "submit",
+      status: "running",
+    });
     await insertDeadJudgeJob(submission.id);
 
     const count = await reconcileStrandedSubmissions(deps);
@@ -70,7 +84,12 @@ describe.skipIf(!dbReachable)("reconcileStrandedSubmissions (integration: live P
 
   it("is idempotent — a second sweep finds nothing left to reconcile", async () => {
     const problem = await seed();
-    const submission = await insertTestSubmission({ versionId: problem.versionId, source: "irrelevant", mode: "submit", status: "assigned" });
+    const submission = await insertTestSubmission({
+      versionId: problem.versionId,
+      source: "irrelevant",
+      mode: "submit",
+      status: "assigned",
+    });
     await insertDeadJudgeJob(submission.id);
 
     await reconcileStrandedSubmissions(deps);
@@ -80,8 +99,16 @@ describe.skipIf(!dbReachable)("reconcileStrandedSubmissions (integration: live P
 
   it("leaves an already-terminal submission alone even if its job is dead (duplicate-delivery safe)", async () => {
     const problem = await seed();
-    const submission = await insertTestSubmission({ versionId: problem.versionId, source: "irrelevant", mode: "submit", status: "completed" });
-    await query("update submissions set verdict = 'accepted', passed_tests = 3, total_tests = 3 where id = $1", [submission.id]);
+    const submission = await insertTestSubmission({
+      versionId: problem.versionId,
+      source: "irrelevant",
+      mode: "submit",
+      status: "completed",
+    });
+    await query(
+      "update submissions set verdict = 'accepted', passed_tests = 3, total_tests = 3 where id = $1",
+      [submission.id],
+    );
     await insertDeadJudgeJob(submission.id);
 
     const count = await reconcileStrandedSubmissions(deps);

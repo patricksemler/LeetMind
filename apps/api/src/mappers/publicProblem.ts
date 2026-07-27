@@ -3,7 +3,13 @@
 // docs/CONTRACTS.md §4.2) and then does exactly one extra thing that's this app's job, not
 // shared's: hydrating `concepts_revealed` refs (`{id, role, weight}`) with concept names by
 // joining the `concepts` table, since `toPublicProblem` intentionally has no DB access.
-import { queryOne, query, listHintEvents, type ProblemVersionRow, type ConceptRow } from "@leetmind/db";
+import {
+  queryOne,
+  query,
+  listHintEvents,
+  type ProblemVersionRow,
+  type ConceptRow,
+} from "@leetmind/db";
 import { ProblemVersionSchema, toPublicProblem, type PublicProblem } from "@leetmind/shared";
 
 export interface RevealedConcept {

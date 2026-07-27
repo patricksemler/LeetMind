@@ -24,7 +24,13 @@
 // liveness signal for debugging only — the test suite itself synchronizes via the database, never
 // by parsing this process's stdout, since a killed process's buffered stdout is not reliable).
 import { assertTestDatabase, getPool } from "@leetmind/db";
-import { Queue, runWorker, startReaper, installShutdownHandlers, type Logger as QueueLogger } from "@leetmind/queue";
+import {
+  Queue,
+  runWorker,
+  startReaper,
+  installShutdownHandlers,
+  type Logger as QueueLogger,
+} from "@leetmind/queue";
 import { createLogger, loadJudgeConfig, loadSandboxConfig } from "@leetmind/shared";
 import { createJudgeHandler } from "../../src/handler.js";
 
@@ -51,10 +57,18 @@ const workerId: string = rawWorkerId;
 
 const kinds = (process.env.CHAOS_KINDS ?? "judge").split(",").map((s) => s.trim());
 const concurrency = Number(process.env.CHAOS_CONCURRENCY ?? "1");
-const leaseSeconds = process.env.CHAOS_LEASE_SECONDS ? Number(process.env.CHAOS_LEASE_SECONDS) : undefined;
-const reaperIntervalMs = process.env.CHAOS_REAPER_INTERVAL_MS ? Number(process.env.CHAOS_REAPER_INTERVAL_MS) : undefined;
-const pollIntervalMs = process.env.CHAOS_POLL_INTERVAL_MS ? Number(process.env.CHAOS_POLL_INTERVAL_MS) : undefined;
-const heartbeatMs = process.env.CHAOS_HEARTBEAT_MS ? Number(process.env.CHAOS_HEARTBEAT_MS) : undefined;
+const leaseSeconds = process.env.CHAOS_LEASE_SECONDS
+  ? Number(process.env.CHAOS_LEASE_SECONDS)
+  : undefined;
+const reaperIntervalMs = process.env.CHAOS_REAPER_INTERVAL_MS
+  ? Number(process.env.CHAOS_REAPER_INTERVAL_MS)
+  : undefined;
+const pollIntervalMs = process.env.CHAOS_POLL_INTERVAL_MS
+  ? Number(process.env.CHAOS_POLL_INTERVAL_MS)
+  : undefined;
+const heartbeatMs = process.env.CHAOS_HEARTBEAT_MS
+  ? Number(process.env.CHAOS_HEARTBEAT_MS)
+  : undefined;
 
 async function main(): Promise<void> {
   const config = loadJudgeConfig({ ...process.env, JUDGE_WORKER_ID: workerId });
@@ -67,7 +81,12 @@ async function main(): Promise<void> {
   const controller = new AbortController();
   installShutdownHandlers(controller);
 
-  const reaper = startReaper({ queue, intervalMs: reaperIntervalMs, signal: controller.signal, logger: queueLogger });
+  const reaper = startReaper({
+    queue,
+    intervalMs: reaperIntervalMs,
+    signal: controller.signal,
+    logger: queueLogger,
+  });
 
   await queue.upsertWorkerHeartbeat(workerId, kinds.join(","), { concurrency, chaos: true });
 

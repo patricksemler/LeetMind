@@ -17,7 +17,12 @@ export function Concepts() {
   }
 
   if (conceptsQuery.isError) {
-    return <QueryError message="Couldn't load the concept taxonomy." onRetry={() => conceptsQuery.refetch()} />;
+    return (
+      <QueryError
+        message="Couldn't load the concept taxonomy."
+        onRetry={() => conceptsQuery.refetch()}
+      />
+    );
   }
 
   const { concepts, edges } = conceptsQuery.data;
@@ -25,7 +30,9 @@ export function Concepts() {
   // The mastery source (`GET /api/progress`'s `concepts` array) keys each row by `concept_id`, not
   // `id` — keying by `id` here made the join miss 100% of rows against the real API: every
   // attempted concept rendered identical to an untouched one (confirmed live).
-  const masteryById = new Map((progressQuery.data?.concepts ?? []).map((c) => [String(c.concept_id), c]));
+  const masteryById = new Map(
+    (progressQuery.data?.concepts ?? []).map((c) => [String(c.concept_id), c]),
+  );
 
   const childrenOf = new Map<string, string[]>();
   const parentsOf = new Map<string, string[]>();
@@ -77,9 +84,7 @@ export function Concepts() {
         <div className="flex items-center gap-2 py-1.5" style={{ paddingLeft: depth * 24 }}>
           <Plate size="xs" tone={attempted ? toneFor(rating) : "neutral"} filled={attempted} />
           <span className="text-sm text-text">{concept.name}</span>
-          {attempted && (
-            <Badge tone={toneFor(rating)}>{formatRating(rating)}</Badge>
-          )}
+          {attempted && <Badge tone={toneFor(rating)}>{formatRating(rating)}</Badge>}
           {isRepeatOfMultiParent && (
             <span className="text-xs italic text-text-faint">
               also under {parents.map((p) => byId.get(p)?.name ?? p).join(", ")}

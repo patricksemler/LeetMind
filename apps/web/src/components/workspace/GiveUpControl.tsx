@@ -38,7 +38,12 @@ export function GiveUpControl({
       {/* Full-width and red: the button itself is the warning, so it needs no explanatory line
           above it. The rule that separates it from the hints belongs to the column, not to this
           component — once the solution is up, the button is gone and the rule stays. */}
-      <Button variant="danger" className="w-full" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+      <Button
+        variant="danger"
+        className="w-full"
+        onClick={() => mutation.mutate()}
+        disabled={mutation.isPending}
+      >
         {mutation.isPending ? "Revealing…" : "See Solution"}
       </Button>
 
@@ -46,7 +51,9 @@ export function GiveUpControl({
           that errored out would look like a click that simply did nothing. */}
       {mutation.isError && (
         <p className="mt-2 text-sm text-verdict-error">
-          {mutation.error instanceof Error ? mutation.error.message : "Couldn't give up on this problem."}
+          {mutation.error instanceof Error
+            ? mutation.error.message
+            : "Couldn't give up on this problem."}
         </p>
       )}
     </div>

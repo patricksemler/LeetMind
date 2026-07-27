@@ -50,7 +50,10 @@ export async function insertLearningEvent(
   ]);
 }
 
-export async function listLearningEvents(userId: string, limit: number): Promise<LearningEventRow[]> {
+export async function listLearningEvents(
+  userId: string,
+  limit: number,
+): Promise<LearningEventRow[]> {
   return query<LearningEventRow>(
     "select * from learning_events where user_id = $1 order by created_at desc limit $2",
     [userId, limit],
@@ -68,14 +71,22 @@ export interface NewHintEventInput {
  * Records a hint being taken. Idempotent on (user_id, problem_version_id, level): returns `null`
  * instead of throwing if this level was already taken for this problem.
  */
-export async function insertHintEvent(client: PoolClient, row: NewHintEventInput): Promise<HintEventRow | null> {
+export async function insertHintEvent(
+  client: PoolClient,
+  row: NewHintEventInput,
+): Promise<HintEventRow | null> {
   const sql = `
     insert into hint_events (id, user_id, problem_version_id, level)
     values ($1, $2, $3, $4)
     on conflict (user_id, problem_version_id, level) do nothing
     returning *
   `;
-  return queryOneWith<HintEventRow>(client, sql, [row.id, row.user_id, row.problem_version_id, row.level]);
+  return queryOneWith<HintEventRow>(client, sql, [
+    row.id,
+    row.user_id,
+    row.problem_version_id,
+    row.level,
+  ]);
 }
 
 /**
@@ -90,7 +101,8 @@ export async function listHintEvents(
   versionId: string,
   client?: PoolClient,
 ): Promise<HintEventRow[]> {
-  const sql = "select * from hint_events where user_id = $1 and problem_version_id = $2 order by created_at asc";
+  const sql =
+    "select * from hint_events where user_id = $1 and problem_version_id = $2 order by created_at asc";
   const params = [userId, versionId];
   return client ? queryWith<HintEventRow>(client, sql, params) : query<HintEventRow>(sql, params);
 }
@@ -105,7 +117,11 @@ export async function listHintEvents(
  * submission's `created_at` (see `isPracticeSubmission` in the api submission routes), or a
  * give-up would retroactively relabel earlier, fully-scored submissions.
  */
-export async function hasGivenUp(userId: string, versionId: string, client?: PoolClient): Promise<boolean> {
+export async function hasGivenUp(
+  userId: string,
+  versionId: string,
+  client?: PoolClient,
+): Promise<boolean> {
   const events = await listHintEvents(userId, versionId, client);
   return events.some((h) => h.level === "editorial");
 }

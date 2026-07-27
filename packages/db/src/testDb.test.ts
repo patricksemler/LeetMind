@@ -19,21 +19,29 @@ describe("assertTestDatabase", () => {
     });
 
     it("a database name ending in '_test' with query params", () => {
-      expect(() => assertTestDatabase(`${urlWithDb("leetmind_test")}?sslmode=disable`)).not.toThrow();
+      expect(() =>
+        assertTestDatabase(`${urlWithDb("leetmind_test")}?sslmode=disable`),
+      ).not.toThrow();
     });
   });
 
   describe("rejects", () => {
     it("the development database name (leetmind)", () => {
-      expect(() => assertTestDatabase(urlWithDb("leetmind"))).toThrow(/refusing to run destructive/i);
+      expect(() => assertTestDatabase(urlWithDb("leetmind"))).toThrow(
+        /refusing to run destructive/i,
+      );
     });
 
     it("a database name that merely starts with 'test' as a prefix of another word (leetmind_prod)", () => {
-      expect(() => assertTestDatabase(urlWithDb("leetmind_prod"))).toThrow(/refusing to run destructive/i);
+      expect(() => assertTestDatabase(urlWithDb("leetmind_prod"))).toThrow(
+        /refusing to run destructive/i,
+      );
     });
 
     it('a database name containing "test" but not as a "_test" suffix (testing_db)', () => {
-      expect(() => assertTestDatabase(urlWithDb("testing_db"))).toThrow(/refusing to run destructive/i);
+      expect(() => assertTestDatabase(urlWithDb("testing_db"))).toThrow(
+        /refusing to run destructive/i,
+      );
     });
 
     it("a URL with no database name at all (bare host, no path)", () => {
@@ -60,7 +68,9 @@ describe("assertTestDatabase", () => {
 
 describe("testDatabaseUrl", () => {
   it("defaults to postgres://leetmind:leetmind@localhost:5432/leetmind_test", () => {
-    expect(DEFAULT_TEST_DATABASE_URL).toBe("postgres://leetmind:leetmind@localhost:5432/leetmind_test");
+    expect(DEFAULT_TEST_DATABASE_URL).toBe(
+      "postgres://leetmind:leetmind@localhost:5432/leetmind_test",
+    );
   });
 
   it("returns TEST_DATABASE_URL when set, otherwise the default", () => {

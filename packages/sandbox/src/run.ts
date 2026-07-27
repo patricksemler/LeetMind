@@ -185,10 +185,7 @@ export async function runSandboxed(req: SandboxRequest): Promise<SandboxResult> 
   const bundleDir = await materializeBundle(files, workDir);
   const containerName = `leetmind-sbx-${newId()}`;
 
-  logger.info(
-    { correlationId, image, containerName, bundleDir },
-    "sandbox run starting",
-  );
+  logger.info({ correlationId, image, containerName, bundleDir }, "sandbox run starting");
 
   const start = process.hrtime.bigint();
   try {
@@ -210,7 +207,8 @@ export async function runSandboxed(req: SandboxRequest): Promise<SandboxResult> 
     }
     const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
 
-    const oomKilled = oomEventSeen || looksLikeOomFallback(outcome.exitCode, outcome.stderr, timedOut);
+    const oomKilled =
+      oomEventSeen || looksLikeOomFallback(outcome.exitCode, outcome.stderr, timedOut);
     const imageDigest = await resolveImageDigest(image);
 
     logger.info(
@@ -228,7 +226,10 @@ export async function runSandboxed(req: SandboxRequest): Promise<SandboxResult> 
 
     const delayMs = artificialDelayMs();
     if (delayMs > 0) {
-      logger.info({ correlationId, containerName, delayMs }, "LEETMIND_SANDBOX_ARTIFICIAL_DELAY_MS: holding before returning");
+      logger.info(
+        { correlationId, containerName, delayMs },
+        "LEETMIND_SANDBOX_ARTIFICIAL_DELAY_MS: holding before returning",
+      );
       await sleep(delayMs);
     }
 

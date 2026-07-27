@@ -23,7 +23,11 @@ describe("migrate runner (pure helpers, no DB required)", () => {
 
     const files = await listMigrationFiles(dir);
 
-    expect(files.map((f) => f.filename)).toEqual(["001_first.sql", "002_second.sql", "003_third.sql"]);
+    expect(files.map((f) => f.filename)).toEqual([
+      "001_first.sql",
+      "002_second.sql",
+      "003_third.sql",
+    ]);
     expect(files.map((f) => f.version)).toEqual(["001_first", "002_second", "003_third"]);
   });
 

@@ -119,7 +119,11 @@ describe.skipIf(!dbReachable)("post-solve reveal", () => {
     );
     submissionIds.push(submissionId);
 
-    await server.inject({ method: "POST", url: `/api/problems/${seeded.problemVersionId}/give-up`, payload: {} });
+    await server.inject({
+      method: "POST",
+      url: `/api/problems/${seeded.problemVersionId}/give-up`,
+      payload: {},
+    });
 
     const res = await server.inject({ method: "GET", url: `/api/submissions/${submissionId}` });
     expect(JSON.parse(res.body).submission.reveal).toBeDefined();
@@ -132,14 +136,24 @@ describe.skipIf(!dbReachable)("post-solve reveal", () => {
     problemVersionIds.push(seeded.problemVersionId);
     problemIds.push(seeded.problemId);
 
-    const before = await server.inject({ method: "GET", url: `/api/problems/${seeded.problemVersionId}/reveal` });
+    const before = await server.inject({
+      method: "GET",
+      url: `/api/problems/${seeded.problemVersionId}/reveal`,
+    });
     expect(before.statusCode).toBe(404);
     // Nothing of the reveal may ride along on the refusal.
     expect(before.body).not.toContain(seeded.sentinels.editorialText);
 
-    await server.inject({ method: "POST", url: `/api/problems/${seeded.problemVersionId}/give-up`, payload: {} });
+    await server.inject({
+      method: "POST",
+      url: `/api/problems/${seeded.problemVersionId}/give-up`,
+      payload: {},
+    });
 
-    const after = await server.inject({ method: "GET", url: `/api/problems/${seeded.problemVersionId}/reveal` });
+    const after = await server.inject({
+      method: "GET",
+      url: `/api/problems/${seeded.problemVersionId}/reveal`,
+    });
     expect(after.statusCode).toBe(200);
     const reveal = JSON.parse(after.body);
     expect(reveal.editorial_md).toContain(seeded.sentinels.editorialText);
@@ -161,7 +175,10 @@ describe.skipIf(!dbReachable)("post-solve reveal", () => {
     );
     submissionIds.push(submissionId);
 
-    const res = await server.inject({ method: "GET", url: `/api/submissions/${submissionId}/events` });
+    const res = await server.inject({
+      method: "GET",
+      url: `/api/submissions/${submissionId}/events`,
+    });
     expect(res.statusCode).toBe(200);
     const verdictLine = res.body.split("\n\n").find((block) => block.includes("event: verdict"));
     expect(verdictLine).toBeDefined();

@@ -29,11 +29,18 @@ export interface JudgeDeps {
  * Builds the shared dependency set from env vars. `configOverride`/`sandboxOverride` let tests
  * (and the rejudge CLI) inject config without re-reading `process.env`.
  */
-export function buildJudgeDeps(configOverride?: JudgeConfig, sandboxOverride?: SandboxConfig): JudgeDeps {
+export function buildJudgeDeps(
+  configOverride?: JudgeConfig,
+  sandboxOverride?: SandboxConfig,
+): JudgeDeps {
   const config = configOverride ?? loadJudgeConfig();
   const sandbox = sandboxOverride ?? loadSandboxConfig();
   const pool = getPool();
   const logger = createLogger("judge");
-  const queue = new Queue(pool, { leaseSeconds: undefined, workerId: config.judgeWorkerId, logger: logger as unknown as QueueLogger });
+  const queue = new Queue(pool, {
+    leaseSeconds: undefined,
+    workerId: config.judgeWorkerId,
+    logger: logger as unknown as QueueLogger,
+  });
   return { config, sandbox, pool, queue, logger };
 }

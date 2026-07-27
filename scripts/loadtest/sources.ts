@@ -6,7 +6,10 @@ export type OutcomeKind = "accepted" | "wrong_answer" | "timeout" | "compile_err
 export type LoadLanguage = "python" | "cpp";
 
 /** Weighted random pick from a `{key: weight}` record (weights need not sum to exactly 1). */
-export function weightedPick<K extends string>(weights: Record<K, number>, rand: () => number = Math.random): K {
+export function weightedPick<K extends string>(
+  weights: Record<K, number>,
+  rand: () => number = Math.random,
+): K {
   const entries = Object.entries(weights) as [K, number][];
   const total = entries.reduce((s, [, w]) => s + w, 0);
   let r = rand() * total;
@@ -38,7 +41,11 @@ export const HIDDEN_TESTS: { args: [number, number]; expected: number }[] = [
   { args: [123456, 654321], expected: 777777 },
 ];
 
-export function sourceFor(language: LoadLanguage, outcome: OutcomeKind, profile: LoadProfile): string {
+export function sourceFor(
+  language: LoadLanguage,
+  outcome: OutcomeKind,
+  profile: LoadProfile,
+): string {
   if (language === "python") {
     switch (outcome) {
       case "accepted":

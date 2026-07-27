@@ -1,11 +1,11 @@
-export { Queue, backoffMs } from './queue.js';
-export type { Executor } from './queue.js';
+export { Queue, backoffMs } from "./queue.js";
+export type { Executor } from "./queue.js";
 
-export { runWorker, installShutdownHandlers } from './worker.js';
-export type { RunWorkerOpts, JobHandler, WorkerContext } from './worker.js';
+export { runWorker, installShutdownHandlers } from "./worker.js";
+export type { RunWorkerOpts, JobHandler, WorkerContext } from "./worker.js";
 
-export { startReaper } from './reaper.js';
-export type { StartReaperOpts, ReaperHandle } from './reaper.js';
+export { startReaper } from "./reaper.js";
+export type { StartReaperOpts, ReaperHandle } from "./reaper.js";
 
 export type {
   Job,
@@ -19,4 +19,4 @@ export type {
   LeaseRecoveryStats,
   QueueOpts,
   Logger,
-} from './types.js';
+} from "./types.js";

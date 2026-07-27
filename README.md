@@ -10,7 +10,7 @@ engineering that earns the second is engineering the first genuinely needs: a ha
 a sandboxed execution substrate, a six-stage verification gate, and a learner model whose every
 decision is explainable.
 
-- [`PLAN.md`](PLAN.md) — the *what* and *why*: decision log, milestones, explicit cuts.
+- [`PLAN.md`](PLAN.md) — the _what_ and _why_: decision log, milestones, explicit cuts.
 - [`docs/CONTRACTS.md`](docs/CONTRACTS.md) — normative names, shapes, schema.
 - [`docs/threat-model.md`](docs/threat-model.md) — what the isolation boundary actually is.
 - [`docs/measurements.md`](docs/measurements.md) — measured latency/throughput, and their limits.
@@ -21,13 +21,13 @@ One surface. You open the app and you get a problem.
 
 `GET /api/practice/next` answers "what should I do right now?" and it always has an answer:
 
-| | |
-|---|---|
-| **a problem** | verified, approved, unattempted, at the edge of your weakest evidenced concept |
+|                |                                                                                                                                                     |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **a problem**  | verified, approved, unattempted, at the edge of your weakest evidenced concept                                                                      |
 | **generating** | nothing verified is left in that band, so a new problem is being written and verified for you — the wait is shown, not hidden behind an empty state |
 
 There is no session to start, nothing to plan, no onboarding to finish, and nothing persisted
-between problems. **The learner state *is* the plan**, re-read on every request — so the next
+between problems. **The learner state _is_ the plan**, re-read on every request — so the next
 problem reflects the solve you just finished, not a list chosen before you started.
 
 ### Finding your level without asking
@@ -40,7 +40,7 @@ slightly too easy costs one problem.
 
 > **The baseline was removed.** v2 opened with a diagnostic probe you had to complete before
 > practice would serve you anything — six problems, a progress counter, a `needs_baseline` gate.
-> The stepping rule above *was* the baseline; everything around it was ceremony asking the user to
+> The stepping rule above _was_ the baseline; everything around it was ceremony asking the user to
 > agree to be measured before being allowed to start. The rule stayed and the screen went.
 
 ### When you're stuck, it teaches instead of retrying
@@ -53,10 +53,10 @@ nothing: the reveal was already scored, and copying it out must not hand that ba
 
 Then two follow-ups, planned at the moment of the reveal so that closing the tab can't skip them:
 
-| | |
-|---|---|
+|               |                                                                                                                                   |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | **reinforce** | immediately — same concept, **same shape**, a step easier. Where you use what you just typed, while it's still in working memory. |
-| **transfer** | three days later — same concept, **different shape**. The one that actually measures whether anything was learned. |
+| **transfer**  | three days later — same concept, **different shape**. The one that actually measures whether anything was learned.                |
 
 The pair matters more than either half. Reinforce alone teaches recall of one solution; transfer
 alone, with nothing in between, is just another failure a week later.
@@ -81,18 +81,17 @@ resulting change is explained in plain language:
 All six milestones (M0–M5) are implemented and test-covered. **673 tests** across the workspace,
 all passing:
 
-| Package | Tests | What it covers |
-|---|---:|---|
-| `@leetmind/shared` | 39 | zod contracts, `toPublicProblem` leak-proofing, tree/list codecs |
-| `@leetmind/db` | 26 | pool, migrations, bigint parsing, test-DB guard |
-| `@leetmind/queue` | 14 | claim/lease/heartbeat/reaper, priority, idempotency, poison jobs |
-| `@leetmind/sandbox` | 112 | isolation flags, harness protocol, C++ codegen, **cross-language parity** |
-| `@leetmind/learner` | 102 | Glicko-lite, outcome scoring, SM-2, cold-start stepping, teaching triggers, mastery clauses, convergence |
-| `apps/web` | 69 | SSE lifecycle, practice loop, teaching/follow-up rendering, hint penalties, verdict-leak safety |
-| `apps/api` | 74 | auth + token verification, practice selection/generation, cold start, follow-up queueing, transcribe gating, transactional enqueue, SSE races, sentinel leaks |
-| `apps/judge` | 38 | state machine, exactly-once mastery, public-vs-hidden failure semantics, **7 chaos scenarios** |
-| `content/` (Python) | 199 | six-stage gate, generation envelope, replenishment, DB nesting |
-
+| Package             | Tests | What it covers                                                                                                                                                |
+| ------------------- | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@leetmind/shared`  |    39 | zod contracts, `toPublicProblem` leak-proofing, tree/list codecs                                                                                              |
+| `@leetmind/db`      |    26 | pool, migrations, bigint parsing, test-DB guard                                                                                                               |
+| `@leetmind/queue`   |    14 | claim/lease/heartbeat/reaper, priority, idempotency, poison jobs                                                                                              |
+| `@leetmind/sandbox` |   112 | isolation flags, harness protocol, C++ codegen, **cross-language parity**                                                                                     |
+| `@leetmind/learner` |   102 | Glicko-lite, outcome scoring, SM-2, cold-start stepping, teaching triggers, mastery clauses, convergence                                                      |
+| `apps/web`          |    69 | SSE lifecycle, practice loop, teaching/follow-up rendering, hint penalties, verdict-leak safety                                                               |
+| `apps/api`          |    74 | auth + token verification, practice selection/generation, cold start, follow-up queueing, transcribe gating, transactional enqueue, SSE races, sentinel leaks |
+| `apps/judge`        |    38 | state machine, exactly-once mastery, public-vs-hidden failure semantics, **7 chaos scenarios**                                                                |
+| `content/` (Python) |   199 | six-stage gate, generation envelope, replenishment, DB nesting                                                                                                |
 
 Notable verified properties:
 
@@ -190,7 +189,7 @@ Four design decisions carry most of the weight:
    priority classes, and idempotency keys. Enqueue always joins the transaction of the domain write
    that justifies it, so a rolled-back submission can never leave an orphan job.
 2. **There is exactly one sandbox implementation.** The Python content plane cannot build `docker
-   run` arguments; it shells out to the TypeScript sandbox CLI. Generated code is untrusted code,
+run` arguments; it shells out to the TypeScript sandbox CLI. Generated code is untrusted code,
    and it runs under precisely the same isolation as user submissions.
 3. **Hidden tests are correct by construction.** Inputs come from a seeded generator plus boundary
    derivation; expected outputs come from the differential-verified reference solution — never from
@@ -199,9 +198,9 @@ Four design decisions carry most of the weight:
 4. **Every mastery change is explainable, in language a person can read.** `learning_events` is
    append-only and stores before/after state, the full evidence, and a sentence that still makes
    sense months later with no UI around it. The explanation used to be written for whoever was
-   debugging the model — *"Expected 64% success (you 1200 vs problem 1100); scored 1.
-   sliding_window +12 (1200→1212, ±350→±160)"* — which is correct and tells the person who just
-   solved the problem nothing. Explainable has to mean explainable *to the user*: the 0..1 evidence
+   debugging the model — _"Expected 64% success (you 1200 vs problem 1100); scored 1.
+   sliding_window +12 (1200→1212, ±350→±160)"_ — which is correct and tells the person who just
+   solved the problem nothing. Explainable has to mean explainable _to the user_: the 0..1 evidence
    score stays out of the interface entirely, and concepts are named, not slugged.
 
 ## Running the tests
@@ -239,18 +238,18 @@ There is no admin UI by design — the terminal is the admin console.
 
 ## Repo layout
 
-| Path | Purpose |
-|---|---|
-| `apps/web` | React + Vite + Monaco workspace, practice loop, baseline, progress, auth |
-| `apps/api` | Fastify HTTP + SSE over Postgres `LISTEN/NOTIFY` |
-| `apps/judge` | Judge coordinator, submission state machine, rejudge, chaos suite |
-| `packages/shared` | zod contracts, logging, config, `toPublicProblem` |
-| `packages/db` | pool, migration runner, repositories, test-DB guard |
-| `packages/queue` | the Postgres job queue |
-| `packages/sandbox` | `docker run` wrapper, harness protocol, C++ codegen, CLI bridge |
-| `packages/learner` | Glicko-lite mastery, SM-2 review, baseline planning, selection (pure) |
-| `content/` | Python content plane — generation, six-stage verification, replenishment |
-| `scripts/` | demo, load test, image build, dead-job requeue |
+| Path               | Purpose                                                                  |
+| ------------------ | ------------------------------------------------------------------------ |
+| `apps/web`         | React + Vite + Monaco workspace, practice loop, baseline, progress, auth |
+| `apps/api`         | Fastify HTTP + SSE over Postgres `LISTEN/NOTIFY`                         |
+| `apps/judge`       | Judge coordinator, submission state machine, rejudge, chaos suite        |
+| `packages/shared`  | zod contracts, logging, config, `toPublicProblem`                        |
+| `packages/db`      | pool, migration runner, repositories, test-DB guard                      |
+| `packages/queue`   | the Postgres job queue                                                   |
+| `packages/sandbox` | `docker run` wrapper, harness protocol, C++ codegen, CLI bridge          |
+| `packages/learner` | Glicko-lite mastery, SM-2 review, baseline planning, selection (pure)    |
+| `content/`         | Python content plane — generation, six-stage verification, replenishment |
+| `scripts/`         | demo, load test, image build, dead-job requeue                           |
 
 ## Known limitations
 
@@ -268,5 +267,5 @@ seconds. Background replenishment exists precisely so you rarely meet it, but a 
 thin concept will out-run the content plane.
 
 **Content quality is bounded by the gate, not by taste.** Verification proves a problem is
-*correct* — reference agrees with brute force, boundaries hold, mutants die. It cannot prove a
-problem is *interesting*. Complexity validation and novelty checking are deferred (`PLAN.md` §11).
+_correct_ — reference agrees with brute force, boundaries hold, mutants die. It cannot prove a
+problem is _interesting_. Complexity validation and novelty checking are deferred (`PLAN.md` §11).

@@ -23,7 +23,10 @@ const schema = {
 export function Markdown({ children, className = "" }: { children: string; className?: string }) {
   return (
     <div className={`markdown-body text-sm leading-relaxed text-text ${className}`}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeSanitize, schema], rehypeHighlight]}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[[rehypeSanitize, schema], rehypeHighlight]}
+      >
         {children}
       </ReactMarkdown>
     </div>

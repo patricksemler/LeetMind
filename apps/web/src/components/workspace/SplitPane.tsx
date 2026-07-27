@@ -38,7 +38,9 @@ export function SplitPane({
   // effect renders the default size first and then snaps to the stored one, so every load of every
   // problem started with the panes visibly jumping.
   const [firstPct, setFirstPct] = useState(() =>
-    storageKey ? loadNumberPref(storageKey, initialFirstPct, minFirstPct, maxFirstPct) : initialFirstPct,
+    storageKey
+      ? loadNumberPref(storageKey, initialFirstPct, minFirstPct, maxFirstPct)
+      : initialFirstPct,
   );
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
@@ -75,7 +77,9 @@ export function SplitPane({
       if (!dragging.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       clampAndSet(
-        vertical ? ((e.clientY - rect.top) / rect.height) * 100 : ((e.clientX - rect.left) / rect.width) * 100,
+        vertical
+          ? ((e.clientY - rect.top) / rect.height) * 100
+          : ((e.clientX - rect.left) / rect.width) * 100,
       );
     },
     [clampAndSet, vertical],
@@ -138,7 +142,9 @@ export function SplitPane({
   // divider drew a scrollbar that had nothing to do with the gesture and left again when it ended.
   // Hiding the bar (rather than switching the pane to `overflow: hidden`) leaves the scroll position
   // and the scrollability itself untouched.
-  const scrollbarDuringDrag = isDragging ? "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "";
+  const scrollbarDuringDrag = isDragging
+    ? "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    : "";
 
   // Below `sm` (640px — narrower than the tablet layout, which already works fine and is left
   // untouched here), a percentage-based side-by-side split never fit: the panes' own content has
@@ -184,7 +190,13 @@ export function SplitPane({
         } ${vertical ? "h-[3px] w-full cursor-row-resize" : "hidden w-[3px] cursor-col-resize sm:block"}`}
       >
         {/* The grab area is wider than the line, so a 3px divider is still easy to catch. */}
-        <div className={vertical ? "absolute inset-x-0 -top-1.5 -bottom-1.5" : "absolute inset-y-0 -left-1.5 -right-1.5"} />
+        <div
+          className={
+            vertical
+              ? "absolute inset-x-0 -top-1.5 -bottom-1.5"
+              : "absolute inset-y-0 -left-1.5 -right-1.5"
+          }
+        />
       </div>
       <div
         className={

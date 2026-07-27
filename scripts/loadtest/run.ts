@@ -83,10 +83,14 @@ async function main(): Promise<void> {
       workerIds.push(workerId);
     }
     await Promise.all(judgeWorkers.map((w) => w.ready));
-    console.log(`${judgeWorkers.length} judge worker process(es) ready: ${judgeWorkers.map((w) => w.workerId).join(", ")}`);
+    console.log(
+      `${judgeWorkers.length} judge worker process(es) ready: ${judgeWorkers.map((w) => w.workerId).join(", ")}`,
+    );
 
     // Health check before generating any load.
-    const health = await fetch(`${API_BASE}/health`).then((r) => r.json() as Promise<{ ok: boolean; db: string }>);
+    const health = await fetch(`${API_BASE}/health`).then(
+      (r) => r.json() as Promise<{ ok: boolean; db: string }>,
+    );
     if (!health.ok || health.db !== "up") {
       throw new Error(`loadtest: api health check failed: ${JSON.stringify(health)}`);
     }
@@ -118,7 +122,9 @@ async function main(): Promise<void> {
     // Exclude the deliberately-killed lease-recovery victim from the general latency stats — its
     // recovery wait is reported separately in §4 of the report, and folding it into the "normal"
     // percentiles would conflate two different things this harness is honestly trying to measure.
-    const records = await loadSubmissionRecords(seeded.versionId, { excludeIds: [leaseRecovery.submissionId] });
+    const records = await loadSubmissionRecords(seeded.versionId, {
+      excludeIds: [leaseRecovery.submissionId],
+    });
 
     // docs/CONTRACTS.md §13 documents a known hazard: OTHER agents' test suites running
     // concurrently against this same shared `leetmind_test` database can (pre-M4-fix) truncate
@@ -144,7 +150,9 @@ async function main(): Promise<void> {
       { label: "python", summary: report.e2eByLanguage.python },
       { label: "cpp", summary: report.e2eByLanguage.cpp },
     ]);
-    printLatencyTable("Queue wait time (enqueued -> claimed)", [{ label: "all", summary: report.queueWaitOverall }]);
+    printLatencyTable("Queue wait time (enqueued -> claimed)", [
+      { label: "all", summary: report.queueWaitOverall },
+    ]);
     printLatencyTable("Judge execution time (sandbox run)", [
       { label: "all", summary: report.judgeExecOverall },
       { label: "python", summary: report.judgeExecByLanguage.python },
@@ -154,7 +162,14 @@ async function main(): Promise<void> {
     console.log(`Verdict/status counts: ${JSON.stringify(report.verdictCounts, null, 2)}`);
     console.log(`Incomplete: ${report.incomplete.length}`);
 
-    const md = renderMeasurementsMd({ runId, ranAt: new Date(), env, report, leaseRecovery, metricsSample });
+    const md = renderMeasurementsMd({
+      runId,
+      ranAt: new Date(),
+      env,
+      report,
+      leaseRecovery,
+      metricsSample,
+    });
     await writeFile(MEASUREMENTS_PATH, md, "utf8");
     console.log(`\nWrote ${MEASUREMENTS_PATH}`);
 
@@ -166,7 +181,9 @@ async function main(): Promise<void> {
     await query("delete from jobs where payload->>'problem_version_id' = $1", [seeded.versionId]);
     await query("delete from worker_heartbeats where worker_id = any($1)", [workerIds]);
     cleanedUp = true;
-    console.log(`Cleaned up: ${deletedSubmissions} submission(s), the seeded problem, jobs, and worker heartbeats.`);
+    console.log(
+      `Cleaned up: ${deletedSubmissions} submission(s), the seeded problem, jobs, and worker heartbeats.`,
+    );
   } finally {
     await Promise.all(processes.map((p) => p.stop().catch(() => {})));
     // Best-effort cleanup even on a thrown error (e.g. the concurrent-truncation guard above) —
@@ -174,9 +191,13 @@ async function main(): Promise<void> {
     // rule 3: clean up your own rows). Never a truncate; only ever these narrowly-scoped deletes.
     if (!cleanedUp && seeded) {
       await cleanupLoadtestProblem(seeded).catch(() => {});
-      await query("delete from jobs where payload->>'problem_version_id' = $1", [seeded.versionId]).catch(() => {});
+      await query("delete from jobs where payload->>'problem_version_id' = $1", [
+        seeded.versionId,
+      ]).catch(() => {});
       if (workerIds.length > 0) {
-        await query("delete from worker_heartbeats where worker_id = any($1)", [workerIds]).catch(() => {});
+        await query("delete from worker_heartbeats where worker_id = any($1)", [workerIds]).catch(
+          () => {},
+        );
       }
     }
     await closePool();
@@ -184,6 +205,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  console.error("\nloadtest failed:", err instanceof Error ? err.stack ?? err.message : err);
+  console.error("\nloadtest failed:", err instanceof Error ? (err.stack ?? err.message) : err);
   process.exitCode = 1;
 });

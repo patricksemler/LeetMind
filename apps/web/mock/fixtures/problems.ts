@@ -41,7 +41,11 @@ const pairSum: ProblemFixture = {
       returns: "list[int]",
     },
     examples: [
-      { args: [[2, 7, 11, 15], 9], expected: [0, 1], explanation: "nums[0] + nums[1] = 2 + 7 = 9." },
+      {
+        args: [[2, 7, 11, 15], 9],
+        expected: [0, 1],
+        explanation: "nums[0] + nums[1] = 2 + 7 = 9.",
+      },
       { args: [[3, 2, 4], 6], expected: [1, 2], explanation: "nums[1] + nums[2] = 2 + 4 = 6." },
     ],
     concepts: [
@@ -69,7 +73,7 @@ const pairSum: ProblemFixture = {
       "        if (it != seen.end()) return {it->second, i};\n" +
       "        seen[nums[i]] = i;\n" +
       "    }\n" +
-      "    throw std::runtime_error(\"no pair found\");\n" +
+      '    throw std::runtime_error("no pair found");\n' +
       "}\n",
     brute_force_py:
       "def pairSumIndices(nums, target):\n" +
@@ -141,9 +145,9 @@ const longestDistinctRun: ProblemFixture = {
     constraints_md: "- `0 <= s.length <= 5 * 10^4`\n- `s` consists of printable ASCII characters.",
     signature: { name: "longestDistinctRun", params: [{ name: "s", type: "str" }], returns: "int" },
     examples: [
-      { args: ["abcabcbb"], expected: 3, explanation: "The run \"abc\" has length 3." },
-      { args: ["bbbbb"], expected: 1, explanation: "The run \"b\" has length 1." },
-      { args: ["pwwkew"], expected: 3, explanation: "The run \"wke\" has length 3." },
+      { args: ["abcabcbb"], expected: 3, explanation: 'The run "abc" has length 3.' },
+      { args: ["bbbbb"], expected: 1, explanation: 'The run "b" has length 1.' },
+      { args: ["pwwkew"], expected: 3, explanation: 'The run "wke" has length 3.' },
     ],
     concepts: [
       { id: "sliding_window", role: "primary", weight: 0.75 },
@@ -252,8 +256,16 @@ const findInsertionBand: ProblemFixture = {
     },
     examples: [
       { args: [[1, 3, 5, 6], 5], expected: 2, explanation: "5 is already at index 2." },
-      { args: [[1, 3, 5, 6], 2], expected: 1, explanation: "2 belongs between 1 and 3, at index 1." },
-      { args: [[1, 3, 5, 6], 7], expected: 4, explanation: "7 is larger than everything; it goes at the end." },
+      {
+        args: [[1, 3, 5, 6], 2],
+        expected: 1,
+        explanation: "2 belongs between 1 and 3, at index 1.",
+      },
+      {
+        args: [[1, 3, 5, 6], 7],
+        expected: 4,
+        explanation: "7 is larger than everything; it goes at the end.",
+      },
     ],
     concepts: [{ id: "binary_search", role: "primary", weight: 1.0 }],
     difficulty: { rating: 1150, confidence: "verified" },
@@ -339,9 +351,17 @@ const treeHeight: ProblemFixture = {
       "down to a report with no reports of their own. An empty organization has height `0`, and a " +
       "single role with no reports has height `1`.",
     constraints_md: "- `0 <= number of nodes <= 10^4`\n- `-10^5 <= Node.val <= 10^5`",
-    signature: { name: "treeHeight", params: [{ name: "root", type: "TreeNode?" }], returns: "int" },
+    signature: {
+      name: "treeHeight",
+      params: [{ name: "root", type: "TreeNode?" }],
+      returns: "int",
+    },
     examples: [
-      { args: [[3, 9, 20, null, null, 15, 7]], expected: 3, explanation: "root -> 20 -> 15 (or 7) is 3 deep." },
+      {
+        args: [[3, 9, 20, null, null, 15, 7]],
+        expected: 3,
+        explanation: "root -> 20 -> 15 (or 7) is 3 deep.",
+      },
       { args: [[]], expected: 0, explanation: "An empty tree has height 0." },
       { args: [[1]], expected: 1, explanation: "A single node has height 1." },
     ],
@@ -405,4 +425,9 @@ const treeHeight: ProblemFixture = {
   },
 };
 
-export const PROBLEM_FIXTURES: ProblemFixture[] = [pairSum, longestDistinctRun, findInsertionBand, treeHeight];
+export const PROBLEM_FIXTURES: ProblemFixture[] = [
+  pairSum,
+  longestDistinctRun,
+  findInsertionBand,
+  treeHeight,
+];

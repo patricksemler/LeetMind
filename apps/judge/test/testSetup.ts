@@ -17,7 +17,12 @@
 // ever creates and tears down its own rows — so this setup file's job is purely the DATABASE_URL
 // redirection + schema isolation + guard, not a change to how tests clean up after themselves.
 import { afterAll } from "vitest";
-import { dropTestSchema, ensureTestSchemaIsolation, testDatabaseUrl, testWorkerSchema } from "@leetmind/db";
+import {
+  dropTestSchema,
+  ensureTestSchemaIsolation,
+  testDatabaseUrl,
+  testWorkerSchema,
+} from "@leetmind/db";
 
 await ensureTestSchemaIsolation();
 

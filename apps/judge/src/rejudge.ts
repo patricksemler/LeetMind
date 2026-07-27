@@ -28,7 +28,10 @@ export interface RejudgeResult {
   executionAttemptId: string;
 }
 
-export async function rejudgeSubmission(submissionId: string, deps: JudgeDeps): Promise<RejudgeResult> {
+export async function rejudgeSubmission(
+  submissionId: string,
+  deps: JudgeDeps,
+): Promise<RejudgeResult> {
   const submission = await getSubmission(submissionId);
   if (!submission) {
     throw new Error(`rejudgeSubmission: submission ${submissionId} not found`);
@@ -40,14 +43,20 @@ export async function rejudgeSubmission(submissionId: string, deps: JudgeDeps): 
   // table is needed for that immutability guarantee.
   const versionRow = await getProblemVersion(submission.problem_version_id);
   if (!versionRow) {
-    throw new Error(`rejudgeSubmission: problem_version ${submission.problem_version_id} not found`);
+    throw new Error(
+      `rejudgeSubmission: problem_version ${submission.problem_version_id} not found`,
+    );
   }
   const content = ProblemVersionSchema.parse(versionRow.content);
 
   const { tests, revealInputs } = selectTests(content, submission.mode);
   const limits = buildLimits(deps.sandbox);
 
-  const { result: executionResult, languageVersion, flags } = await executeSubmission({
+  const {
+    result: executionResult,
+    languageVersion,
+    flags,
+  } = await executeSubmission({
     language: submission.language,
     signature: content.signature,
     tests,

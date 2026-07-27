@@ -125,7 +125,10 @@ function padLeft(s: string, n: number): string {
   return s.length >= n ? s : " ".repeat(n - s.length) + s;
 }
 
-export function printLatencyTable(title: string, rows: { label: string; summary: LatencySummary }[]): string {
+export function printLatencyTable(
+  title: string,
+  rows: { label: string; summary: LatencySummary }[],
+): string {
   const lines: string[] = [];
   lines.push(`\n${title}`);
   lines.push("-".repeat(title.length));
@@ -175,8 +178,14 @@ export function buildRunReport(opts: {
   const incomplete = records.filter((r) => !(r.status === "completed" && r.completedAt !== null));
 
   const e2eAll = completed.map(e2eLatencyMs).filter((v): v is number => v !== null);
-  const e2ePy = completed.filter((r) => r.language === "python").map(e2eLatencyMs).filter((v): v is number => v !== null);
-  const e2eCpp = completed.filter((r) => r.language === "cpp").map(e2eLatencyMs).filter((v): v is number => v !== null);
+  const e2ePy = completed
+    .filter((r) => r.language === "python")
+    .map(e2eLatencyMs)
+    .filter((v): v is number => v !== null);
+  const e2eCpp = completed
+    .filter((r) => r.language === "cpp")
+    .map(e2eLatencyMs)
+    .filter((v): v is number => v !== null);
 
   const waitAll = completed
     .map((r) => queueWaitMs(r, profile.queueLeaseSeconds))
