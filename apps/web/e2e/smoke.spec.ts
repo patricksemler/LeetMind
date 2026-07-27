@@ -1,14 +1,17 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Real-stack e2e smoke (QA-PLAN.md "Prevent recurrence" §2): sign in → baseline → solve → live
- * verdict visible → item completes → practice serves the next problem → progress reflects it. Run
- * against a REAL api + judge + web (never the mock server) — see playwright.config.ts's header
- * comment for how to bring that stack up.
+ * Real-stack e2e smoke (QA-PLAN.md "Prevent recurrence" §2): sign in → practice serves a problem →
+ * solve → live verdict visible → practice serves the next one → progress reflects it. Run against a
+ * REAL api + judge + web (never the mock server) — see playwright.config.ts's header comment for
+ * how to bring that stack up.
  *
  * The QA fixture pool's approved problems are all the same underlying problem ("Maximum Sum of a
  * Length-K Subarray") seeded multiple times across different concepts/rating bands, so a single
- * hardcoded correct solution below covers whichever one the baseline picks.
+ * hardcoded correct solution below covers whichever one practice serves.
+ *
+ * There is deliberately no baseline step: the baseline flow was removed, and practice now answers
+ * the very first request with a problem (see apps/api/src/routes/practice.ts's header).
  */
 const CORRECT_SOLUTION = `from typing import List, Optional
 
@@ -44,24 +47,18 @@ async function signInIfRequired(page: import("@playwright/test").Page) {
   await expect(page).toHaveURL(/\/(?!login)/, { timeout: 15_000 });
 }
 
-test("baseline -> solve -> live verdict -> item completes -> practice serves next -> progress reflects it", async ({
+test("practice serves a problem -> solve -> live verdict -> practice serves next -> progress reflects it", async ({
   page,
 }) => {
   await signInIfRequired(page);
 
-  await page.goto("/baseline");
+  await page.goto("/");
 
-  // Idempotent against whatever state this account is already in: a fresh account sees the
-  // "Start baseline" prompt; an account with one already running sees the probe list directly.
-  const startBaselineButton = page.getByRole("button", { name: "Start baseline" });
-  if (await startBaselineButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await startBaselineButton.click();
-  }
-
-  // The first not-yet-resolved probe, with a "Try it"/"Continue" link into the workspace —
-  // "Continue" if `?item=` already flipped it to active on a prior visit (QA-PLAN.md §1.2).
-  const startLink = page.getByRole("link", { name: /^(Try it|Continue)$/ }).first();
-  await expect(startLink).toBeVisible({ timeout: 15_000 });
+  // Practice's entry point into the workspace. "Work through it" rather than "Start" when the
+  // server decided to teach this one instead of testing it (Practice.tsx) — either is a valid way
+  // in, and which one appears depends on the account's history, so accept both.
+  const startLink = page.getByRole("link", { name: /^(Start|Work through it)$/ }).first();
+  await expect(startLink).toBeVisible({ timeout: 20_000 });
   await startLink.click();
   await expect(page).toHaveURL(/\/problem\//);
 
@@ -83,21 +80,20 @@ test("baseline -> solve -> live verdict -> item completes -> practice serves nex
   // is named for: a live verdict that never reached the client, only visible after a manual
   // refresh, would time out here instead). With auth on, this also proves the SSE stream's
   // query-parameter token is accepted, since EventSource cannot send a header.
-  const verdictPanel = page.locator('[data-testid="verdict-panel"]');
-  await expect(verdictPanel).toBeVisible({ timeout: 30_000 });
-  await expect(verdictPanel.getByText(/accepted/i)).toBeVisible({ timeout: 10_000 });
-
-  // The accepted verdict must complete the baseline item (QA-PLAN.md §1.2) — go back and confirm
-  // the probe that used to be "up next" is now resolved.
-  await page.goto("/baseline");
-  await expect(page.locator("text=solved").first()).toBeVisible({ timeout: 15_000 });
+  //
+  // Arriving at the submissions panel is itself part of the assertion: Problem.tsx switches the
+  // left tab to "submissions" when a verdict lands, so if the event never reached the client the
+  // panel stays hidden behind the problem tab and this times out.
+  const submissionsPanel = page.locator('[data-testid="submissions-panel"]');
+  await expect(submissionsPanel).toBeVisible({ timeout: 30_000 });
+  await expect(submissionsPanel.getByText(/accepted/i).first()).toBeVisible({ timeout: 10_000 });
 
   // Practice must have something to say afterwards — either the next problem, or a visible
   // "generating" state. What it must NOT do is dead-end.
   await page.goto("/");
   await expect(
     page
-      .getByRole("link", { name: "Start" })
+      .getByRole("link", { name: /^(Start|Work through it)$/ })
       .or(page.getByText(/Writing you a new problem/i))
       .first(),
   ).toBeVisible({ timeout: 20_000 });
