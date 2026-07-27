@@ -4,11 +4,13 @@ The content plane must execute reference/brute-force/mutant/generator code under
 same sandbox as user submissions. To guarantee that without a second implementation of the
 `docker run` flag list, `@leetmind/sandbox` ships a CLI and this module shells out to it:
 
-    node --import tsx packages/sandbox/src/cli.ts exec         # reads SandboxRequest JSON on stdin
-                                                                 # writes SandboxResult JSON on stdout
-    node --import tsx packages/sandbox/src/cli.ts exec-python  # reads {signature,tests,comparator,
-                                                                 #        source,limits,image} on stdin
-                                                                 # writes the normalized execute result
+    node --import tsx packages/sandbox/src/cli.ts exec
+        reads  SandboxRequest JSON on stdin
+        writes SandboxResult JSON on stdout
+
+    node --import tsx packages/sandbox/src/cli.ts exec-python
+        reads  {signature, tests, comparator, source, limits, image} on stdin
+        writes the normalized execute result
 
 JSON in / JSON out on stdin/stdout only; all logs go to stderr; exit 0 on a successful
 *execution attempt* (even a `wrong_answer` verdict), non-zero only on infrastructure failure.
@@ -42,6 +44,12 @@ from leetmind_content.logging import get_logger
 from leetmind_content.models import Signature, TestCase
 
 log = get_logger("content-sandbox")
+
+#: Emitted by all three entry points that need the repo root to locate `packages/sandbox/src/cli.ts`
+#: — `_find_repo_root` returning `None` means the same thing and warrants the same remedy at each.
+_NO_REPO_ROOT = (
+    "could not locate repo root (set LEETMIND_REPO_ROOT, or run inside the LeetMind workspace)"
+)
 
 
 class SandboxUnavailable(RuntimeError):
@@ -273,11 +281,17 @@ def sandbox_probe() -> tuple[bool, str]:
 
     repo_root = _find_repo_root(settings)
     if repo_root is None:
-        return False, "could not locate repo root (set LEETMIND_REPO_ROOT, or run inside the LeetMind workspace)"
+        return (
+            False,
+            _NO_REPO_ROOT,
+        )
 
     cli_path = repo_root / "packages" / "sandbox" / "src" / "cli.ts"
     if not cli_path.exists():
-        return False, f"sandbox CLI bridge not found at {cli_path} (packages/sandbox not built yet?)"
+        return (
+            False,
+            f"sandbox CLI bridge not found at {cli_path} (packages/sandbox not built yet?)",
+        )
 
     docker_bin = settings.DOCKER_BIN
     if shutil.which(docker_bin) is None:
@@ -374,12 +388,14 @@ def _run_cli(argv: list[str], cwd: Path, stdin_payload: str, timeout_s: float) -
             )
         raise SandboxUnavailable(
             f"sandbox CLI bridge exited {proc.returncode} (infrastructure failure, not a "
-            f"verdict). argv={argv} stdout_tail={proc.stdout[-2000:]!r} stderr_tail={proc.stderr[-2000:]!r}"
+            f"verdict). argv={argv} stdout_tail={proc.stdout[-2000:]!r} "
+            f"stderr_tail={proc.stderr[-2000:]!r}"
         )
 
     if parsed is None:
         raise SandboxUnavailable(
-            f"sandbox CLI bridge produced no parseable JSON object on stdout: stdout_tail={proc.stdout[-2000:]!r}"
+            "sandbox CLI bridge produced no parseable JSON object on stdout: "
+            f"stdout_tail={proc.stdout[-2000:]!r}"
         )
     return parsed
 
@@ -401,9 +417,7 @@ def run_raw(request: SandboxRequest, *, settings: Settings | None = None) -> San
     s = settings or get_settings()
     repo_root = _find_repo_root(s)
     if repo_root is None:
-        raise SandboxUnavailable(
-            "could not locate repo root (set LEETMIND_REPO_ROOT, or run inside the LeetMind workspace)"
-        )
+        raise SandboxUnavailable(_NO_REPO_ROOT)
     argv = ["node", "--import", "tsx", "packages/sandbox/src/cli.ts", "exec"]
     timeout_s = _subprocess_timeout_seconds(request.limits.wall_timeout_ms)
     data = _run_cli(argv, repo_root, json.dumps(request.to_json()), timeout_s)
@@ -447,12 +461,12 @@ def run_python(
     s = settings or get_settings()
     repo_root = _find_repo_root(s)
     if repo_root is None:
-        raise SandboxUnavailable(
-            "could not locate repo root (set LEETMIND_REPO_ROOT, or run inside the LeetMind workspace)"
-        )
+        raise SandboxUnavailable(_NO_REPO_ROOT)
 
     resolved_image = image or s.SANDBOX_PYTHON_IMAGE
-    signature_json = signature.model_dump(mode="json") if isinstance(signature, BaseModel) else signature
+    signature_json = (
+        signature.model_dump(mode="json") if isinstance(signature, BaseModel) else signature
+    )
 
     payload: dict[str, Any] = {
         "signature": signature_json,

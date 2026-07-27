@@ -162,8 +162,7 @@ def _persist_candidate(
 
     with transaction() as conn:
         query(
-            "insert into problems (id, internal_name) values (%s, %s) "
-            "on conflict (id) do nothing;",
+            "insert into problems (id, internal_name) values (%s, %s) on conflict (id) do nothing;",
             (problem_id, problem_version.internal_name),
             conn=conn,
         )

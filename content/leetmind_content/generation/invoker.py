@@ -184,9 +184,7 @@ class ClaudeInvoker:
             lowered = stderr_tail.lower()
             if any(marker in lowered for marker in _AUTH_FAILURE_MARKERS):
                 raise InvokerError(f"claude CLI appears unauthenticated: {stderr_tail}")
-            raise InvokerError(
-                f"claude CLI exited {proc.returncode}: stderr_tail={stderr_tail!r}"
-            )
+            raise InvokerError(f"claude CLI exited {proc.returncode}: stderr_tail={stderr_tail!r}")
 
         return self._parse_envelope(proc.stdout, fallback_duration_ms)
 
@@ -367,7 +365,7 @@ def _sliding_window_core() -> dict[str, Any]:
             "def maxSumSubarray(nums, k):\n"
             "    n = len(nums)\n"
             "    if k <= 0 or k > n:\n"
-            "        raise ValueError(\"invalid k\")\n"
+            '        raise ValueError("invalid k")\n'
             "    window_sum = sum(nums[:k])\n"
             "    best = window_sum\n"
             "    for i in range(k, n):\n"
@@ -380,7 +378,7 @@ def _sliding_window_core() -> dict[str, Any]:
             "def maxSumSubarray(nums, k):\n"
             "    n = len(nums)\n"
             "    if k <= 0 or k > n:\n"
-            "        raise ValueError(\"invalid k\")\n"
+            '        raise ValueError("invalid k")\n'
             "    best = None\n"
             "    for i in range(n - k + 1):\n"
             "        s = sum(nums[i:i + k])\n"
@@ -401,7 +399,7 @@ def _sliding_window_core() -> dict[str, Any]:
                 "def maxSumSubarray(nums, k):\n"
                 "    n = len(nums)\n"
                 "    if k <= 0 or k > n:\n"
-                "        raise ValueError(\"invalid k\")\n"
+                '        raise ValueError("invalid k")\n'
                 "    window_sum = sum(nums[:k])\n"
                 "    best = window_sum\n"
                 "    for i in range(k, n):\n"
@@ -414,7 +412,7 @@ def _sliding_window_core() -> dict[str, Any]:
                 "def maxSumSubarray(nums, k):\n"
                 "    n = len(nums)\n"
                 "    if k <= 0 or k > n:\n"
-                "        raise ValueError(\"invalid k\")\n"
+                '        raise ValueError("invalid k")\n'
                 "    window_sum = sum(nums[:k])\n"
                 "    best = window_sum\n"
                 "    for i in range(k, n):\n"
@@ -427,7 +425,7 @@ def _sliding_window_core() -> dict[str, Any]:
                 "def maxSumSubarray(nums, k):\n"
                 "    n = len(nums)\n"
                 "    if k <= 0 or k > n:\n"
-                "        raise ValueError(\"invalid k\")\n"
+                '        raise ValueError("invalid k")\n'
                 "    window_sum = sum(nums[:k])\n"
                 "    best = window_sum\n"
                 "    for i in range(k, n - 1):\n"
@@ -481,7 +479,7 @@ def _sliding_window_core() -> dict[str, Any]:
 
 
 def _arrays_hashing_core() -> dict[str, Any]:
-    """"Count pairs summing to a target" — a second, independently-authored template so the
+    """ "Count pairs summing to a target" — a second, independently-authored template so the
     stub isn't a single point of coverage. Reference uses a running frequency count (checking
     the complement BEFORE recording the current value, so a value never pairs with itself);
     brute force is the straightforward independent O(n^2) nested-loop count."""

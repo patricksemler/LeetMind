@@ -76,7 +76,9 @@ def _seed_approved_problem(concept_id: str, rating: int, *, attempted: bool = Fa
     (so it should NOT count toward that user's buffer depth)."""
     problem_id = str(ULID())
     pv_id = str(ULID())
-    query("insert into problems (id, internal_name) values (%s, %s);", (problem_id, f"seed-{pv_id}"))
+    query(
+        "insert into problems (id, internal_name) values (%s, %s);", (problem_id, f"seed-{pv_id}")
+    )
     query(
         """
         insert into problem_versions
@@ -144,7 +146,9 @@ def test_compute_demand_orders_due_review_and_weak_before_pure_overload() -> Non
 
 
 def test_compute_demand_overload_band_capped_at_max_band() -> None:
-    _seed_concept_state("arrays_hashing", rating=2390)  # band 2200, overload would be 2400 (== MAX_BAND)
+    _seed_concept_state(
+        "arrays_hashing", rating=2390
+    )  # band 2200, overload would be 2400 (== MAX_BAND)
     cells = compute_demand(TEST_USER_ID)
     bands = {(c.concept_id, c.band) for c in cells if c.concept_id == "arrays_hashing"}
     assert ("arrays_hashing", 2200) in bands
@@ -216,7 +220,9 @@ def test_replenish_once_does_not_plateau_once_every_slot_is_terminally_dead() ->
     assert settings.BUFFER_LOW_WATERMARK == 3
 
     first = replenish_once(TEST_USER_ID, settings=settings, max_enqueue_per_pass=200)
-    first_slots = sorted(k for k in first.jobs_enqueued if k.startswith("generate:arrays_hashing:1200:"))
+    first_slots = sorted(
+        k for k in first.jobs_enqueued if k.startswith("generate:arrays_hashing:1200:")
+    )
     assert first_slots == [
         "generate:arrays_hashing:1200:0",
         "generate:arrays_hashing:1200:1",
@@ -228,7 +234,9 @@ def test_replenish_once_does_not_plateau_once_every_slot_is_terminally_dead() ->
     query("update jobs set status = 'dead' where kind = 'generate';")
 
     second = replenish_once(TEST_USER_ID, settings=settings, max_enqueue_per_pass=200)
-    second_slots = sorted(k for k in second.jobs_enqueued if k.startswith("generate:arrays_hashing:1200:"))
+    second_slots = sorted(
+        k for k in second.jobs_enqueued if k.startswith("generate:arrays_hashing:1200:")
+    )
     # The old fixed 0..2 range would find every key already taken and enqueue nothing here —
     # the cell would be stuck below watermark forever. Fresh slot numbers must appear instead.
     assert second_slots == [

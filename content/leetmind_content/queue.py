@@ -153,9 +153,7 @@ class Queue:
         justified it. Idempotency-key collision -> `on conflict (idempotency_key) do nothing`,
         returns `None`."""
         job_id = str(ULID())
-        resolved_priority = (
-            priority if priority is not None else JOB_PRIORITY.get(kind, 100)
-        )
+        resolved_priority = priority if priority is not None else JOB_PRIORITY.get(kind, 100)
         resolved_max_attempts = max_attempts if max_attempts is not None else DEFAULT_MAX_ATTEMPTS
         resolved_run_at = run_at if run_at is not None else datetime.now(UTC)
 
@@ -248,7 +246,8 @@ class Queue:
                     if row is None:
                         conn.rollback()
                         raise RuntimeError(
-                            f"Queue.fail: job {job_id} is not currently leased by worker {worker_id}"
+                            f"Queue.fail: job {job_id} is not currently leased by "
+                            f"worker {worker_id}"
                         )
                     attempts = row["attempts"]
                     max_attempts = row["max_attempts"]
@@ -343,7 +342,9 @@ class Queue:
         leaseSeconds`)."""
         with self.pool.connection() as conn:
             with conn.cursor(row_factory=dict_row) as cur:
-                cur.execute("select kind, status, count(*)::text as count from jobs group by kind, status;")
+                cur.execute(
+                    "select kind, status, count(*)::text as count from jobs group by kind, status;"
+                )
                 counts_rows = cur.fetchall()
 
                 cur.execute(
@@ -365,7 +366,8 @@ class Queue:
                       )) * 1000 as wait_ms
                       from jobs
                       where lease_expires_at is not null
-                        and (lease_expires_at - (%s || ' seconds')::interval) >= now() - interval '1 hour'
+                        and (lease_expires_at - (%s || ' seconds')::interval)
+                              >= now() - interval '1 hour'
                     ) t;
                     """,
                     (str(self.lease_seconds), str(self.lease_seconds)),
@@ -375,7 +377,9 @@ class Queue:
                 cur.execute("select count(*)::text as count from jobs where status='dead';")
                 dead_count_row = cur.fetchone()
 
-                cur.execute("select * from jobs where status='dead' order by updated_at desc limit 20;")
+                cur.execute(
+                    "select * from jobs where status='dead' order by updated_at desc limit 20;"
+                )
                 recent_dead_rows = cur.fetchall()
 
         kind_map: dict[str, dict[str, Any]] = {}
@@ -388,26 +392,35 @@ class Queue:
             entry = kind_map.setdefault(
                 row["kind"], {"kind": row["kind"], "counts": {}, "oldest_queued_age_ms": None}
             )
-            entry["oldest_queued_age_ms"] = None if row["oldest_ms"] is None else float(row["oldest_ms"])
+            entry["oldest_queued_age_ms"] = (
+                None if row["oldest_ms"] is None else float(row["oldest_ms"])
+            )
 
         return {
             "kinds": list(kind_map.values()),
             "wait_time_ms": {
-                "p50": None if not wait_row or wait_row.get("p50") is None else float(wait_row["p50"]),
-                "p95": None if not wait_row or wait_row.get("p95") is None else float(wait_row["p95"]),
+                "p50": None
+                if not wait_row or wait_row.get("p50") is None
+                else float(wait_row["p50"]),
+                "p95": None
+                if not wait_row or wait_row.get("p95") is None
+                else float(wait_row["p95"]),
             },
             "dead_count": int(dead_count_row["count"]) if dead_count_row else 0,
             "recent_dead": [Job.from_row(r) for r in recent_dead_rows],
         }
 
-    def upsert_worker_heartbeat(self, worker_id: str, kind: str, meta: dict[str, Any] | None = None) -> None:
+    def upsert_worker_heartbeat(
+        self, worker_id: str, kind: str, meta: dict[str, Any] | None = None
+    ) -> None:
         """Not part of the Queue API in CONTRACTS.md §5, but required by the "every worker
         upserts worker_heartbeats every QUEUE_HEARTBEAT_MS" rule in the same section. Mirrors
         `Queue#upsertWorkerHeartbeat` in `packages/queue/src/queue.ts`."""
         sql = """
             insert into worker_heartbeats (worker_id, kind, last_seen_at, meta)
             values (%s, %s, now(), %s)
-            on conflict (worker_id) do update set kind=excluded.kind, last_seen_at=now(), meta=excluded.meta;
+            on conflict (worker_id) do update
+              set kind=excluded.kind, last_seen_at=now(), meta=excluded.meta;
         """
         self._exec(sql, (worker_id, kind, Json(meta or {})), fetch="none")
 
@@ -460,12 +473,16 @@ def run_worker(
             try:
                 with in_flight_lock:
                     n = len(in_flight)
-                queue.upsert_worker_heartbeat(worker_id, ",".join(kinds), {"concurrency": concurrency, "in_flight": n})
+                queue.upsert_worker_heartbeat(
+                    worker_id, ",".join(kinds), {"concurrency": concurrency, "in_flight": n}
+                )
             except Exception:
                 log.exception("worker_heartbeats upsert failed", worker_id=worker_id)
 
     try:
-        queue.upsert_worker_heartbeat(worker_id, ",".join(kinds), {"concurrency": concurrency, "in_flight": 0})
+        queue.upsert_worker_heartbeat(
+            worker_id, ",".join(kinds), {"concurrency": concurrency, "in_flight": 0}
+        )
     except Exception:
         log.exception("worker_heartbeats upsert failed", worker_id=worker_id)
 
@@ -502,7 +519,9 @@ def run_worker(
         ctx = WorkerContext(stop_event=job_stop, heartbeat=manual_heartbeat, logger=job_logger)
 
         try:
-            with with_context(job_id=job.id, worker_id=worker_id, correlation_id=job.correlation_id or None):
+            with with_context(
+                job_id=job.id, worker_id=worker_id, correlation_id=job.correlation_id or None
+            ):
                 handler(job, ctx)
             if lease_lost.is_set():
                 job_logger.warning("handler completed after lease loss; not acking", job_id=job.id)
@@ -510,7 +529,9 @@ def run_worker(
                 queue.ack(job.id, worker_id)
         except Exception as exc:
             if lease_lost.is_set():
-                job_logger.warning("handler raised after lease loss; not failing", job_id=job.id, error=str(exc))
+                job_logger.warning(
+                    "handler raised after lease loss; not failing", job_id=job.id, error=str(exc)
+                )
             else:
                 try:
                     result = queue.fail(job.id, worker_id, str(exc))
@@ -527,7 +548,9 @@ def run_worker(
             have_room = len(in_flight) < concurrency
         job = queue.claim(kinds, worker_id) if have_room else None
         if job is not None:
-            thread = threading.Thread(target=run_job, args=(job,), name=f"job-{job.id}", daemon=True)
+            thread = threading.Thread(
+                target=run_job, args=(job,), name=f"job-{job.id}", daemon=True
+            )
             with in_flight_lock:
                 in_flight[job.id] = thread
             thread.start()
@@ -551,7 +574,10 @@ class ReaperHandle(NamedTuple):
 
 
 def start_reaper(
-    queue: Queue, *, interval_ms: int = DEFAULT_REAPER_INTERVAL_MS, stop_event: threading.Event | None = None
+    queue: Queue,
+    *,
+    interval_ms: int = DEFAULT_REAPER_INTERVAL_MS,
+    stop_event: threading.Event | None = None,
 ) -> ReaperHandle:
     """Background thread calling `queue.reap_expired()` every `interval_ms`. Safe to run in
     every process concurrently — `reap_expired()` uses `for update skip locked` so concurrent

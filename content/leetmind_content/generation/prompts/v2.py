@@ -255,7 +255,7 @@ top level, called with positional arguments in the exact order of `signature.par
 
 
 def _generator_contract_doc() -> str:
-    return '''## The `input_generator_py` contract — read this exactly, it is checked mechanically
+    return """## The `input_generator_py` contract — read this exactly, it is checked mechanically
 
 `input_generator_py` must be a Python module defining EXACTLY ONE top-level function:
 
@@ -291,7 +291,7 @@ Worked example, for a signature `{"name": "maxPairSum", "params": [{"name": "num
 
 Notice `k` is derived from `n` (never independently sampled and then clamped after the fact) so
 every single call satisfies `k <= len(nums)` — that pattern (derive dependent values FROM already-
-constraint-satisfying ones, don't generate-then-hope) is exactly what makes a generator reliable.'''
+constraint-satisfying ones, don't generate-then-hope) is exactly what makes a generator reliable."""
 
 
 def _hint_ladder_doc() -> str:
@@ -373,22 +373,25 @@ def _neutral_story_doc(request: GenerationRequest) -> str:
         lines.append("")
         lines.append(
             "This problem SHOULD exercise the following pattern(s)/mechanic(s): "
-            + "; ".join(request.required_patterns) + "."
+            + "; ".join(request.required_patterns)
+            + "."
         )
     if request.similarity_exclusions:
         lines.append("")
         lines.append(
             "To avoid repeating recent content, do NOT produce a problem substantially similar "
             "in premise or mechanic to any of these recent titles/mechanics: "
-            + "; ".join(request.similarity_exclusions) + "."
+            + "; ".join(request.similarity_exclusions)
+            + "."
         )
     return "\n".join(lines)
 
 
 def _request_summary_doc(request: GenerationRequest) -> str:
-    concept_lines = "\n".join(
-        f"  - `{c.id}` (weight {c.weight:.2f})" for c in request.concepts
-    ) or "  - (none specified — choose a single reasonable concept)"
+    concept_lines = (
+        "\n".join(f"  - `{c.id}` (weight {c.weight:.2f})" for c in request.concepts)
+        or "  - (none specified — choose a single reasonable concept)"
+    )
     low = request.target_rating - request.rating_tolerance
     high = request.target_rating + request.rating_tolerance
     exp_low, exp_high = request.expected_minutes

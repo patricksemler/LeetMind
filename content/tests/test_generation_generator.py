@@ -115,9 +115,7 @@ class _AlwaysRaisingInvoker:
 
 def test_generate_problem_end_to_end_with_stub_invoker() -> None:
     correlation_id = "test-corr-e2e"
-    candidate = generate_problem(
-        _request(), correlation_id=correlation_id, invoker=StubInvoker()
-    )
+    candidate = generate_problem(_request(), correlation_id=correlation_id, invoker=StubInvoker())
 
     assert candidate.attempts == 1
     assert candidate.verify_job_id is not None
@@ -141,8 +139,7 @@ def test_generate_problem_end_to_end_with_stub_invoker() -> None:
     assert "stub-v1" in runs[0]["request"]["model_usage"]
 
     job_row = query(
-        "select idempotency_key, kind, status, priority from jobs "
-        "where idempotency_key = %s;",
+        "select idempotency_key, kind, status, priority from jobs where idempotency_key = %s;",
         (f"verify:{candidate.problem_version_id}",),
     )
     assert job_row and job_row[0]["kind"] == "verify"
@@ -224,9 +221,7 @@ def test_generate_problem_records_invoke_error_and_reraises() -> None:
     correlation_id = "test-corr-invoke-error"
 
     with pytest.raises(RuntimeError, match="simulated infrastructure failure"):
-        generate_problem(
-            _request(), correlation_id=correlation_id, invoker=_AlwaysRaisingInvoker()
-        )
+        generate_problem(_request(), correlation_id=correlation_id, invoker=_AlwaysRaisingInvoker())
 
     runs = _model_runs_for(correlation_id)
     assert len(runs) == 1

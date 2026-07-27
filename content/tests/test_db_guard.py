@@ -82,7 +82,10 @@ def test_rejects_an_empty_string() -> None:
 
 
 def test_default_test_database_url_matches_contracts() -> None:
-    assert content_db.DEFAULT_TEST_DATABASE_URL == "postgres://leetmind:leetmind@localhost:5432/leetmind_test"
+    assert (
+        content_db.DEFAULT_TEST_DATABASE_URL
+        == "postgres://leetmind:leetmind@localhost:5432/leetmind_test"
+    )
 
 
 def test_resolving_test_database_url_falls_back_to_default_when_unset(
@@ -93,5 +96,10 @@ def test_resolving_test_database_url_falls_back_to_default_when_unset(
 
 
 def test_resolving_test_database_url_reads_env_when_set(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TEST_DATABASE_URL", "postgres://leetmind:leetmind@localhost:5432/leetmind_test")
-    assert content_db.test_database_url() == "postgres://leetmind:leetmind@localhost:5432/leetmind_test"
+    monkeypatch.setenv(
+        "TEST_DATABASE_URL", "postgres://leetmind:leetmind@localhost:5432/leetmind_test"
+    )
+    assert (
+        content_db.test_database_url()
+        == "postgres://leetmind:leetmind@localhost:5432/leetmind_test"
+    )

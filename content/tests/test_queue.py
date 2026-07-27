@@ -104,7 +104,9 @@ def _fetchone(pool: ConnectionPool, sql: str, params: tuple = ()) -> tuple | Non
         return conn.execute(sql, params).fetchone()
 
 
-def _enqueue(queue: Queue, executor: Executor, kind: str, payload: dict[str, Any], **kwargs: Any) -> Job | None:
+def _enqueue(
+    queue: Queue, executor: Executor, kind: str, payload: dict[str, Any], **kwargs: Any
+) -> Job | None:
     """Thin wrapper around `Queue.enqueue` that defaults `run_at` to slightly in the past.
 
     `enqueue`'s default `run_at` (like `queue.ts`'s `job.runAt ?? new Date()`) is read from the
@@ -146,7 +148,9 @@ def test_claim_orders_by_priority_then_created_at(pool: ConnectionPool) -> None:
 
 def test_claim_respects_run_at_and_kind_filter(pool: ConnectionPool) -> None:
     queue = Queue(pool, lease_seconds=30)
-    future = _enqueue(queue, pool, "verify", {"n": "future"}, run_at=datetime.now(UTC) + timedelta(hours=1))
+    future = _enqueue(
+        queue, pool, "verify", {"n": "future"}, run_at=datetime.now(UTC) + timedelta(hours=1)
+    )
     ready = _enqueue(queue, pool, "verify", {"n": "ready"})
     other_kind = _enqueue(queue, pool, "generate", {"n": "other"})
     assert future and ready and other_kind
@@ -270,8 +274,12 @@ def test_reap_expired_requeues_under_max_attempts_and_deadens_at_max(pool: Conne
     reaped = queue.reap_expired()
     assert reaped == 2
 
-    row1 = _fetchone(pool, "select status, attempts, leased_by from jobs where id=%s", (requeue_job.id,))
-    row2 = _fetchone(pool, "select status, attempts, leased_by from jobs where id=%s", (dead_job.id,))
+    row1 = _fetchone(
+        pool, "select status, attempts, leased_by from jobs where id=%s", (requeue_job.id,)
+    )
+    row2 = _fetchone(
+        pool, "select status, attempts, leased_by from jobs where id=%s", (dead_job.id,)
+    )
     assert row1 == ("queued", 1, None)
     assert row2 is not None and row2[0] == "dead" and row2[2] is None
 
@@ -389,12 +397,16 @@ def test_fail_uses_backoff_when_no_retry_in_ms_given(pool: ConnectionPool) -> No
 def test_upsert_worker_heartbeat(pool: ConnectionPool) -> None:
     queue = Queue(pool, lease_seconds=30)
     queue.upsert_worker_heartbeat("w1", "verify,generate", {"concurrency": 1})
-    queue.upsert_worker_heartbeat("w1", "verify,generate", {"concurrency": 2})  # upsert, not duplicate
+    queue.upsert_worker_heartbeat(
+        "w1", "verify,generate", {"concurrency": 2}
+    )  # upsert, not duplicate
 
     row = _fetchone(pool, "select kind from jobs limit 0")  # no-op sanity that pool still usable
     assert row is None
 
-    hb = _fetchone(pool, "select worker_id, kind from worker_heartbeats where worker_id=%s", ("w1",))
+    hb = _fetchone(
+        pool, "select worker_id, kind from worker_heartbeats where worker_id=%s", ("w1",)
+    )
     assert hb == ("w1", "verify,generate")
 
 

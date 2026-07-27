@@ -144,9 +144,7 @@ def test_happy_path_round_trip() -> None:
     assert assembled["reference_solution_py"] == _sans_one_trailing_newline(
         problem["reference_solution_py"]
     )
-    assert assembled["mutants_py"] == [
-        _sans_one_trailing_newline(m) for m in problem["mutants_py"]
-    ]
+    assert assembled["mutants_py"] == [_sans_one_trailing_newline(m) for m in problem["mutants_py"]]
     assert assembled["hints"] == {
         k: _sans_one_trailing_newline(v) for k, v in problem["hints"].items()
     }
@@ -197,9 +195,7 @@ def test_field_order_is_shuffled_and_still_parses() -> None:
     assert meta_idx == 0 and end_idx == len(lines) - 1
 
     # Find each field delimiter's line index within the FIELD region.
-    field_starts = [
-        i for i, line in enumerate(lines) if re.match(r"^<<<LEETMIND_FIELD:", line)
-    ]
+    field_starts = [i for i, line in enumerate(lines) if re.match(r"^<<<LEETMIND_FIELD:", line)]
     segments = []
     for i, start in enumerate(field_starts):
         stop = field_starts[i + 1] if i + 1 < len(field_starts) else end_idx
@@ -365,9 +361,7 @@ def test_unknown_field_block_is_reported() -> None:
 def test_duplicate_field_block_is_reported() -> None:
     problem = _valid_problem()
     text = render_envelope(problem)
-    dup_block = (
-        "<<<LEETMIND_FIELD:statement_md>>>\n" + problem["statement_md"] + "\n"
-    )
+    dup_block = "<<<LEETMIND_FIELD:statement_md>>>\n" + problem["statement_md"] + "\n"
     injected = text.replace(END_DELIM, dup_block + END_DELIM)
     with pytest.raises(EnvelopeError, match="duplicate"):
         parse_envelope(injected)
@@ -467,7 +461,7 @@ def test_hints_assembled_into_nested_dict() -> None:
 def test_field_content_with_quotes_newlines_and_backslashes_is_preserved_verbatim() -> None:
     problem = _valid_problem()
     tricky = (
-        'def longestRun(s):\n'
+        "def longestRun(s):\n"
         '    """Docstring with "nested" quotes and a backslash: \\n literal."""\n'
         "    path = 'C:\\\\Users\\\\test'\n"
         "    best = 1\n"
@@ -496,7 +490,7 @@ def test_documented_edge_case_a_line_identical_to_a_delimiter_inside_content_is_
     )
     text = render_envelope(problem)
     assembled = parse_envelope(text)  # must NOT raise — the line isn't a bare delimiter
-    assert '<<<LEETMIND_FIELD:evil>>>' in assembled["reference_solution_py"]
+    assert "<<<LEETMIND_FIELD:evil>>>" in assembled["reference_solution_py"]
 
     # Unsafe case: a bare line that IS exactly a delimiter, embedded inside content.
     problem2 = _valid_problem()

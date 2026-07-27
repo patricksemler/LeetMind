@@ -95,7 +95,7 @@ def assert_test_database(url: str) -> None:
 
     if not _TEST_DB_NAME_PATTERN.search(db_name):
         raise RuntimeError(
-            f'assert_test_database: refusing to run destructive test fixtures against database '
+            f"assert_test_database: refusing to run destructive test fixtures against database "
             f'"{db_name}" — its name does not end in "_test" (or equal "test"). This guard exists '
             "because a prior data-loss incident truncated real practice history when tests ran "
             "against the development database (docs/CONTRACTS.md §13). Point TEST_DATABASE_URL "

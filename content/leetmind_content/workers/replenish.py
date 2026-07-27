@@ -209,7 +209,8 @@ def _existing_attempt_count(cell: BandCell) -> int:
     watermark forever once every slot in it has been consumed by a rejected attempt."""
     rows = query(
         "select count(*) as n from jobs "
-        "where kind = 'generate' and idempotency_key like %s and status not in ('queued', 'leased');",
+        "where kind = 'generate' and idempotency_key like %s "
+        "and status not in ('queued', 'leased');",
         (cell.idempotency_prefix + "%",),
     )
     return int(rows[0]["n"]) if rows else 0

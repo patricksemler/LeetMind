@@ -88,7 +88,9 @@ def _ensure_schema_migrated(url: str, schema: str, migrations_dir: Path) -> None
             )
             """
         )
-        applied = {row[0] for row in conn.execute("select version from schema_migrations").fetchall()}
+        applied = {
+            row[0] for row in conn.execute("select version from schema_migrations").fetchall()
+        }
 
         for path in sorted(migrations_dir.glob("*.sql")):
             version = path.stem
@@ -98,9 +100,7 @@ def _ensure_schema_migrated(url: str, schema: str, migrations_dir: Path) -> None
             conn.execute("BEGIN")
             try:
                 conn.execute(migration_sql)  # type: ignore[arg-type]
-                conn.execute(
-                    "insert into schema_migrations (version) values (%s)", (version,)
-                )
+                conn.execute("insert into schema_migrations (version) values (%s)", (version,))
                 conn.execute("COMMIT")
             except Exception:
                 conn.execute("ROLLBACK")
@@ -146,7 +146,9 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         return
     try:
         with psycopg.connect(_TEST_DATABASE_URL, autocommit=True) as conn:
-            conn.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(_TEST_SCHEMA)))
+            conn.execute(
+                sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(_TEST_SCHEMA))
+            )
     except Exception:
         pass
 

@@ -92,7 +92,9 @@ def test_rejects_nonpositive_expected_active_minutes(sample_problem_dict: dict[s
 
 
 @pytest.mark.parametrize("rating", [599, 3001, 100, 5000])
-def test_rejects_difficulty_rating_out_of_range(sample_problem_dict: dict[str, Any], rating: int) -> None:
+def test_rejects_difficulty_rating_out_of_range(
+    sample_problem_dict: dict[str, Any], rating: int
+) -> None:
     data = copy.deepcopy(sample_problem_dict)
     data["difficulty"]["rating"] = rating
     with pytest.raises(ValidationError):
@@ -100,7 +102,9 @@ def test_rejects_difficulty_rating_out_of_range(sample_problem_dict: dict[str, A
 
 
 @pytest.mark.parametrize("rating", [600, 1200, 3000])
-def test_accepts_difficulty_rating_in_range(sample_problem_dict: dict[str, Any], rating: int) -> None:
+def test_accepts_difficulty_rating_in_range(
+    sample_problem_dict: dict[str, Any], rating: int
+) -> None:
     data = copy.deepcopy(sample_problem_dict)
     data["difficulty"]["rating"] = rating
     ProblemVersion.model_validate(data)  # should not raise
@@ -181,7 +185,10 @@ def test_parse_param_type_tree_and_linkedlist_nullability() -> None:
 
 
 def test_parse_param_type_nested_lists() -> None:
-    assert parse_param_type("list[int]") == {"kind": "list", "of": {"kind": "scalar", "name": "int"}}
+    assert parse_param_type("list[int]") == {
+        "kind": "list",
+        "of": {"kind": "scalar", "name": "int"},
+    }
     assert parse_param_type("list[list[int]]") == {
         "kind": "list",
         "of": {"kind": "list", "of": {"kind": "scalar", "name": "int"}},

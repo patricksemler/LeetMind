@@ -218,9 +218,7 @@ def _extract_block_content(raw_lines: list[str]) -> str:
     return content
 
 
-def _classify_field_name(
-    name: str, spec: EnvelopeSpec
-) -> tuple[str, int | str | None]:
+def _classify_field_name(name: str, spec: EnvelopeSpec) -> tuple[str, int | str | None]:
     """Returns (`"scalar"` | `"mutant"` | `"hint"` | `"unknown"`, extra) for one FIELD delimiter's
     captured name. `extra` is the mutant index (int) for `"mutant"`, the hint subfield (str) for
     `"hint"`, else `None`."""
@@ -369,9 +367,7 @@ def parse_envelope(text: str) -> dict[str, Any]:
             f"{spec.mutant_field_prefix}[...] index out of range (must be "
             f"0-{spec.max_mutants - 1}): {out_of_range}"
         )
-    in_range_indices = sorted(
-        idx for idx in mutant_indices if 0 <= idx < spec.max_mutants
-    )
+    in_range_indices = sorted(idx for idx in mutant_indices if 0 <= idx < spec.max_mutants)
     expected_prefix = list(range(len(in_range_indices)))
     if in_range_indices != expected_prefix:
         mutant_issues.append(

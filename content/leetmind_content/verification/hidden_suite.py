@@ -23,8 +23,7 @@ MAX_HIDDEN_SUITE_SIZE = 60
 
 def _example_cases(problem: ProblemVersion) -> list[TestCase]:
     return [
-        TestCase(args=ex.args, expected=ex.expected, origin="example")
-        for ex in problem.examples
+        TestCase(args=ex.args, expected=ex.expected, origin="example") for ex in problem.examples
     ]
 
 
