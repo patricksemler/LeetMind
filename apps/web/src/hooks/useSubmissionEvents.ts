@@ -240,7 +240,7 @@ export function useSubmissionEvents(
       stoppedRef.current = true;
       stopStream();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate: see the file-level comment
+     
   }, [submissionId, enabled]);
 
   return state;

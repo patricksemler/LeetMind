@@ -236,7 +236,7 @@ describe.skipIf(!canRun)("cross-language parity — Python vs C++ (M4 headline d
           `${row.pythonMs.toFixed(1)} | ${row.cppMs.toFixed(1)} | ${match}`,
       );
     }
-    // eslint-disable-next-line no-console
+     
     console.info(lines.join("\n"));
   });
 

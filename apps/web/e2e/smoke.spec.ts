@@ -65,7 +65,7 @@ test("baseline -> solve -> live verdict -> item completes -> practice serves nex
   const editor = page.locator(".monaco-editor").first();
   await expect(editor).toBeVisible({ timeout: 15_000 });
   await page.evaluate((code) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const monaco = (window as any).monaco;
     monaco.editor.getModels()[0].setValue(code);
   }, CORRECT_SOLUTION);

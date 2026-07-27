@@ -27,7 +27,6 @@ import {
   silentLogger,
   snapshotConceptState,
   teardownProblem,
-  TEST_USER_ID,
   testJudgeDeps,
   testQueue,
   waitFor,

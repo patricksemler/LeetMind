@@ -5,7 +5,7 @@ import { API_VERSION } from "../server.js";
 
 export function registerHealthRoutes(fastify: FastifyInstance, _deps: Deps): void {
   fastify.get("/health", async (_request, reply) => {
-    let db: "up" | "down" = "down";
+    let db: "up" | "down";
     try {
       const row = await queryOne<{ ok: number }>("select 1 as ok");
       db = row?.ok === 1 ? "up" : "down";

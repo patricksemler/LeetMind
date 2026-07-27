@@ -7,7 +7,6 @@
  */
 
 import type { CandidateProblem, ConceptState } from "./types.js";
-import { expectedSuccess } from "./rating.js";
 
 export const BAND_LOW_P = 0.65;
 export const BAND_HIGH_P = 0.8;

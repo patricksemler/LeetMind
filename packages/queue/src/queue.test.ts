@@ -320,7 +320,7 @@ describe.skipIf(pool === null)('Queue (integration, real Postgres)', () => {
   });
 
   it('requeueDeadJob(): resets attempts and makes a dead job claimable again; refuses non-dead jobs', async () => {
-    const enqueued = await queue.enqueue(p, { kind: 'judge', payload: {}, maxAttempts: 1 });
+    await queue.enqueue(p, { kind: 'judge', payload: {}, maxAttempts: 1 });
     const claimed = await queue.claim(['judge'], 'w');
     await queue.fail(claimed!.id, 'w', 'boom');
     const dead = await queue.getJob(claimed!.id);

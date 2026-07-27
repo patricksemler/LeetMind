@@ -26,7 +26,7 @@ interface ErrorCategoryRow {
   count: number;
 }
 
-export function registerProgressRoutes(fastify: FastifyInstance, deps: Deps): void {
+export function registerProgressRoutes(fastify: FastifyInstance, _deps: Deps): void {
   fastify.get("/api/progress", async (request, reply) => {
     const userId = request.userId;
     const [conceptRows, trendRows, solveBandRows, errorRows, medianRow, bestUnassistedRow, historyRows] =

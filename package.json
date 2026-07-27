@@ -7,7 +7,11 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",
-    "lint": "pnpm -r --if-present lint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:py": "cd content && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy leetmind_content",
     "dev:api": "pnpm --filter @leetmind/api dev",
     "dev:judge": "pnpm --filter @leetmind/judge dev",
     "dev:web": "pnpm --filter @leetmind/web dev",
@@ -15,9 +19,15 @@
     "db:seed": "pnpm --filter @leetmind/db seed"
   },
   "devDependencies": {
-    "typescript": "^5.7.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.0.0",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.8.0",
+    "prettier": "^3.9.6",
     "tsx": "^4.0.0",
-    "vitest": "^3.0.0",
-    "@types/node": "^22.0.0"
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^3.0.0"
   }
 }

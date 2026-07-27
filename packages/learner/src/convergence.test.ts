@@ -62,7 +62,7 @@ describe("convergence: Glicko-lite estimate tracks a true latent skill", () => {
       state = { ...state, rating: change.after_rating, uncertainty: change.after_uncertainty };
     }
 
-    // eslint-disable-next-line no-console
+     
     console.log(
       `[convergence] final rating=${state.rating.toFixed(1)} uncertainty=${state.uncertainty.toFixed(1)} ` +
         `(true skill=${TRUE_SKILL})`

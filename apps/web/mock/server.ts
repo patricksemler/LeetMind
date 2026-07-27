@@ -57,7 +57,7 @@ const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
   const PORT = Number(process.env.MOCK_PORT ?? process.env.VITE_API_BASE?.split(":").pop() ?? 8080);
   app.listen(PORT, () => {
-    // eslint-disable-next-line no-console
+     
     console.log(`[mock-api] listening on http://localhost:${PORT} (${problemFixtures.length} fixture problems)`);
   });
 }

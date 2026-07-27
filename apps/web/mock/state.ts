@@ -12,7 +12,7 @@ import type {
 import { newId } from "@leetmind/shared";
 import { CONCEPTS } from "./fixtures/concepts.js";
 import { PROBLEM_FIXTURES, type ProblemFixture } from "./fixtures/problems.js";
-import { fixedId, SINGLE_USER_ID } from "./ids.js";
+import { SINGLE_USER_ID } from "./ids.js";
 import type { ConceptRatingState } from "./mastery.js";
 
 export const USER_ID = SINGLE_USER_ID;

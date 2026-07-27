@@ -150,7 +150,7 @@ describe.skipIf(!canRun)("chaos 2: worker killed mid-judge (real SIGKILL of a re
     const recoveredAt = Date.now();
     const recoveryMs = recoveredAt - killedAt;
 
-    // eslint-disable-next-line no-console -- deliberately printed: PLAN.md §10 M4 asks for the
+     
     // measured recovery time to be reported, not just pass/fail.
     console.log(`[chaos 2] worker-kill recovery time: ${recoveryMs}ms (budget ${RECOVERY_BUDGET_MS}ms)`);
 
