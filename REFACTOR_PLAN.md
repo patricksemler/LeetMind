@@ -236,13 +236,91 @@ pnpm test` at the end.
 
 ## NOT completed
 
-**B9a / B9 — `apps/web/src/routes/Problem.tsx` is untouched, still 527 lines.**
+**B9a / B9 — `apps/web/src/routes/Problem.tsx` is untouched, still ~528 lines.**
 
 The characterization-test step was interrupted before it ran, so the safety net
 described above does not exist. Per the gate in this plan, B9 was therefore not
 attempted. This is the single largest remaining modularity item and the one that
 most needs doing — but it needs B9a first, and B9a needs a decision about how much
 mocking (Monaco, the SSE hook, the API module) is acceptable in a route-level test.
+
+---
+
+# Round 2 — bugs, lint, and formatting
+
+Everything under "Bugs found — NOT fixed" above has now been addressed except #3,
+which on closer reading is not a bug (see below). Tooling was added in the process.
+
+## Bugs fixed
+
+| #   | Fix                                                                                                                                                                                                                                                                                                                                 |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `PROMPT_VERSION` in `routes/generate.ts` and `lib/practiceQueries.ts` now says `"v2"`. Not cosmetic: `StubInvoker` reads `GenerationRequest.prompt_version` and stamps it onto the generated problem's `provenance.prompt_version` (`invoker.py:767`), so generated content was being labelled with a prompt that did not build it. |
+| 2   | `workers/replenish.py` imported `PROMPT_VERSION` from v1; fixed as part of deleting v1.                                                                                                                                                                                                                                             |
+| 4   | `apps/web/e2e/smoke.spec.ts` rewritten against the current app. **Verified by inspection, not execution** — see below.                                                                                                                                                                                                              |
+| 5   | All 7 mypy errors fixed properly (no blanket ignores), plus all 41 ruff E501s.                                                                                                                                                                                                                                                      |
+
+## Prompt versions: v1 deleted
+
+`prompts/v1.py` (545 lines) was no longer the builder — `generator.py` has used v2
+since the envelope format replaced v1's single-JSON-object prompt — but it survived
+because `v2.py`, `invoker.py`, and `replenish.py` each still imported pieces of it.
+Those pieces moved into `v2.py`, which is now self-contained, and v1 is gone.
+
+`PROMPT_VERSION` stays the string `"v2"` and the module stays `v2.py`. Existing
+`model_runs.prompt_version = 'v1'` rows are historical data; deleting the module does
+not change them, it only means that builder is no longer inspectable by import.
+
+## Lint and formatter — now real
+
+`pnpm lint` was previously a no-op that exited 0 because no package defined the script.
+
+- **TypeScript:** flat ESLint config (typescript-eslint + react-hooks) and Prettier at
+  100 cols / double quotes / semicolons / trailing commas, matching the style already
+  in use. Root scripts: `lint`, `lint:fix`, `format`, `format:check`.
+- **Python:** ruff and mypy were already configured in `pyproject.toml` but nothing
+  invoked them. `pnpm lint:py` now runs `ruff check`, `ruff format --check`, and `mypy`.
+
+The 8 real errors ESLint surfaced are fixed. Two rule groups are warnings, not errors,
+each with a comment in `eslint.config.js` explaining why:
+
+- **`react-hooks/{refs,immutability,set-state-in-effect}`** — `eslint-plugin-react-hooks`
+  v7 ships the React Compiler rule set. These 12 findings are all in
+  `useSubmissionEvents.ts` and `Problem.tsx`: the SSE lifecycle and the submission state
+  machine, the two most delicate and least-tested files in the app. Satisfying them means
+  restructuring effects and ref access — behaviour changes, not lint tidy-up. Left visible
+  as warnings pending the tests in B9a.
+- **`no-useless-assignment` in tests** — the flagged `let x = null` initializers are what
+  make tsc treat the binding as definitely assigned after a try/finally. Removing them
+  satisfies the linter and breaks the typecheck.
+
+## Not a bug after all
+
+Bug #3 (`packages/db/src/notify.ts` throwing `AppError` where 16 sibling invariants throw
+plain `Error`) was left as-is deliberately. `packages/db` already depends on
+`@leetmind/shared`, so this is not a dependency violation, and `AppError` carries a code
+and structured details that a bare `Error` would discard. `apps/judge` doesn't special-case
+it, but it doesn't special-case `Error` either — both propagate identically and fail the
+job. Converting it would lose information to buy consistency that has no caller.
+
+## e2e test — rewritten but unverified
+
+`playwright.config.ts` deliberately does not start the stack; a run needs the isolated QA
+environment from QA-PLAN.md (separate `leetmind_qa` database, api on :8081, its own judge
+worker, web on :5174). Every selector in the rewrite was checked against current source,
+but the test has not been executed. **Run it in that environment before trusting it.**
+
+## Final verification
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `pnpm typecheck`    | PASS (9 projects)                        |
+| `pnpm build`        | PASS                                     |
+| `pnpm test`         | PASS — 474 tests                         |
+| `pnpm lint`         | PASS — 0 errors, 12 documented warnings  |
+| `pnpm format:check` | PASS                                     |
+| `pnpm lint:py`      | PASS — ruff, ruff format, mypy all clean |
+| `content` pytest    | PASS — 199 tests                         |
 
 ## Notes discovered during execution
 
