@@ -29,7 +29,7 @@ from psycopg_pool import ConnectionPool
 from ulid import ULID
 
 from leetmind_content.logging import get_logger, with_context
-from leetmind_content.models import JOB_PRIORITY
+from leetmind_content.models import JOB_PRIORITY, JobKind
 
 log = get_logger("queue")
 
@@ -139,7 +139,7 @@ class Queue:
     def enqueue(
         self,
         executor: Executor,
-        kind: str,
+        kind: JobKind,
         payload: dict[str, Any],
         *,
         priority: int | None = None,
@@ -154,7 +154,7 @@ class Queue:
         returns `None`."""
         job_id = str(ULID())
         resolved_priority = (
-            priority if priority is not None else JOB_PRIORITY.get(kind, 100)  # type: ignore[arg-type]
+            priority if priority is not None else JOB_PRIORITY.get(kind, 100)
         )
         resolved_max_attempts = max_attempts if max_attempts is not None else DEFAULT_MAX_ATTEMPTS
         resolved_run_at = run_at if run_at is not None else datetime.now(UTC)

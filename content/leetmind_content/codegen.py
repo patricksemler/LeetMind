@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from typing import Any
 
 from leetmind_content.config import Settings, get_settings
@@ -172,6 +173,7 @@ def seeded_inputs(
             f"input_generator_py driver produced an unexpected shape: {parsed!r}"
         )
 
+    params: Sequence[Any] | None
     if isinstance(signature, Signature):
         params = signature.params
     else:
@@ -187,4 +189,4 @@ def seeded_inputs(
                 f"(signature has {expected_arity} params); case={case!r}"
             )
 
-    return cases  # type: ignore[no-any-return]
+    return cases

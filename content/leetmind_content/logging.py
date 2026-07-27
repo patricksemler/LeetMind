@@ -21,7 +21,7 @@ import contextvars
 import logging
 import sys
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping, MutableMapping
 from contextlib import contextmanager
 from typing import Any
 
@@ -60,7 +60,7 @@ def bind_context(**kw: str) -> None:
 
 
 @contextmanager
-def with_context(**kw: str) -> Iterator[None]:
+def with_context(**kw: str | None) -> Iterator[None]:
     """Runs the enclosed block with `kw` merged into the active log context, restoring the prior
     context on exit (mirrors `runWithContext`, but merges rather than replaces)."""
     merged = _current_context().copy()
@@ -72,7 +72,9 @@ def with_context(**kw: str) -> Iterator[None]:
         _CONTEXT.reset(token)
 
 
-def _inject_context(logger: Any, method_name: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+def _inject_context(
+    logger: Any, method_name: str, event_dict: MutableMapping[str, Any]
+) -> Mapping[str, Any]:
     ctx = _current_context()
     for key in _CONTEXT_KEYS:
         if key in ctx and key not in event_dict:
@@ -81,8 +83,8 @@ def _inject_context(logger: Any, method_name: str, event_dict: dict[str, Any]) -
 
 
 def _rename_event_to_msg(
-    logger: Any, method_name: str, event_dict: dict[str, Any]
-) -> dict[str, Any]:
+    logger: Any, method_name: str, event_dict: MutableMapping[str, Any]
+) -> Mapping[str, Any]:
     if "event" in event_dict:
         event_dict["msg"] = event_dict.pop("event")
     return event_dict
