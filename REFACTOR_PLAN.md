@@ -205,3 +205,58 @@ Each numbered item is one commit. After every commit: `pnpm typecheck && pnpm bu
 7. B6, B7 (sandbox splits)
 8. B8 (mock server split)
 9. B9a → B9 (Problem.tsx, gated)
+
+---
+
+# Results
+
+13 commits on `refactor/cleanup-pass`. Verification after each: `tsc --noEmit`
+plus the affected package's test suite; full `pnpm typecheck && pnpm build &&
+pnpm test` at the end.
+
+## Completed
+
+| Item | Outcome |
+|---|---|
+| A1–A6 | Done. `MasteryDelta.tsx` deleted; `Meter`/`MeterProps`/`MeterTone`/`fillTone` deleted (`RatingMeter` kept); `formatPercent` deleted; `parseContent` deleted; `NotifyBus` + `NotifySubscriber` made module-private. |
+| C1 | Done. Defaults now live once in `lib/candidatePool.ts` with two named projections (`defaultConceptState`, `defaultConceptStateRow`) — the shapes differ genuinely, so they stayed two functions over one pair of constants. |
+| C2 | Partial by design. `RouteLoading`/`QueryError` extracted and applied to Concepts, Progress, Practice, and Problem's loading state. **Left alone:** Problem's error state (links to practice, no retry) and Concepts' stale-mastery banner (inline strip, not full-screen) — forcing them through the shared component would change what renders. |
+| C3 | Done. `formatRating` adopted at 3 sites. |
+| C4 | **Not done — correctly.** Of the 5 candidate sites, only 2 shared a byte-identical mapping; the rest differ in input shape (boolean vs tri-state) or output (border+bg vs text-only). Below the 3-site threshold, so nothing was extracted. |
+| C5 | Done. `toCandidateProblem` replaced by `toPoolCandidate`; verified the extra fields are never serialized by the caller. |
+| D1, D2 | Done. 8 type imports split out; 4 `.then` chains converted, cancellation flags preserved. |
+| B1 | Done. `submission.ts` 629 → 309. Five new per-route modules. **Resolved a real ESM cycle:** `TeachingModeSchema` had to stay in `submission.ts`, since `GetHintsResponse` needs `SolutionsSchema` and `GiveUpResponse` needs `TeachingModeSchema` — splitting them would have thrown at module-init. |
+| B2 | Done. `practice.ts` 696 → 451. |
+| B3 | Done. `submissions.ts` 376 → 297. |
+| B4 | Done. `hints.ts` 341 → 225. Same single transaction, same sorted-id lock ordering. |
+| B5 | Done. `progress.ts` 191 → 170. |
+| B6 | Done. `codegen.ts` 677 → 148; C++ text byte-identical, all 34 snapshots pass unmodified. |
+| B7 | Done. `run.ts` 433 → 260. |
+| B8 | Done. `mock/server.ts` 716 → 63, split into 5 route modules + `helpers.ts`. |
+
+## NOT completed
+
+**B9a / B9 — `apps/web/src/routes/Problem.tsx` is untouched, still 527 lines.**
+
+The characterization-test step was interrupted before it ran, so the safety net
+described above does not exist. Per the gate in this plan, B9 was therefore not
+attempted. This is the single largest remaining modularity item and the one that
+most needs doing — but it needs B9a first, and B9a needs a decision about how much
+mocking (Monaco, the SSE hook, the API module) is acceptable in a route-level test.
+
+## Notes discovered during execution
+
+- **Three different rating-widening schedules exist**, and they are not
+  interchangeable: `WIDEN_STEPS` in `apps/api/src/routes/practice.ts` is
+  `[0,150,300,600]`, in `apps/api/src/routes/problems.ts` `[0,200,400,800]`, and in
+  `apps/api/src/lib/candidatePool.ts` `[0,150,300,600,1200]`. Left exactly as found —
+  they may be deliberate per-call-site tuning, but nothing documents that.
+- **The sandbox Docker integration tests are load-flaky.** One test failed once
+  during a full parallel `pnpm test` and passed on isolated re-run and on every
+  subsequent full run. Several take 10–20s wall-clock; under an 8-package parallel
+  run they can exceed their timeout. Not caused by this pass — worth a longer timeout
+  or serialized execution.
+- `packages/shared/src/types/submission.ts` retained four submission route DTOs
+  (`CreateSubmissionRequest/Response`, `GetSubmissionResponse`,
+  `GetLatestSubmissionResponse`, `ListSubmissionsResponse`) that the plan did not
+  assign anywhere — they belong to the submission family and stayed by elimination.
