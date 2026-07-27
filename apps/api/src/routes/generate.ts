@@ -14,10 +14,14 @@ import type { Deps } from "../deps.js";
  * that, and above judge (10)/verify (50) too, so a manual request jumps the whole queue. */
 const ELEVATED_GENERATE_PRIORITY = 1;
 
-/** Must track content/leetmind_content/generation/prompts/v1.py's `PROMPT_VERSION` (currently
- * "v1", per docs/CONTRACTS.md §11) — the content plane is a separate Python codebase apps/api may
- * not import, so this is a documented cross-language constant, not a guess. */
-const PROMPT_VERSION = "v1";
+/** Must track content/leetmind_content/generation/prompts/v2.py's `PROMPT_VERSION` (per
+ * docs/CONTRACTS.md §11) — the content plane is a separate Python codebase apps/api may not
+ * import, so this is a documented cross-language constant, not a guess.
+ *
+ * It is not inert: `StubInvoker` stamps this value onto the generated problem's
+ * `provenance.prompt_version` (content/leetmind_content/generation/invoker.py), so a stale value
+ * here mislabels generated content. Kept in step with lib/practiceQueries.ts. */
+const PROMPT_VERSION = "v2";
 
 export function registerGenerateRoutes(fastify: FastifyInstance, deps: Deps): void {
   fastify.post("/api/generate-now", async (request, reply) => {

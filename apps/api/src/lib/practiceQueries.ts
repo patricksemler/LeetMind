@@ -6,10 +6,10 @@ import { COLD_START_PROBLEM_COUNT, type ColdStartHistoryEntry } from "@leetmind/
 import type { Deps } from "../deps.js";
 import { bandOf } from "./practiceSelection.js";
 
-/** Must track content/leetmind_content/generation/prompts/v1.py's `PROMPT_VERSION` — the content
+/** Must track content/leetmind_content/generation/prompts/v2.py's `PROMPT_VERSION` — the content
  * plane is a separate Python codebase apps/api may not import, so this is a documented
  * cross-language constant, not a guess. Kept in step with routes/generate.ts. */
-const PROMPT_VERSION = "v1";
+const PROMPT_VERSION = "v2";
 
 /** Elevated above the replenishment worker's default `generate` priority (100) but below the
  * manual `/api/generate-now` escape hatch (1): a user actively waiting on this problem should jump
