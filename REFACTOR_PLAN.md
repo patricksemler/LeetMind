@@ -19,6 +19,10 @@ pre-existing, are not run by `pnpm test`, and are **not** fixed here.
 
 ### `pnpm lint` is a no-op — flagged, not resolved
 
+> **Superseded by "Round 2" below.** This section records the decision as it stood in
+> the first pass, when adding tooling was out of scope. ESLint, Prettier, and a real
+> `lint`/`format` script set have since been added.
+
 No package defines a `lint` script, and there is no ESLint, Prettier, Biome, or
 `.editorconfig` anywhere in the repo. `pnpm lint` exits 0 because it matches nothing.
 
