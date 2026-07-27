@@ -1,8 +1,8 @@
-"""Tests for leetmind_content.generation.prompts.v1 — the prompt builder itself (no model calls)."""
+"""Tests for leetmind_content.generation.prompts.v2 — the prompt builder itself (no model calls)."""
 
 from __future__ import annotations
 
-from leetmind_content.generation.prompts.v1 import (
+from leetmind_content.generation.prompts.v2 import (
     BANNED_HINT_WORDS,
     PROMPT_VERSION,
     REQUEST_JSON_BEGIN,
@@ -32,14 +32,14 @@ def _sample_request() -> GenerationRequest:
     )
 
 
-def test_prompt_version_is_v1() -> None:
-    assert PROMPT_VERSION == "v1"
+def test_prompt_version_is_v2() -> None:
+    assert PROMPT_VERSION == "v2"
 
 
-def test_prompt_demands_single_json_object_no_fence() -> None:
+def test_prompt_demands_envelope_format_no_fence() -> None:
     prompt = build_generation_prompt(_sample_request())
-    assert "SINGLE JSON OBJECT" in prompt
-    assert "no markdown code fence" in prompt or "no code fence" in prompt
+    assert "LEETMIND envelope" in prompt
+    assert "no code fence" in prompt
     assert "no prose" in prompt.lower() or "nothing else" in prompt
 
 
@@ -123,8 +123,10 @@ def test_prompt_embeds_machine_readable_request_block() -> None:
 def test_prompt_includes_a_compact_worked_example() -> None:
     prompt = build_generation_prompt(_sample_request())
     assert "worked example" in prompt.lower()
-    assert '"reference_solution_py"' in prompt
-    assert '"mutants_py"' in prompt
+    # v2's worked example is rendered as raw LEETMIND envelope text (no JSON string-escaping),
+    # not a JSON object, so the field names appear as delimiter blocks rather than quoted keys.
+    assert "<<<LEETMIND_FIELD:reference_solution_py>>>" in prompt
+    assert "<<<LEETMIND_FIELD:mutants_py[0]>>>" in prompt
 
 
 def test_build_repair_prompt_includes_base_prompt_plus_errors_and_previous_output() -> None:

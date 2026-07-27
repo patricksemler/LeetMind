@@ -23,7 +23,7 @@ from typing import Any, Protocol
 
 from leetmind_content.config import Settings, get_settings
 from leetmind_content.generation.envelope import render_envelope
-from leetmind_content.generation.prompts.v1 import REQUEST_JSON_BEGIN, REQUEST_JSON_END
+from leetmind_content.generation.prompts.v2 import REQUEST_JSON_BEGIN, REQUEST_JSON_END
 from leetmind_content.logging import get_logger
 
 log = get_logger("content-generation-invoker")
@@ -718,9 +718,8 @@ def _rating_from_request(request_dict: dict[str, Any]) -> int:
 class StubInvoker:
     """Deterministic, offline `Invoker` — **required** since CI and most local dev have no model
     access. Extracts the `GenerationRequest` JSON embedded in the prompt (see
-    `leetmind_content.generation.prompts.v1`'s module docstring for the delimiter contract, which
-    `prompts.v2` reuses verbatim so this extraction is prompt-version-agnostic), picks a template
-    from `_TEMPLATES` keyed by the request's primary concept id (falling back to
+    `leetmind_content.generation.prompts.v2`'s module docstring for the delimiter contract), picks
+    a template from `_TEMPLATES` keyed by the request's primary concept id (falling back to
     `_DEFAULT_TEMPLATE_KEY` for any concept without a dedicated template), and returns a complete,
     genuinely-correct `ProblemVersion` encoded as LEETMIND envelope text (`render_envelope`) — NOT
     JSON. This is deliberate: a stub that returned JSON would bypass `parse_envelope` entirely and

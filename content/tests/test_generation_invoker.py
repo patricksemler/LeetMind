@@ -350,7 +350,7 @@ def test_stub_invoker_hints_avoid_banned_words() -> None:
     """The stub's own templates must satisfy the same schema-stage hint rule real generations
     are held to (CONTRACTS.md §10) — otherwise it would be useless as an offline stand-in for
     exercising the verification gate."""
-    from leetmind_content.generation.prompts.v1 import BANNED_HINT_WORDS
+    from leetmind_content.generation.prompts.v2 import BANNED_HINT_WORDS
 
     for concept_id in ("sliding_window", "arrays_hashing"):
         request = _request(concept_id)

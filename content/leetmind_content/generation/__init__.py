@@ -12,12 +12,12 @@ Layout:
     invoker.py      — `Invoker` protocol + `InvokeResult`, `ClaudeInvoker`, `CodexInvoker`,
                        `StubInvoker`, and the `get_invoker(settings)` factory
                        (selected by `GENERATOR_INVOKER`).
-    prompts/v1.py   — `PROMPT_VERSION = "v1"`, the original single-JSON-object prompt. Kept
-                       importable (never deleted) for provenance of already-generated rows; no
-                       longer used by `generator.py`.
-    prompts/v2.py   — `PROMPT_VERSION = "v2"` (the default), the LEETMIND-envelope prompt.
-                       `build_generation_prompt(request)` and
-                       `build_repair_prompt(request, previous_output, errors)`.
+    prompts/v2.py   — `PROMPT_VERSION = "v2"` (the only prompt version now built), the
+                       self-contained LEETMIND-envelope prompt. `build_generation_prompt(request)`
+                       and `build_repair_prompt(request, previous_output, errors)`. An earlier
+                       `prompts/v1.py` (single-JSON-object format) has been removed; existing
+                       `model_runs.prompt_version = 'v1'` rows are historical data, unaffected by
+                       the module's removal.
     generator.py    — `generate_problem(request, *, correlation_id) -> GeneratedCandidate`: the
                        full build-prompt -> invoke -> parse (envelope, then ProblemVersion) ->
                        (retry) -> persist+enqueue pipeline, and `GenerationSchemaExhausted` (the

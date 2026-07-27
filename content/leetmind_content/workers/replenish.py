@@ -26,7 +26,7 @@ from typing import Any
 
 from leetmind_content.config import Settings, get_settings
 from leetmind_content.db import get_pool, query
-from leetmind_content.generation.prompts.v1 import PROMPT_VERSION
+from leetmind_content.generation.prompts.v2 import PROMPT_VERSION
 from leetmind_content.logging import get_logger
 from leetmind_content.models import GenerationConceptWeight, GenerationRequest
 from leetmind_content.queue import Queue
