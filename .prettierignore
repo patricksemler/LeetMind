@@ -3,12 +3,8 @@ dist
 build
 coverage
 pnpm-lock.yaml
-content/.venv
-apps/web/test-results
-apps/web/playwright-report
+test-results
+playwright-report
 
 # Snapshot files are generated and compared byte-for-byte by vitest.
 **/__snapshots__
-
-# Sandbox runner sources are executed inside containers, not built by this toolchain.
-packages/sandbox/runners

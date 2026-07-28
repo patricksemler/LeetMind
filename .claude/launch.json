@@ -2,76 +2,32 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "_comment": "This repo is the frontend alone. Every entry here needs a backend already serving the API at VITE_API_BASE — vite proxies /api and /health there. With nothing listening the app still renders, but every query fails and practice never produces a problem.",
       "name": "web",
       "runtimeExecutable": "env",
-      "runtimeArgs": [
-        "MOCK_PORT=8085",
-        "VITE_API_BASE=http://localhost:8085",
-        "pnpm",
-        "--filter",
-        "@leetmind/web",
-        "dev:mock"
-      ],
+      "runtimeArgs": ["VITE_API_BASE=http://localhost:8080", "pnpm", "run", "dev"],
       "port": 5173
     },
     {
-      "_comment": "Second mock stack on its own ports, so a second session can run one while 'web' is already up on 5173/8085.",
-      "name": "web-mock-alt",
+      "_comment": "Second dev server on its own port, so a second session can run one while 'web' is already up on 5173.",
+      "name": "web-alt",
       "runtimeExecutable": "env",
-      "runtimeArgs": [
-        "MOCK_PORT=8087",
-        "WEB_PORT=5175",
-        "VITE_API_BASE=http://localhost:8087",
-        "pnpm",
-        "--filter",
-        "@leetmind/web",
-        "dev:mock"
-      ],
+      "runtimeArgs": ["WEB_PORT=5175", "VITE_API_BASE=http://localhost:8080", "pnpm", "run", "dev"],
       "port": 5175
     },
     {
-      "_comment": "Third mock stack, same idea as web-mock-alt — 5173/5175 are both taken often enough that a third session needs its own pair.",
-      "name": "web-mock-alt2",
+      "_comment": "With Supabase auth enabled — fill in VITE_SUPABASE_ANON_KEY for your project. Leave both VITE_SUPABASE_* unset (the 'web' entry) for the single-user build with no sign-in: the web must agree with the backend about whether a session is required.",
+      "name": "web-auth",
       "runtimeExecutable": "env",
       "runtimeArgs": [
-        "MOCK_PORT=8089",
-        "WEB_PORT=5177",
-        "VITE_API_BASE=http://localhost:8089",
-        "pnpm",
-        "--filter",
-        "@leetmind/web",
-        "dev:mock"
-      ],
-      "port": 5177
-    },
-    {
-      "name": "web-live",
-      "runtimeExecutable": "env",
-      "runtimeArgs": [
-        "VITE_API_BASE=http://localhost:8081",
+        "VITE_API_BASE=http://localhost:8080",
         "VITE_SUPABASE_URL=http://127.0.0.1:54321",
-        "VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0",
+        "VITE_SUPABASE_ANON_KEY=",
         "pnpm",
-        "--filter",
-        "@leetmind/web",
+        "run",
         "dev"
       ],
       "port": 5173
-    },
-    {
-      "name": "web-qa",
-      "runtimeExecutable": "env",
-      "runtimeArgs": [
-        "WEB_PORT=5174",
-        "VITE_API_BASE=http://localhost:8081",
-        "VITE_SUPABASE_URL=http://127.0.0.1:54321",
-        "VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0",
-        "pnpm",
-        "--filter",
-        "@leetmind/web",
-        "dev"
-      ],
-      "port": 5174
     }
   ]
 }

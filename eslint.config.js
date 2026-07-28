@@ -4,11 +4,10 @@ import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 
 /**
- * Flat ESLint config for the TypeScript workspace. The Python content plane is linted separately
- * by ruff (see content/pyproject.toml).
+ * Flat ESLint config for the frontend.
  *
- * Deliberately NOT type-aware: `recommendedTypeChecked` would need a program per package and turns
- * a whole-repo lint into a multi-minute job. The rules that earn their place here are the ones that
+ * Deliberately NOT type-aware: `recommendedTypeChecked` would need a program per run and turns a
+ * whole-repo lint into a multi-minute job. The rules that earn their place here are the ones that
  * catch real mistakes without needing types.
  */
 export default tseslint.config(
@@ -17,10 +16,8 @@ export default tseslint.config(
       "**/dist/**",
       "**/node_modules/**",
       "**/__snapshots__/**",
-      "apps/web/test-results/**",
-      "apps/web/playwright-report/**",
-      "packages/sandbox/runners/**",
-      "content/**",
+      "test-results/**",
+      "playwright-report/**",
     ],
   },
 
@@ -33,21 +30,18 @@ export default tseslint.config(
       parserOptions: { ecmaVersion: "latest", sourceType: "module" },
     },
     rules: {
-      // Underscore prefix is the existing convention for a deliberately-unused binding
-      // (e.g. `_deps` on route registrars that must match a shared signature).
+      // Underscore prefix is the existing convention for a deliberately-unused binding.
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
       ],
-      // Services log through pino (@leetmind/shared's createLogger), never console — see
-      // CONTRACTS.md §1. CLIs and the dev-only mock server opt out below.
       "no-console": "error",
     },
   },
 
   // Browser code.
   {
-    files: ["apps/web/src/**/*.{ts,tsx}"],
+    files: ["src/**/*.{ts,tsx}"],
     plugins: { "react-hooks": reactHooks },
     languageOptions: { globals: { ...globals.browser } },
     rules: {
@@ -66,21 +60,9 @@ export default tseslint.config(
     },
   },
 
-  // Standalone CLIs and dev tooling: stdout/stderr IS their interface, so console is correct here.
-  {
-    files: [
-      "scripts/**/*.ts",
-      "apps/judge/src/rejudge.ts",
-      "packages/sandbox/src/cli.ts",
-      "apps/web/mock/**/*.ts",
-      "packages/db/src/migrate.ts",
-    ],
-    rules: { "no-console": "off" },
-  },
-
   // Tests: fixtures and mocks legitimately need shapes the production rules discourage.
   {
-    files: ["**/*.test.{ts,tsx}", "**/test/**/*.{ts,tsx}", "apps/web/e2e/**/*.ts"],
+    files: ["**/*.test.{ts,tsx}", "src/test/**/*.{ts,tsx}", "e2e/**/*.ts"],
     rules: {
       "no-console": "off",
       "@typescript-eslint/no-explicit-any": "off",
