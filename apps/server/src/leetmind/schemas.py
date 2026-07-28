@@ -139,3 +139,17 @@ def values_equal(
         value_type.list_depth,
         order_insensitive,
     )
+
+
+class TypeProfileView(BaseModel):
+    """One row of `GET /api/me` (§9): a type's learner-model state."""
+
+    slug: str
+    name: str
+    rating: float
+    attempts: int
+    evidenced: bool
+
+
+class MeResponse(BaseModel):
+    types: list[TypeProfileView]

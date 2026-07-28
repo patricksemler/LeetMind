@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from leetmind.config import get_settings
 from leetmind.db import create_pool, run_migrations
-from leetmind.routes import health
+from leetmind.routes import health, me
 
 
 @asynccontextmanager
@@ -44,6 +44,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router)
+    app.include_router(me.router)
 
     return app
 

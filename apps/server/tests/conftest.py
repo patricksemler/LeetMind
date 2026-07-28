@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 
 import asyncpg
+import jwt
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -13,6 +14,17 @@ from leetmind.db import assert_test_database, run_migrations
 from leetmind.judge import JudgeClient
 
 JUDGE_DIR = Path(__file__).resolve().parent.parent / "judge"
+TEST_JWT_SECRET = "test-jwt-secret-for-leetmind-tests-only"  # HS256, never a real project secret
+
+
+def make_access_token(user_id: str, *, email: str | None = "user@example.com") -> str:
+    """A Supabase-shaped HS256 access token for `authed_client` tests (auth.py accepts HS256 when
+    `supabase_jwt_secret` is set, PLAN_BACKEND.md §2 row 4)."""
+    return jwt.encode(
+        {"sub": user_id, "aud": "authenticated", "email": email},
+        TEST_JWT_SECRET,
+        algorithm="HS256",
+    )
 
 
 def _test_database_url() -> str:
@@ -91,4 +103,21 @@ async def client(pool):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
             yield ac
+    get_settings.cache_clear()
+
+
+@pytest.fixture
+async def authed_client(pool):
+    # Same wiring as `client`, plus an HS256 secret so `make_access_token` tokens verify.
+    from leetmind.main import create_app
+
+    os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
+    os.environ["SUPABASE_JWT_SECRET"] = TEST_JWT_SECRET
+    get_settings.cache_clear()
+    app = create_app()
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
+    del os.environ["SUPABASE_JWT_SECRET"]
     get_settings.cache_clear()
