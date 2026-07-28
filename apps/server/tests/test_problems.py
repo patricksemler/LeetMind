@@ -8,11 +8,32 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
+from leetmind.routes.problems import _description_only, _legacy_constraints
+
 from .conftest import insert_problem, make_access_token
 
 
 def _headers(user_id: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {make_access_token(user_id)}"}
+
+
+def test_legacy_statement_sections_are_split_for_display():
+    statement = """\
+Return the longest valid span.
+
+### Example 1
+input = [1, 2]
+output = 2
+
+### Constraints
+- `1 <= nums.length <= 100`
+- `0 <= nums[i] <= 10`
+"""
+    assert _description_only(statement) == "Return the longest valid span."
+    assert _legacy_constraints(statement) == [
+        "1 <= nums.length <= 100",
+        "0 <= nums[i] <= 10",
+    ]
 
 
 async def test_get_problem_requires_auth(client):
@@ -69,6 +90,7 @@ async def test_unresolved_problem_view_never_leaks_private_fields(authed_client,
     assert "hints" not in body  # only revealed_hints is present pre-resolution
     assert body["revealed_hints"] == []
     assert len(body["public_tests"]) == 2
+    assert body["constraints"] == ["-100 <= x <= 100"]
 
 
 async def test_resolved_problem_view_includes_reference_and_private_tests(authed_client, pool):

@@ -59,10 +59,11 @@ async def insert_problem(
         """
         INSERT INTO problems (
           user_id, status, primary_type, support_types, shape, problem_rating, is_probe,
-          title, statement_md, signature, starter_code, public_tests, private_tests, hints,
-          reference_solution, complexity, par_minutes, served_at, resolved_at
+          title, statement_md, constraints, signature, starter_code, public_tests, private_tests,
+          hints, reference_solution, complexity, par_minutes, served_at, resolved_at
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+          $19, $20
         ) RETURNING id
         """,
         user_id,
@@ -73,7 +74,8 @@ async def insert_problem(
         problem_rating,
         is_probe,
         title,
-        "Add one to x. Example: solve(1) == 2.",
+        "Add one to `x` and return the result.",
+        json.dumps(["-100 <= x <= 100"]),
         json.dumps(PROBLEM_SIGNATURE),
         PROBLEM_STARTER_CODE,
         json.dumps(PROBLEM_PUBLIC_TESTS),

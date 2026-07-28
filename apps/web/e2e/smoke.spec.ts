@@ -56,6 +56,10 @@ test("practice generates and serves a problem -> solve -> accepted -> next -> ra
   // `POST /problems/{id}/open` fires on mount — the statement is unobtainable before it
   // (amendment 41), so this is also the moment the workspace has anything to show at all.
   await expect(page.getByRole("heading", { name: "Sum It Up" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: "Examples" })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Target complexity" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Constraints" })).toBeVisible();
+  await expect(page.getByText("0 <= nums.length <= 100")).toBeVisible();
 
   // Not keyboard.type(): Monaco's own smart-indent rewrites whatever we type as we type it.
   const editor = page.locator(".monaco-editor").first();

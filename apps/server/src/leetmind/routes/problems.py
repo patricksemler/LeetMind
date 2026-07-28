@@ -8,6 +8,7 @@ construction.
 
 from __future__ import annotations
 
+import re
 import uuid
 
 import asyncpg
@@ -26,6 +27,42 @@ from leetmind.schemas import (
 router = APIRouter(prefix="/api")
 
 RESOLVED_STATUSES = ("solved", "given_up")
+_ROUTED_HEADING_RE = re.compile(
+    r"(?im)^\s{0,3}(?:#{1,6}\s*)?(?:\*\*)?"
+    r"(?:examples?(?:\s+\d+)?|constraints?)(?:\*\*)?\s*:?\s*$"
+)
+_CONSTRAINTS_HEADING_RE = re.compile(
+    r"(?im)^\s{0,3}(?:#{1,6}\s*)?(?:\*\*)?constraints(?:\*\*)?\s*:?\s*$"
+)
+
+
+def _description_only(statement_md: str) -> str:
+    """Keep already-generated problems from duplicating their legacy embedded display sections.
+
+    New builder output is rejected before persistence if it contains these headings. This
+    read-time compatibility path is for active/resolved rows created before that contract.
+    """
+    match = _ROUTED_HEADING_RE.search(statement_md)
+    return statement_md[: match.start()].rstrip() if match else statement_md
+
+
+def _legacy_constraints(statement_md: str) -> list[str]:
+    """Recover simple markdown constraint lists from pre-migration statements."""
+    match = _CONSTRAINTS_HEADING_RE.search(statement_md)
+    if match is None:
+        return []
+
+    constraints: list[str] = []
+    for line in statement_md[match.end() :].splitlines():
+        stripped = line.strip()
+        if _ROUTED_HEADING_RE.fullmatch(stripped) or re.match(r"^#{1,6}\s", stripped):
+            break
+        if not stripped or stripped == "```":
+            continue
+        stripped = re.sub(r"^[-*]\s+", "", stripped).strip().strip("`").strip()
+        if stripped:
+            constraints.append(stripped)
+    return constraints
 
 
 async def require_problem(
@@ -45,9 +82,13 @@ async def require_problem(
 async def build_view(
     pool: asyncpg.Pool, problem: asyncpg.Record
 ) -> ProblemView | ResolvedProblemView:
+    statement_md = problem["statement_md"]
     signature = Signature.model_validate(load_jsonb(problem["signature"]))
     complexity = Complexity.model_validate(load_jsonb(problem["complexity"]))
     public_tests = [TestCaseView(**t) for t in load_jsonb(problem["public_tests"])]
+    constraints = list(load_jsonb(problem["constraints"]))
+    if not constraints:
+        constraints = _legacy_constraints(statement_md)
 
     base = {
         "id": str(problem["id"]),
@@ -58,7 +99,8 @@ async def build_view(
         "problem_rating": problem["problem_rating"],
         "is_probe": problem["is_probe"],
         "title": problem["title"],
-        "statement_md": problem["statement_md"],
+        "statement_md": _description_only(statement_md),
+        "constraints": constraints,
         "signature": signature,
         "starter_code": problem["starter_code"],
         "public_tests": public_tests,

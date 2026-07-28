@@ -5,10 +5,10 @@ prompt and a pydantic schema, get back a validated instance. Everything else —
 model, how its JSON envelope is shaped — is an implementation detail contained here.
 
 Containment (amendments 37, 40): every invocation gets a sanitized allowlist environment (no
-server secrets), a fresh empty temp dir as cwd, and the CLI's own tool-disable flags via the
-`LLM_ARGS` config knob rather than anything hardcoded here. `LLM_CONTAINER=1` optionally wraps the
-call in its own container for a genuine boundary on hosted deploys; local-first (decision 19)
-leaves it off by default.
+server secrets), a fresh empty temp dir as cwd, native JSON-schema enforcement, and a safe,
+tool-less, non-persistent one-shot CLI mode. `LLM_CONTAINER=1` optionally wraps the call in its
+own container for a genuine boundary on hosted deploys; local-first (decision 19) leaves it off
+by default.
 """
 
 from __future__ import annotations
@@ -62,11 +62,26 @@ def _sanitized_env() -> dict[str, str]:
     return {k: v for k, v in os.environ.items() if k in _ENV_ALLOWLIST}
 
 
-def _build_argv(settings: Settings) -> list[str]:
+def _build_argv(settings: Settings, schema: type[BaseModel]) -> list[str]:
     extra = shlex.split(settings.llm_args) if settings.llm_args else []
     bin_name = settings.llm_bin or settings.llm_cli
     if settings.llm_cli == "claude":
-        return [bin_name, "-p", "--output-format", "json", "--model", settings.llm_model, *extra]
+        schema_json = json.dumps(schema.model_json_schema(), separators=(",", ":"))
+        return [
+            bin_name,
+            "-p",
+            "--output-format",
+            "json",
+            "--model",
+            settings.llm_model,
+            "--json-schema",
+            schema_json,
+            "--safe-mode",
+            "--no-session-persistence",
+            "--tools",
+            "",
+            *extra,
+        ]
     if settings.llm_cli == "codex":
         return [bin_name, "exec", "--json", *extra]
     raise LLMError(f"unknown LLM_CLI {settings.llm_cli!r}")
@@ -98,6 +113,9 @@ def _unwrap_envelope(raw: str, settings: Settings) -> str:
             raise LLMError("claude CLI envelope was not a JSON object")
         if envelope.get("is_error"):
             raise LLMError(f"claude CLI reported an error: {envelope.get('result')!r}")
+        structured = envelope.get("structured_output")
+        if isinstance(structured, dict):
+            return json.dumps(structured)
         result = envelope.get("result")
         if not isinstance(result, str):
             raise LLMError("claude CLI envelope missing a string 'result' field")
@@ -144,7 +162,7 @@ class LLMClient:
             # not caught by `complete()`'s retry-on-validation-failure: a fixture that doesn't
             # match should fail loudly, not retry into the same miss.
             return schema.model_validate(fixture_response(prompt))
-        raw = await self._invoke(prompt, settings)
+        raw = await self._invoke(prompt, settings, schema)
         body = _unwrap_envelope(raw, settings)
         try:
             parsed = json.loads(body)
@@ -152,8 +170,8 @@ class LLMClient:
             raise LLMError(f"model output was not valid JSON: {exc}") from exc
         return schema.model_validate(parsed)
 
-    async def _invoke(self, prompt: str, settings: Settings) -> str:
-        argv = _build_argv(settings)
+    async def _invoke(self, prompt: str, settings: Settings, schema: type[BaseModel]) -> str:
+        argv = _build_argv(settings, schema)
         env = _sanitized_env()
 
         with tempfile.TemporaryDirectory(prefix="leetmind-llm-") as cwd:

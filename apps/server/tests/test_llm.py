@@ -3,6 +3,7 @@ the real CLI so the suite never depends on a live model or network access."""
 
 from __future__ import annotations
 
+import json
 import stat
 import textwrap
 from pathlib import Path
@@ -11,7 +12,7 @@ import pytest
 from pydantic import BaseModel
 
 from leetmind.config import Settings
-from leetmind.llm import LLMClient, LLMError
+from leetmind.llm import LLMClient, LLMError, _build_argv
 
 
 class Greeting(BaseModel):
@@ -43,6 +44,34 @@ async def test_complete_parses_envelope_and_body(tmp_path: Path):
     result = await client.complete("say hi", Greeting)
 
     assert result.message == "hi"
+
+
+async def test_complete_prefers_native_structured_output(tmp_path: Path):
+    script = textwrap.dedent(
+        """\
+        #!/bin/sh
+        cat >/dev/null
+        printf '%s' \
+          '{"type":"result","is_error":false,"result":"not json",\
+"structured_output":{"message":"structured"}}'
+        """
+    )
+    bin_path = _write_fake_cli(tmp_path, script)
+    client = LLMClient(_settings(bin_path))
+
+    result = await client.complete("say hi", Greeting)
+
+    assert result.message == "structured"
+
+
+def test_claude_argv_enforces_schema_in_minimal_one_shot_mode():
+    argv = _build_argv(_settings("/fake/claude"), Greeting)
+
+    schema = json.loads(argv[argv.index("--json-schema") + 1])
+    assert schema["properties"]["message"]["type"] == "string"
+    assert "--safe-mode" in argv
+    assert "--no-session-persistence" in argv
+    assert argv[argv.index("--tools") + 1] == ""
 
 
 async def test_nonzero_exit_raises(tmp_path: Path):

@@ -19,7 +19,11 @@ from leetmind.fixtures import (
     BUILDER_MARKER,
     BUILDER_REPAIR_MARKER,
     ORACLE_MARKER,
+    PLAN_REVIEW_MARKER,
     PLANNER_MARKER,
+    QUALITY_REVIEW_MARKER,
+    aligned_quality_review_output,
+    aligned_plan_review_output,
     fresh_user_plan_output,
     sum_problem_builder_output,
     sum_problem_oracle_output,
@@ -29,8 +33,12 @@ __all__ = [
     "BUILDER_MARKER",
     "BUILDER_REPAIR_MARKER",
     "ORACLE_MARKER",
+    "PLAN_REVIEW_MARKER",
     "PLANNER_MARKER",
+    "QUALITY_REVIEW_MARKER",
     "FakeLLM",
+    "aligned_quality_review_output",
+    "aligned_plan_review_output",
     "fresh_user_plan_output",
     "sum_problem_builder_output",
     "sum_problem_oracle_output",
@@ -47,6 +55,8 @@ class FakeLLM:
 
     async def complete(self, prompt: str, schema: type[BaseModel]) -> BaseModel:
         self.calls.append(prompt)
+        if schema.__name__ == "PlanReviewOutput":
+            return schema.model_validate(aligned_plan_review_output())
         for marker, data in self._rules:
             if marker in prompt:
                 return schema.model_validate(data)

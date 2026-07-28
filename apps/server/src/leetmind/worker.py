@@ -305,6 +305,7 @@ class GenerationWorker:
         return (
             output.title,
             output.statement_md,
+            json.dumps(output.constraints),
             json.dumps(output.signature.model_dump(mode="json")),
             output.starter_code,
             json.dumps([t.model_dump(mode="json") for t in output.public_tests]),
@@ -334,6 +335,7 @@ class GenerationWorker:
             (
                 title,
                 statement_md,
+                constraints,
                 signature,
                 starter_code,
                 public_tests,
@@ -347,10 +349,11 @@ class GenerationWorker:
                 """
                 INSERT INTO problems (
                   user_id, status, primary_type, support_types, shape, problem_rating, is_probe,
-                  title, statement_md, signature, starter_code, public_tests, private_tests,
-                  hints, reference_solution, complexity, par_minutes
+                  title, statement_md, constraints, signature, starter_code, public_tests,
+                  private_tests, hints, reference_solution, complexity, par_minutes
                 ) VALUES (
-                  $1, 'building', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+                  $1, 'building', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+                  $15, $16, $17
                 )
                 RETURNING id
                 """,
@@ -362,6 +365,7 @@ class GenerationWorker:
                 plan.is_probe,
                 title,
                 statement_md,
+                constraints,
                 signature,
                 starter_code,
                 public_tests,
@@ -396,6 +400,7 @@ class GenerationWorker:
             (
                 title,
                 statement_md,
+                constraints,
                 signature,
                 starter_code,
                 public_tests,
@@ -408,14 +413,15 @@ class GenerationWorker:
             await conn.execute(
                 """
                 UPDATE problems SET
-                  title = $2, statement_md = $3, signature = $4, starter_code = $5,
-                  public_tests = $6, private_tests = $7, hints = $8, reference_solution = $9,
-                  complexity = $10, par_minutes = $11
+                  title = $2, statement_md = $3, constraints = $4, signature = $5,
+                  starter_code = $6, public_tests = $7, private_tests = $8, hints = $9,
+                  reference_solution = $10, complexity = $11, par_minutes = $12
                 WHERE id = $1
                 """,
                 problem_id,
                 title,
                 statement_md,
+                constraints,
                 signature,
                 starter_code,
                 public_tests,

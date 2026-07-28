@@ -15,6 +15,7 @@ function problem(overrides: Partial<ProblemDetail> = {}): ProblemDetail {
     is_probe: false,
     title: "Pair Sum Indices",
     statement_md: "…",
+    constraints: [],
     signature: {
       func_name: "solve",
       params: [

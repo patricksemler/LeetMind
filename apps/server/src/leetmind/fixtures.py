@@ -15,9 +15,11 @@ import copy
 from typing import Any
 
 PLANNER_MARKER = "You are picking the next practice problem to generate"
+PLAN_REVIEW_MARKER = "Review this candidate\nplan before any problem is built"
 BUILDER_MARKER = "Generate one algorithm practice problem as JSON"
 BUILDER_REPAIR_MARKER = "Your previous attempt failed verification"
 ORACLE_MARKER = "You are an independent verifier"
+QUALITY_REVIEW_MARKER = "You are an independent curriculum reviewer"
 
 # -- a tiny, judge-executable "sum a list" problem, shared by builder/verify/worker/e2e -----------
 
@@ -74,6 +76,7 @@ def sum_problem_builder_output(*, buggy: bool = False, title: str = "Sum It Up")
     return {
         "title": title,
         "statement_md": "Given a list of integers `nums`, return the sum of its elements.",
+        "constraints": ["0 <= nums.length <= 100", "-100 <= nums[i] <= 100"],
         "signature": copy.deepcopy(_SUM_SIGNATURE),
         "starter_code": "def solve(nums):\n    pass\n",
         "public_tests": copy.deepcopy(_SUM_PUBLIC_TESTS),
@@ -93,6 +96,14 @@ def sum_problem_oracle_output() -> dict[str, str]:
             "    return total\n"
         )
     }
+
+
+def aligned_quality_review_output() -> dict[str, Any]:
+    return {"aligned_with_plan": True, "issues": []}
+
+
+def aligned_plan_review_output() -> dict[str, Any]:
+    return {"aligned_with_activity": True, "issues": []}
 
 
 def fresh_user_plan_output(**overrides: Any) -> dict[str, Any]:
@@ -119,8 +130,12 @@ def fixture_response(prompt: str) -> dict[str, Any]:
         return sum_problem_builder_output()
     if PLANNER_MARKER in prompt:
         return fresh_user_plan_output()
+    if PLAN_REVIEW_MARKER in prompt:
+        return aligned_plan_review_output()
     if BUILDER_MARKER in prompt:
         return sum_problem_builder_output()
+    if QUALITY_REVIEW_MARKER in prompt:
+        return aligned_quality_review_output()
     if ORACLE_MARKER in prompt:
         return sum_problem_oracle_output()
     raise LookupError(f"fixture LLM: no rule matched this prompt:\n{prompt[:500]}")

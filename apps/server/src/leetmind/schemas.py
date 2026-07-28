@@ -237,6 +237,7 @@ class ProblemViewBase(BaseModel):
     is_probe: bool
     title: str
     statement_md: str
+    constraints: list[str]
     signature: Signature
     starter_code: str
     public_tests: list[TestCaseView]

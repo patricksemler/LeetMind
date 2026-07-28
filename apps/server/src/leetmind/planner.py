@@ -18,7 +18,7 @@ from typing import Any
 from uuid import UUID
 
 import asyncpg
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from leetmind.db import load_jsonb
 from leetmind.elo import DEFAULT_RATING
@@ -54,12 +54,23 @@ _PREMISE_MAX_CHARS = 2000
 class PlanOutput(BaseModel):
     """The planner CLI call's JSON-schema-validated output (§7.2)."""
 
+    model_config = ConfigDict(extra="forbid")
+
     primary_type: str
     support_types: list[str] = []
     shape: str
     problem_rating: int
     premise: str
     rationale: str = ""
+
+
+class PlanReviewOutput(BaseModel):
+    """Independent semantic review of a candidate curriculum plan."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    aligned_with_activity: bool
+    issues: list[str]
 
 
 @dataclass(frozen=True)
@@ -285,7 +296,7 @@ def _render_prompt(
     shortlist_lines = []
     for slug in picks_slugs:
         s = signal_by_slug[slug]
-        lo, hi = target_band(s.rating)
+        lo, hi = target_band(s.rating) if s.evidenced else (PROBE_RATING, PROBE_RATING)
         support = support_pool.get(slug) or []
         shortlist_lines.append(
             f"- {slug}: rating={s.rating:.0f} evidenced={'yes' if s.evidenced else 'no'} "
@@ -311,11 +322,17 @@ is fixed by a least-recently-used rotation, not your choice to make.
 Support types are scaffolding only (their rating never changes) — pick types the learner is
 already strong in, when they'd plausibly help frame the problem. Leave empty if none fit.
 
-`problem_rating`: an integer inside the chosen type's `target_rating_band` (unless the type is
-unevidenced, in which case rating is fixed elsewhere and you may pick anything in-band).
+`problem_rating`: an integer inside the chosen type's `target_rating_band`. An unevidenced type's
+band is exactly [{PROBE_RATING}, {PROBE_RATING}] because coverage probes must be direct,
+beginner-level applications of the type's basic pattern.
 
 Difficulty rubric — justify the rating against this table:
 {DIFFICULTY_RUBRIC}
+
+Before responding, silently reject any candidate premise whose natural efficient solution does
+not centrally use the chosen primary_type and required_shape, whose input properties break that
+technique, or whose insight falls outside the exact target_rating_band. For a 1000 probe, avoid
+famous harder variants and use only the direct canonical pattern.
 
 Reserved types already in flight for this user (avoid echoing their premise/flavor):
 {", ".join(sorted(set(reserved_types))) or "(none)"}
@@ -329,6 +346,57 @@ verbatim) that the primary_type's technique will solve. Write `rationale`: one s
 Respond with ONLY a JSON object with exactly these keys: primary_type, support_types, shape,
 problem_rating, premise, rationale. No markdown fences, no prose outside the JSON.
 """
+
+
+def _render_plan_review_prompt(output: PlanOutput) -> str:
+    return f"""\
+You are an independent curriculum reviewer for an algorithm-practice app. Review this candidate
+plan before any problem is built:
+
+- primary_type: {output.primary_type}
+- support_types: {output.support_types}
+- shape: {output.shape}
+- problem_rating: {output.problem_rating}
+- premise: {output.premise}
+
+Difficulty rubric:
+{DIFFICULTY_RUBRIC}
+
+Set aligned_with_activity=false if ANY of these are true:
+1. The premise's natural efficient solution would not centrally exercise `primary_type`, or its
+   input properties invalidate that technique and force a materially different one.
+2. The computational task implied by the premise does not match `shape`.
+3. The required insight is implausibly easy or hard for `problem_rating`. Be strict for ratings
+   <=1000: these must be direct applications of the basic pattern, with no non-obvious invariant
+   or famous harder variant disguised as a probe.
+4. The premise is ambiguous or does not define a coherent algorithmic task.
+
+Support types may scaffold the task but must not replace the primary type. When false, provide
+1-3 short, concrete issues that tell the planner what premise or rating to change.
+
+Respond with ONLY a JSON object with exactly these keys:
+{{"aligned_with_activity": true_or_false, "issues": ["..."]}}
+No markdown fences and no prose outside the JSON.
+"""
+
+
+async def _call_plan_reviewer(llm: LLMClient, output: PlanOutput) -> PlanReviewOutput:
+    prompt = _render_plan_review_prompt(output)
+    current_prompt = prompt
+    last_error: str | None = None
+    for attempt in range(2):
+        try:
+            review = await llm.complete(current_prompt, PlanReviewOutput)
+        except (LLMError, ValidationError) as exc:
+            last_error = str(exc)
+            logger.warning("plan reviewer CLI call failed (attempt %d): %s", attempt, exc)
+            current_prompt = f"{prompt}\n\nYour previous response failed: {exc}\nRespond again."
+            continue
+        if review.aligned_with_activity or review.issues:
+            return review
+        last_error = "issues must explain why aligned_with_activity is false"
+        current_prompt = f"{prompt}\n\n{last_error}\nRespond again."
+    raise LLMError(f"plan reviewer could not produce a valid review: {last_error}")
 
 
 def _validate(
@@ -359,6 +427,8 @@ def _validate(
         lo, hi = target_band(signal.rating)
         if not (lo <= output.problem_rating <= hi):
             return f"problem_rating must be within [{lo:.0f}, {hi:.0f}] for {output.primary_type}"
+    elif output.problem_rating != PROBE_RATING:
+        return f"problem_rating must be {PROBE_RATING} for an unevidenced probe type"
     if not output.premise.strip():
         return "premise must not be empty"
     if len(output.premise) > _PREMISE_MAX_CHARS:
@@ -412,7 +482,17 @@ async def _call_planner(
             support_pool=support_pool,
         )
         if error is None:
-            return output
+            try:
+                review = await _call_plan_reviewer(llm, output)
+            except LLMError as exc:
+                logger.warning("plan reviewer failed; falling back deterministically: %s", exc)
+                break
+            if review.aligned_with_activity:
+                return output
+            error = (
+                "independent curriculum review found the plan mismatched the learner activity: "
+                + "; ".join(review.issues)
+            )
         logger.warning("planner output violated constraints (attempt %d): %s", attempt, error)
         current_prompt = f"{prompt}\n\nYour previous answer was invalid: {error}\nRespond again."
 

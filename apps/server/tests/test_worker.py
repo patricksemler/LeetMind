@@ -24,7 +24,9 @@ from tests.llm_fixtures import (
     BUILDER_REPAIR_MARKER,
     ORACLE_MARKER,
     PLANNER_MARKER,
+    QUALITY_REVIEW_MARKER,
     FakeLLM,
+    aligned_quality_review_output,
     fresh_user_plan_output,
     sum_problem_builder_output,
     sum_problem_oracle_output,
@@ -225,6 +227,7 @@ async def test_problem_row_marked_failed_when_builder_crashes_mid_repair(pool, m
         [
             (BUILDER_REPAIR_MARKER, {"title": "incomplete, missing required fields"}),
             (BUILDER_MARKER, sum_problem_builder_output()),
+            (QUALITY_REVIEW_MARKER, aligned_quality_review_output()),
             (ORACLE_MARKER, sum_problem_oracle_output()),
             (PLANNER_MARKER, fresh_user_plan_output()),
         ]
@@ -260,6 +263,7 @@ async def test_full_lifecycle_with_repair_produces_an_active_verified_problem(po
         [
             (BUILDER_REPAIR_MARKER, sum_problem_builder_output(buggy=False)),
             (BUILDER_MARKER, sum_problem_builder_output(buggy=True)),
+            (QUALITY_REVIEW_MARKER, aligned_quality_review_output()),
             (ORACLE_MARKER, sum_problem_oracle_output()),
             (PLANNER_MARKER, fresh_user_plan_output()),
         ]
@@ -286,6 +290,10 @@ async def test_full_lifecycle_with_repair_produces_an_active_verified_problem(po
     problem = await pool.fetchrow("SELECT * FROM problems WHERE id = $1", job["problem_id"])
     assert problem["status"] == "active"  # no other active problem existed yet
     assert problem["primary_type"] == "arrays_hashing"
+    assert json.loads(problem["constraints"]) == [
+        "0 <= nums.length <= 100",
+        "-100 <= nums[i] <= 100",
+    ]
     assert "sum(nums) + 1" not in problem["reference_solution"]  # the repaired version survived
 
     # Worker job completion replenishes the queue invariant's missing ready slot (§7.1).

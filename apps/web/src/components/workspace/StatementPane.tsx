@@ -24,9 +24,8 @@ export function StatementPane({ problem }: { problem: ProblemDetail }) {
     <div className="space-y-6">
       <h1 className="font-display text-xl text-text">{problem.title}</h1>
 
-      {/* `statement_md` already walks through worked examples in prose (PLAN_BACKEND.md §4); the
-          block below is the same public tests rendered as raw input/output, for a quick glance
-          without re-reading the paragraph they came from. */}
+      {/* Examples have one canonical source: `public_tests`. The generated statement is validated
+          to contain only the concise problem description, so this section never duplicates it. */}
       <Markdown>{problem.statement_md}</Markdown>
 
       <section>
@@ -57,6 +56,23 @@ export function StatementPane({ problem }: { problem: ProblemDetail }) {
           </div>
         </dl>
       </section>
+
+      {problem.constraints.length > 0 && (
+        <section>
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-text-faint">
+            Constraints
+          </h3>
+          <ul className="space-y-1.5">
+            {problem.constraints.map((constraint, i) => (
+              <li key={i}>
+                <code className="rounded border border-border bg-bg-inset px-1.5 py-0.5 font-mono text-xs text-text">
+                  {constraint}
+                </code>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ function problem(): ProblemDetail {
     is_probe: false,
     title: "Pair Sum Indices",
     statement_md: "…",
+    constraints: [],
     signature: {
       func_name: "solve",
       params: [{ name: "nums", type: { kind: "int", nullable: false, list_depth: 1 } }],

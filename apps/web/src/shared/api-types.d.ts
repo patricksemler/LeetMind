@@ -323,6 +323,8 @@ export interface components {
             title: string;
             /** Statement Md */
             statement_md: string;
+            /** Constraints */
+            constraints: string[];
             signature: components["schemas"]["Signature"];
             /** Starter Code */
             starter_code: string;
@@ -434,6 +436,8 @@ export interface components {
             title: string;
             /** Statement Md */
             statement_md: string;
+            /** Constraints */
+            constraints: string[];
             signature: components["schemas"]["Signature"];
             /** Starter Code */
             starter_code: string;

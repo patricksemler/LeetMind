@@ -9,6 +9,7 @@ import uuid
 
 from leetmind.planner import (
     PlanOutput,
+    PlanReviewOutput,
     _call_planner,
     _deterministic_plan,
     _lru_shape_for_type,
@@ -88,8 +89,8 @@ class TestValidate:
     def test_rating_outside_band_rejected_when_evidenced(self):
         assert "problem_rating" in (self._check(problem_rating=1) or "")
 
-    def test_rating_unconstrained_when_unevidenced(self):
-        # two_pointers has attempts=0 in SIGNAL_BY_SLUG — no band check applies.
+    def test_probe_rating_is_fixed_when_unevidenced(self):
+        # two_pointers has attempts=0 in SIGNAL_BY_SLUG — probe difficulty is fixed at 1000.
         output = _valid_output(
             primary_type="two_pointers", shape=SHAPE_FOR["two_pointers"], problem_rating=1
         )
@@ -100,7 +101,7 @@ class TestValidate:
             signal_by_slug=SIGNAL_BY_SLUG,
             support_pool=SUPPORT_POOL,
         )
-        assert result is None
+        assert "must be 1000" in (result or "")
 
     def test_empty_premise_rejected(self):
         assert "premise" in (self._check(premise="   ") or "")
@@ -153,6 +154,8 @@ async def test_call_planner_recovers_on_reask():
 
     class OnceBadLLM:
         async def complete(self, prompt, schema):  # noqa: ANN001, ANN201, D102
+            if schema is PlanReviewOutput:
+                return schema.model_validate({"aligned_with_activity": True, "issues": []})
             calls["n"] += 1
             return schema.model_validate(bad if calls["n"] == 1 else good)
 
@@ -167,6 +170,43 @@ async def test_call_planner_recovers_on_reask():
     )
     assert output.primary_type == "arrays_hashing"
     assert calls["n"] == 2
+
+
+async def test_call_planner_reasks_when_semantic_review_rejects_premise():
+    candidate = _valid_output().model_dump()
+    calls = {"planner": 0, "reviewer": 0}
+
+    class RejectOnceReviewer:
+        async def complete(self, prompt, schema):  # noqa: ANN001, ANN201
+            if schema is PlanOutput:
+                calls["planner"] += 1
+                return schema.model_validate(candidate)
+            if schema is PlanReviewOutput:
+                calls["reviewer"] += 1
+                return schema.model_validate(
+                    {
+                        "aligned_with_activity": calls["reviewer"] > 1,
+                        "issues": (
+                            []
+                            if calls["reviewer"] > 1
+                            else ["The premise is too difficult for the requested rating."]
+                        ),
+                    }
+                )
+            raise AssertionError(f"unexpected schema: {schema}")
+
+    output = await _call_planner(
+        RejectOnceReviewer(),
+        f"{PLANNER_MARKER} ...",
+        shortlist_slugs=set(SHORTLIST),
+        shape_for=SHAPE_FOR,
+        signal_by_slug=SIGNAL_BY_SLUG,
+        support_pool=SUPPORT_POOL,
+        fallback_primary="arrays_hashing",
+    )
+
+    assert output.primary_type == "arrays_hashing"
+    assert calls == {"planner": 2, "reviewer": 2}
 
 
 async def test_plan_generation_fresh_user_is_deterministically_shortlisted(pool):
