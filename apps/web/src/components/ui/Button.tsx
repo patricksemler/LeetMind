@@ -1,5 +1,6 @@
 import { forwardRef } from "react";
 import type { ButtonHTMLAttributes } from "react";
+import { Spinner } from "./Spinner";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md";
@@ -7,11 +8,16 @@ type Size = "sm" | "md";
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
+  /** Keeps the button's dimensions stable while replacing its visible content with a spinner. */
+  loading?: boolean;
+  loadingLabel?: string;
 }
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors " +
-  "disabled:opacity-40 disabled:cursor-not-allowed";
+  "relative inline-flex touch-manipulation items-center justify-center gap-2 whitespace-nowrap " +
+  "rounded-md font-medium transition-[background-color,border-color,color,filter,opacity,transform] " +
+  "duration-150 ease-out active:translate-y-px disabled:cursor-not-allowed " +
+  "disabled:active:translate-y-0 motion-reduce:transition-none";
 
 const variants: Record<Variant, string> = {
   primary: "bg-accent text-accent-fg hover:brightness-110 active:brightness-95",
@@ -37,8 +43,43 @@ export function buttonClassName({
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = "secondary", size = "md", className = "", ...rest },
+  {
+    variant = "secondary",
+    size = "md",
+    className = "",
+    loading = false,
+    loadingLabel = "Loading…",
+    disabled,
+    children,
+    "aria-label": ariaLabel,
+    ...rest
+  },
   ref,
 ) {
-  return <button ref={ref} className={buttonClassName({ variant, size, className })} {...rest} />;
+  return (
+    <button
+      ref={ref}
+      className={buttonClassName({
+        variant,
+        size,
+        className: `${className} ${loading ? "disabled:opacity-70" : "disabled:opacity-40"}`,
+      })}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      aria-label={loading ? loadingLabel : ariaLabel}
+      {...rest}
+    >
+      <span
+        className={`inline-flex items-center justify-center gap-2 ${loading ? "invisible" : ""}`}
+        aria-hidden={loading || undefined}
+      >
+        {children}
+      </span>
+      {loading && (
+        <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+          <Spinner size={size === "sm" ? "sm" : "md"} />
+        </span>
+      )}
+    </button>
+  );
 });

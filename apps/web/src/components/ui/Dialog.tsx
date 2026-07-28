@@ -74,7 +74,7 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="dialog-backdrop-enter fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -85,14 +85,14 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className="w-full max-w-lg rounded-lg border border-border-strong bg-bg-overlay shadow-2xl outline-none"
+        className="dialog-panel-enter w-full max-w-lg rounded-lg border border-border-strong bg-bg-overlay shadow-2xl outline-none"
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h2 className="font-display text-base text-text">{title}</h2>
           <button
             aria-label="Close"
             onClick={onClose}
-            className="rounded p-1 text-text-faint hover:bg-bg-raised hover:text-text"
+            className="rounded p-1 text-text-faint transition-colors duration-150 hover:bg-bg-raised hover:text-text motion-reduce:transition-none"
           >
             ✕
           </button>

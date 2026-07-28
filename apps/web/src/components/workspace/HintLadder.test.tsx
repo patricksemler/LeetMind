@@ -115,7 +115,7 @@ describe("HintLadder", () => {
     expect(screen.getByText(HINT_TEXT[0]!)).toBeInTheDocument();
   });
 
-  it("shows a pending label on the reveal button while the take is in flight", async () => {
+  it("shows a stable spinner button while the take is in flight", async () => {
     const user = userEvent.setup();
     let resolveTake!: (v: Awaited<ReturnType<typeof api.revealHint>>) => void;
     vi.mocked(api.revealHint).mockReturnValueOnce(new Promise((resolve) => (resolveTake = resolve)));
@@ -130,6 +130,8 @@ describe("HintLadder", () => {
 
     const pendingButton = await screen.findByRole("button", { name: /revealing…/i });
     expect(pendingButton).toBeDisabled();
+    expect(pendingButton.querySelector("svg")).toBeInTheDocument();
+    expect(pendingButton).not.toHaveTextContent("Revealing…");
 
     resolveTake({ rung: 1, text: HINT_TEXT[0]! });
     await waitFor(() =>

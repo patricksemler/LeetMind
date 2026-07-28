@@ -7,7 +7,16 @@
  * as they were rather than forced through this component.
  */
 export function RouteLoading({ message = "Loading…" }: { message?: string }) {
-  return <div className="flex h-full items-center justify-center text-text-faint">{message}</div>;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex h-full items-center justify-center gap-2 text-sm text-text-faint"
+    >
+      <Spinner />
+      <span>{message}</span>
+    </div>
+  );
 }
 
 export function QueryError({ message, onRetry }: { message: string; onRetry?: () => void }) {
@@ -22,3 +31,4 @@ export function QueryError({ message, onRetry }: { message: string; onRetry?: ()
     </div>
   );
 }
+import { Spinner } from "./Spinner";

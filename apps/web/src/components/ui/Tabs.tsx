@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 
 export interface TabDef {
   id: string;
@@ -44,10 +44,24 @@ export function tabPanelProps(
 }
 
 export function Tabs({ id, tabs, active, onChange, className = "", trailing }: TabsProps) {
+  function moveFocus(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const keyOffset = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
+    let nextIndex: number | null = keyOffset ? (index + keyOffset + tabs.length) % tabs.length : null;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = tabs.length - 1;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    const nextTab = tabs[nextIndex];
+    if (!nextTab) return;
+    onChange(nextTab.id);
+    document.getElementById(tabButtonId(id, nextTab.id))?.focus();
+  }
+
   return (
-    <div className={`flex items-center border-b border-border ${className}`}>
-      <div role="tablist" className="flex items-center gap-1">
-        {tabs.map((tab) => {
+    <div className={`flex h-12 shrink-0 items-center border-b border-border ${className}`}>
+      <div role="tablist" className="flex h-full items-center gap-1">
+        {tabs.map((tab, index) => {
           const selected = tab.id === active;
           return (
             <button
@@ -56,14 +70,21 @@ export function Tabs({ id, tabs, active, onChange, className = "", trailing }: T
               role="tab"
               aria-selected={selected}
               aria-controls={tabPanelId(id, tab.id)}
+              tabIndex={selected ? 0 : -1}
               onClick={() => onChange(tab.id)}
-              className={`relative px-3 py-2 text-sm transition-colors ${
+              onKeyDown={(event) => moveFocus(event, index)}
+              className={`relative h-full touch-manipulation px-3 text-sm transition-colors duration-150 motion-reduce:transition-none ${
                 selected ? "text-text" : "text-text-faint hover:text-text-dim"
               }`}
             >
               {tab.label}
               {tab.badge}
-              {selected && <span className="absolute inset-x-0 -bottom-px h-0.5 bg-accent" />}
+              <span
+                aria-hidden="true"
+                className={`absolute inset-x-0 -bottom-px h-0.5 origin-center bg-accent transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
+                  selected ? "scale-x-100 opacity-100" : "scale-x-50 opacity-0"
+                }`}
+              />
             </button>
           );
         })}

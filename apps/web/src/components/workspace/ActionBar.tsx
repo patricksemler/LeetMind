@@ -1,50 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Button } from "../ui";
-
-/**
- * The in-flight indicator for Run/Submit, and while it is up it is the ONLY thing in that corner:
- * the buttons are removed and this takes their place. With no lifecycle text anywhere in the
- * workspace, this is also the only signal that the judge is working — so it spins for as long as
- * the submission is being judged, not just for the POST that created it.
- *
- * The `role="status"` wrapper carries the label the vanished button used to: with nothing but a
- * glyph on screen, an aria-hidden spinner alone would leave a screen reader with no way to tell
- * that anything is happening at all.
- */
-function Spinner({ label }: { label: string }) {
-  return (
-    <span
-      role="status"
-      className="flex items-center px-2 text-text-dim"
-      data-testid="action-spinner"
-    >
-      <svg
-        className="size-4 animate-spin"
-        viewBox="0 0 16 16"
-        fill="none"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <circle
-          cx="8"
-          cy="8"
-          r="6.5"
-          stroke="currentColor"
-          strokeOpacity="0.25"
-          strokeWidth="2.5"
-        />
-        <path
-          d="M14.5 8A6.5 6.5 0 0 0 8 1.5"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-        />
-      </svg>
-      <span className="sr-only">{label}</span>
-    </span>
-  );
-}
+import { Button, Spinner } from "../ui";
 
 export function ActionBar({
   onRun,
@@ -98,7 +54,7 @@ export function ActionBar({
   }
 
   return (
-    <div className="flex items-center justify-end gap-3 border-b border-border bg-bg px-4 py-2">
+    <div className="flex h-12 shrink-0 items-center justify-end gap-3 border-b border-border bg-bg px-4">
       {/* Run and Submit differ only in which tests they execute — Run the public examples, Submit
           those plus the hidden suite. The titles say so, because "Run" vs "Submit" on their own
           does not.
@@ -110,7 +66,11 @@ export function ActionBar({
           way in through the keyboard either. */}
       <div className="flex min-h-[30px] items-center gap-2">
         {busy ? (
-          <Spinner label={submitting ? "Submitting…" : "Running…"} />
+          <Spinner
+            label={submitting ? "Submitting…" : "Running…"}
+            className="px-2 text-text-dim"
+            data-testid="action-spinner"
+          />
         ) : (
           <>
             <div

@@ -51,7 +51,10 @@ export function HintLadder({
   const coachTimerRef = useRef<number | null>(null);
   const takeMutation = useMutation({
     mutationFn: revealHint,
-    onSuccess: (res) => onRevealed(res.rung, res.text),
+    onSuccess: (res) => {
+      setCoachLeaving(false);
+      onRevealed(res.rung, res.text);
+    },
     onError: () => setCoachLeaving(false),
   });
 
@@ -85,7 +88,7 @@ export function HintLadder({
         return (
           <div
             key={rung}
-            className={`flex gap-3 rounded-md border p-3 ${
+            className={`flex gap-3 rounded-md border p-3 transition-[background-color,border-color,opacity] duration-200 ease-out motion-reduce:transition-none ${
               isTaken
                 ? "border-accent-dim bg-bg-inset"
                 : isLocked
@@ -115,14 +118,20 @@ export function HintLadder({
                       }
                       onClick={() => reveal(rung)}
                       disabled={takeMutation.isPending || coachLeaving}
+                      loading={pending}
+                      loadingLabel="Revealing…"
                     >
-                      {pending ? "Revealing…" : "Reveal"}
+                      Reveal
                     </Button>
                     {revealCoachMark}
                   </div>
                 )}
               </div>
-              {isTaken && <Markdown className="mt-1 text-xs">{revealedHints[rung - 1]!}</Markdown>}
+              {isTaken && (
+                <Markdown className="content-enter mt-1 text-xs">
+                  {revealedHints[rung - 1]!}
+                </Markdown>
+              )}
             </div>
           </div>
         );

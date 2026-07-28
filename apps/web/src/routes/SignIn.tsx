@@ -93,12 +93,14 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
             </label>
             <input
               id="email"
+              name="email"
               type="email"
               required
               autoComplete="email"
+              spellCheck={false}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded border border-border bg-bg-overlay px-3 py-2 text-sm text-text outline-none focus:border-accent"
+              className="w-full rounded border border-border bg-bg-overlay px-3 py-2 text-sm text-text transition-[border-color,box-shadow] duration-150 focus:border-accent motion-reduce:transition-none"
             />
           </div>
 
@@ -108,13 +110,14 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
             </label>
             <input
               id="password"
+              name="password"
               type="password"
               required
               minLength={isSignUp ? 8 : undefined}
               autoComplete={isSignUp ? "new-password" : "current-password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded border border-border bg-bg-overlay px-3 py-2 text-sm text-text outline-none focus:border-accent"
+              className="w-full rounded border border-border bg-bg-overlay px-3 py-2 text-sm text-text transition-[border-color,box-shadow] duration-150 focus:border-accent motion-reduce:transition-none"
             />
             {isSignUp && <p className="mt-1 text-xs text-text-faint">At least 8 characters.</p>}
           </div>
@@ -125,14 +128,15 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
             </p>
           )}
 
-          <Button type="submit" variant="primary" className="w-full" disabled={pending}>
-            {pending
-              ? isSignUp
-                ? "Creating…"
-                : "Signing in…"
-              : isSignUp
-                ? "Create account"
-                : "Sign in"}
+          <Button
+            type="submit"
+            variant="primary"
+            className="w-full"
+            disabled={pending}
+            loading={pending}
+            loadingLabel={isSignUp ? "Creating…" : "Signing in…"}
+          >
+            {isSignUp ? "Create account" : "Sign in"}
           </Button>
         </form>
 

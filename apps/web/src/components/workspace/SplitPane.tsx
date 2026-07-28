@@ -185,7 +185,7 @@ export function SplitPane({
         // it in the DOM painted over the half that reaches into it — so the divider could only be
         // caught from the side of the pane that comes first. Raising the divider puts its (entirely
         // transparent) grab area above both neighbours, which is what makes the leeway symmetric.
-        className={`group relative z-10 shrink-0 select-none transition-colors focus-visible:bg-accent focus-visible:outline-none ${
+        className={`group relative z-10 shrink-0 select-none transition-colors duration-150 focus-visible:bg-accent focus-visible:outline-none motion-reduce:transition-none ${
           isDragging ? "bg-accent" : "bg-border hover:bg-accent"
         } ${vertical ? "h-[3px] w-full cursor-row-resize" : "hidden w-[3px] cursor-col-resize sm:block"}`}
       >

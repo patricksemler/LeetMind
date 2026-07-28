@@ -28,7 +28,7 @@ export function NavBar() {
                 to={link.to}
                 end={link.end}
                 className={({ isActive }: { isActive: boolean }) =>
-                  `rounded px-2.5 py-1.5 text-sm transition-colors ${
+                  `rounded px-2.5 py-1.5 text-sm transition-colors duration-150 motion-reduce:transition-none ${
                     isActive ? "bg-bg-overlay text-text" : "text-text-dim hover:text-text"
                   }`
                 }
@@ -53,7 +53,7 @@ export function NavBar() {
                 await signOut();
                 navigate("/login", { replace: true });
               }}
-              className="rounded border border-border px-2 py-1 text-xs text-text-faint hover:border-border-strong hover:text-text-dim"
+              className="rounded border border-border px-2 py-1 text-xs text-text-faint transition-colors duration-150 hover:border-border-strong hover:text-text-dim motion-reduce:transition-none"
             >
               Sign out
             </button>

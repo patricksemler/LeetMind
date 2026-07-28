@@ -86,14 +86,14 @@ export function ProblemWorkspace({
                 trailing={tabsTrailing}
               />
               {activeTab === "problem" ? (
-                <div {...tabPanelProps(tabsId, "problem")}>
+                <div className="content-enter" {...tabPanelProps(tabsId, "problem")}>
                   <div className="space-y-6 p-5">
                     <StatementPane problem={problem} />
                     {problemTools}
                   </div>
                 </div>
               ) : (
-                <div {...tabPanelProps(tabsId, "results")}>
+                <div className="content-enter" {...tabPanelProps(tabsId, "results")}>
                   <ResultPanel problem={problem} result={result} />
                   {ratingUpdate && (
                     <div className="px-5 pb-5">
@@ -118,7 +118,10 @@ export function ProblemWorkspace({
                 coachExitMs={coachExitMs}
               />
               {actionErrorMessage && (
-                <div className="flex items-center justify-between gap-3 border-b border-verdict-error bg-verdict-error-dim px-4 py-1.5 text-xs text-text">
+                <div
+                  role="alert"
+                  className="flex items-center justify-between gap-3 border-b border-verdict-error bg-verdict-error-dim px-4 py-1.5 text-xs text-text"
+                >
                   <span>{actionErrorMessage}</span>
                   {onDismissActionError && (
                     <button className="shrink-0 underline" onClick={onDismissActionError}>

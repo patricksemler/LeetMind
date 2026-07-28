@@ -41,14 +41,16 @@ export function GiveUpControl({
         className="w-full"
         onClick={() => mutation.mutate()}
         disabled={mutation.isPending}
+        loading={mutation.isPending}
+        loadingLabel="Revealing…"
       >
-        {mutation.isPending ? "Revealing…" : "See Solution"}
+        See Solution
       </Button>
 
       {/* The failure has to land here now that there's no dialog to hold it — otherwise a give-up
           that errored out would look like a click that simply did nothing. */}
       {mutation.isError && (
-        <p className="mt-2 text-sm text-verdict-error">
+        <p role="alert" className="mt-2 text-sm text-verdict-error">
           {mutation.error instanceof Error
             ? mutation.error.message
             : "Couldn't give up on this problem."}

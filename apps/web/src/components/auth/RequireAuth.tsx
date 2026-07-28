@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../lib/auth";
+import { RouteLoading } from "../ui";
 
 /**
  * Gate for every route that reads user data.
@@ -17,7 +18,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
 
   if (!ready) {
-    return <div className="flex h-full items-center justify-center text-text-faint">Loading…</div>;
+    return <RouteLoading />;
   }
 
   if (!session) {

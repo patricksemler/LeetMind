@@ -149,6 +149,37 @@ body {
   }
 }
 
+@keyframes content-enter {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dialog-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialog-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .coach-mark-card {
   animation: coach-mark-enter 180ms ease-out both;
 }
@@ -157,9 +188,25 @@ body {
   animation: coach-mark-exit 140ms ease-in both;
 }
 
+.content-enter {
+  animation: content-enter 180ms ease-out both;
+}
+
+.dialog-backdrop-enter {
+  animation: dialog-backdrop-enter 140ms ease-out both;
+}
+
+.dialog-panel-enter {
+  animation: dialog-panel-enter 180ms ease-out both;
+  transform-origin: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .coach-mark-card,
-  .coach-guide-leaving .coach-mark-card {
+  .coach-guide-leaving .coach-mark-card,
+  .content-enter,
+  .dialog-backdrop-enter,
+  .dialog-panel-enter {
     animation-duration: 1ms;
   }
 }
