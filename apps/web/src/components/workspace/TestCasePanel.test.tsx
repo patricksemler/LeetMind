@@ -1,42 +1,46 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import type { PublicProblem, PublicTestResult } from "@shared";
+import type { ProblemDetail, TestOutcome } from "@shared";
 import { TestCasePanel } from "./TestCasePanel";
 
-function problem(overrides: Partial<PublicProblem> = {}): PublicProblem {
+function problem(overrides: Partial<ProblemDetail> = {}): ProblemDetail {
   return {
-    problem_version_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
-    problem_id: "p1",
-    version: 1,
+    id: "p1",
+    status: "active",
+    primary_type: "arrays_hashing",
+    support_types: [],
+    shape: "pairing_matching",
+    problem_rating: 1050,
+    is_probe: false,
     title: "Pair Sum Indices",
     statement_md: "…",
-    constraints_md: "…",
     signature: {
-      name: "solve",
+      func_name: "solve",
       params: [
-        { name: "nums", type: "list[int]" },
-        { name: "target", type: "int" },
+        { name: "nums", type: { kind: "int", nullable: false, list_depth: 1 } },
+        { name: "target", type: { kind: "int", nullable: false, list_depth: 0 } },
       ],
-      returns: "list[int]",
+      returns: { kind: "int", nullable: false, list_depth: 1 },
+      order_insensitive: false,
     },
-    examples: [
-      { args: [[2, 7, 11, 15], 9], expected: [0, 1], explanation: "nums[0] + nums[1] = 9." },
+    starter_code: "",
+    public_tests: [
+      { args: [[2, 7, 11, 15], 9], expected: [0, 1] },
       { args: [[3, 2, 4], 6], expected: [1, 2] },
     ],
-    difficulty_rating: 1050,
-    expected_active_minutes: [4, 10],
-    comparator: "unordered",
-    starter_code: { python: "", cpp: "" },
-    hint_levels_available: [],
-    concepts_revealed: null,
+    complexity: { time: "O(n)", space: "O(n)" },
+    par_minutes: 10,
+    created_at: "2026-01-01T00:00:00Z",
+    served_at: "2026-01-01T00:00:00Z",
+    revealed_hints: [],
     ...overrides,
-  } as PublicProblem;
+  } as ProblemDetail;
 }
 
-const RESULTS: PublicTestResult[] = [
-  { index: 0, status: "passed", passed: true, actual: [0, 1] },
-  { index: 1, status: "failed", passed: false, actual: null },
+const RESULTS: TestOutcome[] = [
+  { index: 0, verdict: "pass", value: [0, 1], printed: "", duration_ms: 1 },
+  { index: 1, verdict: "wrong_answer", value: null, printed: "", duration_ms: 1 },
 ];
 
 describe("TestCasePanel", () => {
@@ -58,14 +62,6 @@ describe("TestCasePanel", () => {
     expect(screen.getByRole("img", { name: "failed" })).toBeInTheDocument();
   });
 
-  it("shows only the marks — no pass counter, and no restatement of the example's prose", () => {
-    const { container } = render(<TestCasePanel problem={problem()} results={RESULTS} />);
-    expect(container.textContent).not.toMatch(/\d\/\d/);
-    // The explanation lives on the problem statement; repeating it here undoes the compactness
-    // the case list exists for.
-    expect(container.textContent).not.toContain("nums[0] + nums[1]");
-  });
-
   it("names each input after its signature parameter rather than showing a positional blob", () => {
     const { container } = render(<TestCasePanel problem={problem()} results={RESULTS} />);
     expect(container.textContent).toContain("nums = ");
@@ -84,21 +80,21 @@ describe("TestCasePanel", () => {
     expect(container.textContent).toContain("null");
   });
 
-  it("explains a case that never ran instead of rendering an empty output box", () => {
+  it("shows the error message for a case that errored", () => {
     render(
       <TestCasePanel
         problem={problem()}
         results={[
-          { index: 0, status: "error", passed: false },
-          { index: 1, status: "not_run", passed: false },
+          { index: 0, verdict: "error", error: "boom", printed: "", duration_ms: 1 },
+          { index: 1, verdict: "pass", value: [1, 2], printed: "", duration_ms: 1 },
         ]}
       />,
     );
-    expect(screen.getByText("error")).toBeInTheDocument();
+    expect(screen.getByText("boom")).toBeInTheDocument();
   });
 
   it("degrades to a plain message for a problem with no public examples", () => {
-    render(<TestCasePanel problem={problem({ examples: [] })} />);
+    render(<TestCasePanel problem={problem({ public_tests: [] })} />);
     expect(screen.getByText(/no public example cases/i)).toBeInTheDocument();
   });
 });

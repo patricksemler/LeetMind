@@ -10,11 +10,9 @@ const LINKS = [
  * otherwise empty until a session exists — a lone punctuation badge floating top-right read as a
  * stray avatar rather than as help. */
 export function NavBar() {
-  const { session, authRequired, email, signOut } = useAuth();
+  const { session, email, signOut } = useAuth();
   const navigate = useNavigate();
-  // With auth off (single-user local stack) there is no session to have, and hiding the nav would
-  // leave that build with no navigation at all.
-  const signedIn = !authRequired || Boolean(session);
+  const signedIn = Boolean(session);
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-bg px-4">
@@ -42,7 +40,7 @@ export function NavBar() {
         )}
       </div>
       <div className="flex items-center gap-2">
-        {authRequired && session && (
+        {session && (
           <>
             <span
               className="hidden max-w-[18ch] truncate text-xs text-text-faint sm:inline"

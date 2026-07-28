@@ -1,4 +1,3 @@
-import type { Language } from "@shared";
 import { Button } from "../ui";
 
 /**
@@ -46,34 +45,24 @@ function Spinner({ label }: { label: string }) {
 }
 
 export function ActionBar({
-  language,
-  onLanguageChange,
   onRun,
   onSubmit,
   running,
   submitting,
+  disabled = false,
 }: {
-  language: Language;
-  onLanguageChange: (l: Language) => void;
   onRun: () => void;
   onSubmit: () => void;
   running: boolean;
   submitting: boolean;
+  /** Once a problem is resolved, the server 409s any run/submit (§8.3 requires `active`) — greyed
+   * out rather than hidden, so the corner doesn't jump when a solve lands. */
+  disabled?: boolean;
 }) {
   const busy = running || submitting;
 
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2">
-      <select
-        value={language}
-        onChange={(e) => onLanguageChange(e.target.value as Language)}
-        className="rounded border border-border-strong bg-bg-overlay px-2 py-1.5 text-xs text-text outline-none focus:border-accent"
-        aria-label="Language"
-      >
-        <option value="python">Python</option>
-        <option value="cpp">C++</option>
-      </select>
-
+    <div className="flex items-center justify-end gap-3 border-b border-border bg-bg px-4 py-2">
       {/* Run and Submit differ only in which tests they execute — Run the public examples, Submit
           those plus the hidden suite. The titles say so, because "Run" vs "Submit" on their own
           does not.
@@ -92,6 +81,7 @@ export function ActionBar({
               size="sm"
               variant="secondary"
               onClick={onRun}
+              disabled={disabled}
               title="Run against the public example tests (Cmd/Ctrl + ')"
             >
               Run
@@ -100,6 +90,7 @@ export function ActionBar({
               size="sm"
               variant="primary"
               onClick={onSubmit}
+              disabled={disabled}
               title="Submit against the public examples AND the hidden tests (Cmd/Ctrl + Enter)"
             >
               Submit

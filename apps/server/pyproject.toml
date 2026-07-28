@@ -9,7 +9,7 @@ dependencies = [
   "asyncpg>=0.30",
   "pydantic>=2.9",
   "pydantic-settings>=2.6",
-  "pyjwt>=2.9",
+  "pyjwt[crypto]>=2.9",  # [crypto] pulls in `cryptography`, required for RS256/ES256 verification
   "sse-starlette>=2.1",
 ]
 

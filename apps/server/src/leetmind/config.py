@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     # LLM CLI transport (PLAN_BACKEND.md §7.5, decision 12). `llm_args` is a whitespace-split
     # extra-flags string (e.g. the CLI's own tool-disable flags) — kept in config, not code, so
     # flags can change without a deploy.
-    llm_cli: str = "claude"  # "claude" (default) or "codex"
+    llm_cli: str = "claude"  # "claude" (default), "codex", or "fixture" (canned responses, §12)
     llm_bin: str | None = None  # override the executable name/path; defaults to llm_cli
     llm_model: str = "claude-sonnet-5"
     llm_args: str = ""

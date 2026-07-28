@@ -1,78 +1,42 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { GENERATION_STAGES, type GenerationProgress } from "@shared";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { GenerationJobStatus } from "@shared";
 import { api } from "../lib/api";
+import { useGenerationEvents } from "../hooks/useGenerationEvents";
 import { Button, Panel, QueryError, RouteLoading } from "../components/ui";
 import { buttonClassName } from "../components/ui/Button";
 
 /**
  * `/` — practice. One problem at a time, forever.
  *
- * There is no session to start, nothing to plan, and — as of the baseline's removal — nothing to
- * complete before the app will give you something to do. This route used to check `has_baseline`
- * and bounce a new user to an onboarding probe; now their first request returns a problem like
- * every other request does. Calibration still happens over the first few problems, but it is the
- * API's business, not a screen the user has to get through.
- *
- * Two answers to render, then: a problem, or `generating` — when the verified pool can't cover the
- * user's current edge, the API commissions a new problem and this page polls until it lands rather
- * than showing an empty state and a shrug.
+ * `GET /api/practice/next` is a pure read (PLAN_BACKEND.md amendments 36, 41): a stub only, never
+ * the statement — `{state: "active", problem_id}` once the workspace can open it, `{state:
+ * "generating", job}` while the pipeline is still writing one, or `{state: "stalled"}` when there
+ * is neither, which only `POST /api/practice/replenish` can fix. This page calls `replenish` once
+ * on mount (covers a brand-new user, who starts with nothing queued) and again whenever `next`
+ * reports `stalled` (self-heal) — both idempotent, so calling one extra time costs nothing.
  */
 
-/** Generation runs `claude -p` and then a six-stage verification gate, so it is measured in tens
- * of seconds, not milliseconds. Two seconds is frequent enough to feel responsive without
- * hammering the API for the whole wait. */
-const GENERATING_POLL_MS = 2000;
+const GENERATING_FALLBACK_POLL_MS = 4000;
 
-/** `mm:ss` since `startedAt`, or null if there is no usable start time. */
-function elapsedLabel(startedAt: string | null | undefined, now: number): string | null {
-  if (!startedAt) return null;
-  const started = Date.parse(startedAt);
-  if (Number.isNaN(started)) return null;
-  const seconds = Math.max(0, Math.floor((now - started) / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
+const JOB_STAGES: GenerationJobStatus[] = ["queued", "planning", "building", "verifying"];
 
-/**
- * The wait screen: a badge, a heading, and a bar showing which stage the problem is at.
- *
- * It used to also name the target concept and print two paragraphs explaining the verification
- * gate and promising "a minute or two". That promise was measurably false — real generations ran
- * 96-518s — and the explanation was a wall of text nobody re-reads on their second wait.
- *
- * **Why elapsed time sits next to the bar.** `writing` (the model call) is almost the entire wait;
- * the six gate stages after it total ~10-19s. So the bar genuinely does sit on segment 1 for most
- * of the wait and then sweep. Without a second signal that looks identical to being stuck, and the
- * honest fix is to show time passing rather than to fake sub-stages the CLI never reports.
- */
-function GeneratingPanel({
-  progress,
-  startedAt,
-}: {
-  progress: GenerationProgress | null;
-  startedAt: string | null;
-}) {
-  // Ticks once a second purely so the elapsed clock advances between the 2s poll intervals.
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
+const STAGE_LABEL: Record<GenerationJobStatus, string> = {
+  queued: "Queued",
+  planning: "Planning",
+  building: "Writing",
+  verifying: "Verifying",
+  ready: "Ready",
+  failed: "Failed",
+};
 
-  const elapsed = elapsedLabel(startedAt, now);
-  // index 0 (or absent progress) means "nothing has reported yet" — queued behind other work, not
-  // stage 1. Rendered as an indeterminate bar with no stage name, because claiming "Writing" for a
-  // job that has not been picked up would be a guess.
-  const index = progress?.index ?? 0;
-  const current = GENERATION_STAGES.find((s) => s.key === progress?.stage);
-  const total = GENERATION_STAGES.length;
+function GeneratingPanel({ status, repairCount }: { status: GenerationJobStatus; repairCount: number }) {
+  const index = JOB_STAGES.indexOf(status);
+  const total = JOB_STAGES.length;
 
   return (
     <Panel className="w-full max-w-md p-6 text-center">
-      {/* The heading already says a problem is being written; a "generating" badge above it said
-          the same thing a second time. The pulsing dot carries the in-progress signal on its own,
-          and the stage bar below carries the detail. */}
       <span
         className="mb-3 inline-block h-2 w-2 animate-pulse rounded-full bg-accent"
         aria-hidden="true"
@@ -84,24 +48,18 @@ function GeneratingPanel({
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={total}
-        {...(index > 0 ? { "aria-valuenow": index } : {})}
-        aria-valuetext={current ? `${current.label}, step ${index} of ${total}` : "Queued"}
+        {...(index >= 0 ? { "aria-valuenow": index + 1 } : {})}
+        aria-valuetext={`${STAGE_LABEL[status]}, step ${index + 1} of ${total}`}
       >
         <div className="flex gap-1">
-          {GENERATION_STAGES.map((stage, i) => {
-            const done = index > 0 && i + 1 < index;
-            const active = index > 0 && i + 1 === index;
+          {JOB_STAGES.map((stage, i) => {
+            const done = index >= 0 && i < index;
+            const active = i === index;
             return (
               <span
-                key={stage.key}
+                key={stage}
                 className={`h-1.5 flex-1 rounded-full ${
-                  done
-                    ? "bg-accent"
-                    : active
-                      ? "animate-pulse bg-accent"
-                      : index === 0
-                        ? "animate-pulse bg-border"
-                        : "bg-border"
+                  done ? "bg-accent" : active ? "animate-pulse bg-accent" : "bg-border"
                 }`}
               />
             );
@@ -109,8 +67,10 @@ function GeneratingPanel({
         </div>
 
         <div className="mt-2.5 flex items-baseline justify-center gap-2 text-xs">
-          <span className="text-text-dim">{current ? current.label : "Queued"}</span>
-          {elapsed && <span className="tabular-nums text-text-faint">{elapsed}</span>}
+          <span className="text-text-dim">{STAGE_LABEL[status]}</span>
+          {repairCount > 0 && (
+            <span className="tabular-nums text-text-faint">retry {repairCount}</span>
+          )}
         </div>
       </div>
     </Panel>
@@ -118,34 +78,56 @@ function GeneratingPanel({
 }
 
 export function Practice() {
+  const queryClient = useQueryClient();
+
   const nextQuery = useQuery({
     queryKey: ["practice", "next"],
-    queryFn: api.nextPracticeProblem,
-    // Only poll while something is actually being generated for us. A steady-state practice page
-    // showing a ready problem must not re-fetch on a timer — it would swap the problem out from
-    // under a user who is reading it.
-    refetchInterval: (query) => (query.state.data?.generating ? GENERATING_POLL_MS : false),
+    queryFn: api.practiceNext,
+    // A safety net under the SSE invalidation below, not the primary mechanism: Postgres NOTIFY
+    // has no replay, so a transition that fires before the SSE listener finishes attaching (or
+    // during a reconnect) is simply lost — confirmed live, the UI otherwise sits on a stale stage
+    // forever with nothing to nudge it. Slow enough that SSE (near-instant when it lands) is doing
+    // the real work; this only bounds how long a missed event can strand someone.
+    refetchInterval: (query) =>
+      query.state.data?.state === "active" ? false : GENERATING_FALLBACK_POLL_MS,
+    // React Query pauses `refetchInterval` while the tab is backgrounded by default — reasonable
+    // for most polling, wrong for "tell me when my problem is ready": a user waiting on
+    // generation is exactly the person likely to alt-tab away and back rather than stare at a
+    // progress bar, and they still deserve an up-to-date answer the moment they return.
+    refetchIntervalInBackground: true,
   });
 
-  // `isFetchedAfterMount`, not `isLoading` — this visit renders only what this visit fetched.
-  //
-  // React Query serves cached data on mount and refetches behind it, and `isLoading` is only true
-  // when there is nothing cached at all. "Next problem" on the workspace links back here, so the
-  // user finished a problem, landed on `/`, and was handed straight back the problem they had just
-  // finished — Start button and all — until the refetch landed a round trip later and it silently
-  // flipped to the real answer (usually `generating`, once the small approved pool is exhausted).
-  // Invalidating the query from the workspace doesn't fix that: invalidation marks the entry stale
-  // and refetches, but leaves the stale VALUE in place to be rendered meanwhile. Not rendering it
-  // is the fix.
-  //
-  // Note what this is NOT in tension with: the `refetchInterval` rule above is about a MOUNTED page
-  // not swapping a problem out from under someone mid-read. This governs only what a fresh mount
-  // shows before its own answer arrives, when nobody is reading anything yet. A brief loading state
-  // on arrival is the honest answer to "what should this person do right now?" — a question whose
-  // answer changed the moment they finished the last one.
-  //
-  // An error still gets through: a failed fetch counts as fetched-after-mount, so the error branch
-  // below is reachable rather than being masked by a permanent spinner.
+  const replenishMutation = useMutation({
+    mutationFn: api.practiceReplenish,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["practice", "next"] }),
+  });
+
+  // First load: bootstrap a brand-new user (nothing queued yet) and self-heal anyone who landed
+  // here mid-outage. Idempotent server-side, so firing it unconditionally on mount is cheap.
+  const replenishedOnMount = useRef(false);
+  useEffect(() => {
+    if (replenishedOnMount.current) return;
+    replenishedOnMount.current = true;
+    replenishMutation.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const state = nextQuery.data?.state;
+
+  // Self-heal: `next` found neither an active problem nor a live job.
+  useEffect(() => {
+    if (state === "stalled") replenishMutation.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  // While something is generating, watch the job-transition stream for a near-instant update — a
+  // landed transition just invalidates the read above; the poll started with the query is only
+  // the fallback for a transition SSE missed (see its comment).
+  useGenerationEvents({
+    enabled: state === "generating" || state === "stalled",
+    onEvent: () => void queryClient.invalidateQueries({ queryKey: ["practice", "next"] }),
+  });
+
   if (!nextQuery.isFetchedAfterMount) {
     return <RouteLoading />;
   }
@@ -161,63 +143,43 @@ export function Practice() {
 
   const data = nextQuery.data;
 
-  if (data?.generating) {
+  if (data?.state === "generating" && data.job) {
     return (
       <div className="flex h-full items-center justify-center p-6">
-        <GeneratingPanel
-          progress={data.generating.progress ?? null}
-          startedAt={data.generating.started_at ?? null}
-        />
+        <GeneratingPanel status={data.job.status} repairCount={data.job.repair_count} />
       </div>
     );
   }
 
-  const problem = data?.problem;
-
-  if (!problem) {
+  if (data?.state === "active" && data.problem_id) {
     return (
       <div className="flex h-full items-center justify-center p-6">
-        <Panel className="max-w-md p-6 text-center">
-          <h1 className="font-display text-xl text-text">Nothing to practise right now</h1>
+        <Panel className="w-full max-w-lg p-6">
+          <h1 className="font-display text-xl text-text">A problem is ready for you</h1>
           <p className="mt-2 text-sm text-text-dim">
-            {data?.rationale ?? "No problem is available."}
+            Picked for the edge of your ability. Open it to see what it is.
           </p>
-          <Button variant="secondary" className="mt-5" onClick={() => void nextQuery.refetch()}>
-            Check again
-          </Button>
+          <div className="mt-5">
+            <Link
+              to={`/problem/${data.problem_id}`}
+              className={buttonClassName({ variant: "primary" })}
+            >
+              {data.opened ? "Continue" : "Start"}
+            </Link>
+          </div>
         </Panel>
       </div>
     );
   }
 
-  // The card is deliberately three things: the badge, the title, and the way in.
-  //
-  // It used to also carry the concept tag, the expected-minutes range, the selector's `rationale`
-  // ("deprioritized: Sliding Window was already practiced today.") and a standing footer about how
-  // scoring works. All four were true and none were load-bearing: the rationale is the model
-  // explaining ITSELF, which is only interesting if you are debugging the selector, and the tag and
-  // minutes pre-empt a judgement the statement makes better ten seconds later. The footer said the
-  // same sentence on every problem forever, which is the definition of something a user stops
-  // reading. Anything genuinely needed to attempt the problem lives on the workspace.
   return (
     <div className="flex h-full items-center justify-center p-6">
-      <Panel className="w-full max-w-lg p-6">
-        <h1 className="font-display text-xl text-text">{problem.title}</h1>
-
-        {/* One control. There is deliberately no way to ask for a different problem: the pick is
-            the model's answer to "what should this person do right now?", and a re-roll beside it
-            turned that answer into a suggestion. It also cost nothing to use — re-asking wrote no
-            event, so a user could shop for an easier problem and the ratings would never know they
-            had. Give-up, on the workspace, remains the way out of a problem that isn't going
-            anywhere, and unlike a re-roll it is scored. */}
-        <div className="mt-5">
-          <Link
-            to={`/problem/${problem.problem_version_id}`}
-            className={buttonClassName({ variant: "primary" })}
-          >
-            Start
-          </Link>
-        </div>
+      <Panel className="max-w-md p-6 text-center">
+        <h1 className="font-display text-xl text-text">Getting a problem ready</h1>
+        <p className="mt-2 text-sm text-text-dim">This shouldn't take long.</p>
+        <Button variant="secondary" className="mt-5" onClick={() => void nextQuery.refetch()}>
+          Check again
+        </Button>
       </Panel>
     </div>
   );

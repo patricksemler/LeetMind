@@ -17,18 +17,15 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
-import { authConfigured, supabase } from "./supabase";
+import { supabase } from "./supabase";
 import { setAccessTokenGetter } from "./api";
 
 export interface AuthState {
   /** False until the initial session lookup resolves — render nothing decisive before then, or a
    * returning user sees a flash of the signed-out UI on every reload. */
   ready: boolean;
-  /** Null when signed out, or always null when auth isn't configured (single-user mode). */
   session: Session | null;
   email: string | null;
-  /** True when the app requires a session at all. False for the mock/single-user stack. */
-  authRequired: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<{ needsEmailConfirmation: boolean }>;
   signOut: () => Promise<void>;
@@ -36,6 +33,10 @@ export interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+/** Supabase is required in both apps (PLAN_BACKEND.md §9) — the server verifies every request
+ * against a real JWT, with no bypass. A build with no Supabase project configured can't sign
+ * anyone in; this is the one place that failure surfaces, at the point of use rather than at
+ * import time (so `AuthProvider` can still mount and route to `/login`, which explains itself). */
 function requireClient() {
   if (!supabase) throw new Error("Authentication is not configured for this build.");
   return supabase;
@@ -44,7 +45,7 @@ function requireClient() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
-  const [ready, setReady] = useState(!authConfigured);
+  const [ready, setReady] = useState(false);
 
   // Read by the api client on every request. It asks the Supabase client directly rather than
   // reading React state: `getSession()` is the authoritative source, it resolves the persisted
@@ -61,7 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase) {
+      // No Supabase project configured — there is no session to restore. `ready: true` with
+      // `session: null` still lets `RequireAuth` resolve (to `/login`, where signing in throws
+      // the same "not configured" error from `requireClient`) instead of spinning forever.
+      setReady(true);
+      return;
+    }
     let cancelled = false;
 
     void (async () => {
@@ -89,7 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ready,
       session,
       email: session?.user.email ?? null,
-      authRequired: authConfigured,
       async signIn(email, password) {
         const { error } = await requireClient().auth.signInWithPassword({ email, password });
         if (error) throw new Error(error.message);

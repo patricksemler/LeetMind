@@ -45,7 +45,7 @@ export function App() {
               }
             />
             <Route
-              path="/problem/:versionId"
+              path="/problem/:problemId"
               element={
                 <RequireAuth>
                   <Problem />

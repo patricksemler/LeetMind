@@ -1,32 +1,22 @@
 /**
- * Thin, typed HTTP client for the LeetMind API (docs/CONTRACTS.md §9). Every response is parsed
- * through the zod schemas exported from `@shared` — this file never redeclares an API
- * shape, it only calls fetch and hands the JSON to the shared schema.
+ * Thin, typed HTTP client for the LeetMind API (PLAN_BACKEND.md §9). Every function's return type
+ * comes from `@shared`, which re-exports the OpenAPI-generated shapes — this file never
+ * redeclares an API shape, it only calls fetch and casts the JSON to the type the server's own
+ * schema says it is.
  *
- * Talks to `/api/...` (and `/health`), which Vite proxies to `VITE_API_BASE`. This repo ships the
- * frontend alone, so that address is the only thing to point at a different backend — nothing in
- * this file changes to switch between one and another.
+ * Talks to `/api/...` (and `/health`), which Vite proxies to `VITE_API_BASE`.
  */
-import {
-  CreateSubmissionResponse,
-  GetConceptsResponse,
-  GetHintsResponse,
-  GetLatestSubmissionResponse,
-  GetProblemResponse,
-  GetSubmissionResponse,
-  GenerateNowResponse,
-  ListSubmissionsResponse,
-  HealthResponse,
-  MeResponse,
-  NextPracticeProblemResponse,
-  NextProblemResponse,
-  RevealSchema,
-  TakeHintResponse,
+import type {
+  CodeRequest,
   GiveUpResponse,
-  type CreateSubmissionRequest,
-  type GenerateNowRequest,
-  type GiveUpRequest,
-  type TakeHintRequest,
+  HintResponse,
+  MeResponse,
+  PracticeNextResponse,
+  ProblemDetail,
+  ProgressResponse,
+  ReplenishResponse,
+  RunResponse,
+  SubmitResponse,
 } from "@shared";
 
 export class ApiError extends Error {
@@ -68,16 +58,12 @@ export async function currentAccessToken(): Promise<string | null> {
   return (await accessTokenGetter?.()) ?? null;
 }
 
-interface Schema<T> {
-  parse: (value: unknown) => T;
-}
-
 async function authHeaders(): Promise<Record<string, string>> {
   const token = await currentAccessToken();
   return token ? { authorization: `Bearer ${token}` } : {};
 }
 
-async function request<T>(path: string, schema: Schema<T>, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
     headers: {
@@ -93,83 +79,55 @@ async function request<T>(path: string, schema: Schema<T>, init?: RequestInit): 
     let message = res.statusText || `HTTP ${res.status}`;
     let code: string | undefined;
     try {
-      const body = (await res.json()) as { error?: { code?: string; message?: string } };
-      if (body?.error?.message) message = body.error.message;
-      code = body?.error?.code;
+      const body = (await res.json()) as { detail?: string };
+      if (typeof body?.detail === "string") message = body.detail;
+      code = String(res.status);
     } catch {
       // body wasn't JSON, fall back to statusText
     }
     throw new ApiError(res.status, message, code, correlationId);
   }
 
-  if (res.status === 204) return schema.parse(undefined);
-  const json = await res.json();
-  return schema.parse(json);
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
 }
 
-function postJson<T>(path: string, body: unknown, schema: Schema<T>): Promise<T> {
-  return request(path, schema, { method: "POST", body: JSON.stringify(body ?? {}) });
+function postJson<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, { method: "POST", body: JSON.stringify(body ?? {}) });
 }
 
 export const api = {
-  health: () => request("/health", HealthResponse),
+  health: () => request<Record<string, boolean | string>>("/health"),
 
-  me: () => request("/api/me", MeResponse),
+  me: () => request<MeResponse>("/api/me"),
 
-  /** The practice loop's single endpoint: next problem, or the generation in flight for it. */
-  nextPracticeProblem: () => request("/api/practice/next", NextPracticeProblemResponse),
+  /** The practice loop's single read: what's active, what's generating, or nothing at all —
+   * never the statement (amendments 36, 41). */
+  practiceNext: () => request<PracticeNextResponse>("/api/practice/next"),
 
-  nextProblem: (params: { concept?: string; rating?: number } = {}) => {
-    const qs = new URLSearchParams();
-    if (params.concept) qs.set("concept", params.concept);
-    if (params.rating !== undefined) qs.set("rating", String(params.rating));
-    const suffix = qs.toString() ? `?${qs.toString()}` : "";
-    return request(`/api/problems/next${suffix}`, NextProblemResponse);
-  },
+  /** Idempotent bootstrap/self-heal: tops the queue up to the invariant. */
+  practiceReplenish: () => postJson<ReplenishResponse>("/api/practice/replenish"),
 
-  getProblem: (versionId: string) => request(`/api/problems/${versionId}`, GetProblemResponse),
+  /** Requires the problem opened first (409 `not_opened` otherwise). */
+  getProblem: (problemId: string) => request<ProblemDetail>(`/api/problems/${problemId}`),
 
-  createSubmission: (body: CreateSubmissionRequest) =>
-    postJson("/api/submissions", body, CreateSubmissionResponse),
+  /** Atomically stamps `served_at` and returns the full view — the one way to see the statement. */
+  openProblem: (problemId: string) => postJson<ProblemDetail>(`/api/problems/${problemId}/open`),
 
-  getSubmission: (id: string) => request(`/api/submissions/${id}`, GetSubmissionResponse),
+  run: (problemId: string, body: CodeRequest) =>
+    postJson<RunResponse>(`/api/problems/${problemId}/run`, body),
 
-  latestSubmission: (versionId: string) =>
-    request(`/api/problems/${versionId}/submissions/latest`, GetLatestSubmissionResponse),
+  submit: (problemId: string, body: CodeRequest) =>
+    postJson<SubmitResponse>(`/api/problems/${problemId}/submit`, body),
 
-  listSubmissions: (versionId: string) =>
-    request(`/api/problems/${versionId}/submissions`, ListSubmissionsResponse),
+  giveUp: (problemId: string) => postJson<GiveUpResponse>(`/api/problems/${problemId}/give-up`),
 
-  takeHint: (body: TakeHintRequest) => postJson("/api/hints", body, TakeHintResponse),
+  revealHint: (problemId: string, rung: number) =>
+    postJson<HintResponse>(`/api/problems/${problemId}/hints/${rung}`),
 
-  getHints: (versionId: string) => request(`/api/hints/${versionId}`, GetHintsResponse),
-
-  giveUp: (versionId: string, body: GiveUpRequest) =>
-    postJson(`/api/problems/${versionId}/give-up`, body, GiveUpResponse),
-
-  /** The reveal already earned on this version. 404s when it hasn't been — callers must only ask
-   * once they know it has (a recorded give-up, or an accepted solve). */
-  getReveal: (versionId: string) => request(`/api/problems/${versionId}/reveal`, RevealSchema),
-
-  generateNow: (body: GenerateNowRequest) =>
-    postJson("/api/generate-now", body, GenerateNowResponse),
-
-  /** The taxonomy and the user's rating on each node — the app's only self-reporting surface. */
-  concepts: () => request("/api/concepts", GetConceptsResponse),
+  progress: () => request<ProgressResponse>("/api/progress"),
 };
 
-export function submissionEventsUrl(submissionId: string): string {
-  return `/api/submissions/${submissionId}/events`;
-}
-
-/**
- * `EventSource` cannot send an `Authorization` header, so the SSE stream authenticates with the
- * access token as a query parameter instead. This is the one place a token appears in a URL; it is
- * a same-origin request to our own API over the Vite proxy (or TLS in a deployed stack), and the
- * alternative — a cookie — would mean giving up the stateless bearer model everywhere else.
- */
-export async function submissionEventsUrlWithAuth(submissionId: string): Promise<string> {
-  const token = await currentAccessToken();
-  const base = submissionEventsUrl(submissionId);
-  return token ? `${base}?access_token=${encodeURIComponent(token)}` : base;
+export function eventsUrl(): string {
+  return "/api/events";
 }

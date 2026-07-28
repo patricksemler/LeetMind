@@ -12,34 +12,17 @@ vi.mock("../../lib/api", () => ({
 import { api } from "../../lib/api";
 
 const RESPONSE: GiveUpResponse = {
-  editorial_md: "Maintain a hash map of values seen so far.",
-  solutions: {
-    python: "def pairSumIndices(nums, target):\n    ...\n",
-    cpp: "int pairSumIndices() { return 0; }\n",
-  },
-  concepts: [
-    {
-      id: "arrays_hashing",
-      name: "Arrays & Hashing",
-      description: "",
-      misconceptions: [],
-      min_rating: 800,
-      max_rating: 2400,
-      sort_order: 0,
-    },
-  ],
-  mastery_change: {
-    changes: [
-      {
-        concept_id: "arrays_hashing",
-        before_rating: 1200,
-        after_rating: 1180,
-        before_uncertainty: 300,
-        after_uncertainty: 280,
-      },
-    ],
-    outcome: 0,
-    explanation: "Give-up floors the outcome at 0.",
+  reference_solution: "def pairSumIndices(nums, target):\n    ...\n",
+  rating_update: {
+    type_slug: "arrays_hashing",
+    rating_before: 1200,
+    rating_after: 1180,
+    delta: -20,
+    problem_rating: 1150,
+    expected_score: 0.6,
+    performance_score: 0,
+    k_factor: 40,
+    metrics: { runs: 2, submissions: 0, hints_revealed: 1, minutes: 5, gave_up: true },
   },
 };
 
@@ -48,11 +31,11 @@ function Harness() {
   const [result, setResult] = useState<GiveUpResponse | null>(null);
   return (
     <div>
-      <GiveUpControl versionId="v1" activeMs={12345} onGaveUp={setResult} />
+      <GiveUpControl problemId="p1" onGaveUp={setResult} />
       {result && (
         <div data-testid="reveal">
-          <div data-testid="editorial">{result.editorial_md}</div>
-          <div data-testid="concepts">{result.concepts.map((c) => c.name).join(", ")}</div>
+          <div data-testid="solution">{result.reference_solution}</div>
+          <div data-testid="delta">{result.rating_update.delta}</div>
         </div>
       )}
     </div>
@@ -65,7 +48,7 @@ beforeEach(() => {
 });
 
 describe("GiveUpControl", () => {
-  it("reveals the solution and concepts on the click itself, with no confirm step", async () => {
+  it("reveals the solution and rating update on the click itself, with no confirm step", async () => {
     const user = userEvent.setup();
     render(
       <Providers>
@@ -77,13 +60,10 @@ describe("GiveUpControl", () => {
 
     await user.click(screen.getByRole("button", { name: /^see solution$/i }));
 
-    expect(api.giveUp).toHaveBeenCalledWith("v1", {
-      baseline_item_id: undefined,
-      active_ms: 12345,
-    });
+    expect(api.giveUp).toHaveBeenCalledWith("p1");
     expect(await screen.findByTestId("reveal")).toBeInTheDocument();
-    expect(screen.getByTestId("editorial")).toHaveTextContent("Maintain a hash map");
-    expect(screen.getByTestId("concepts")).toHaveTextContent("Arrays & Hashing");
+    expect(screen.getByTestId("solution")).toHaveTextContent("pairSumIndices");
+    expect(screen.getByTestId("delta")).toHaveTextContent("-20");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 

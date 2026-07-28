@@ -1,71 +1,63 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * End-to-end smoke: sign in → practice serves a problem → solve → live verdict visible → practice
- * serves the next one → the concept tree shows the rating it moved. Needs a real backend behind
- * the app — see playwright.config.ts's header for what to bring up and how to point at it.
- *
- * The solution below is hardcoded, so this expects a seeded pool whose approved problems are all
- * the same underlying problem ("Maximum Sum of a Length-K Subarray") across different concepts and
- * rating bands — that way one solution covers whichever one practice happens to serve.
- *
- * There is deliberately no baseline step: the baseline flow was removed, and practice answers the
- * very first request with a problem.
+ * End-to-end smoke: sign in → practice generates and serves a problem → open it → solve it →
+ * synchronous accepted verdict with a rating breakdown → practice serves the next one → the
+ * concepts page shows the rating it moved. Needs a real backend behind the app (see
+ * playwright.config.ts's header for what to bring up and how to point at it) with
+ * `LLM_CLI=fixture` (PLAN_BACKEND.md §12): generation is always LLM-driven in this backend — no
+ * static problem bank to seed — so the server's fixture mode stands in for the CLI with the same
+ * canned "sum a list" problem the pytest suite uses (`leetmind.fixtures`), which is why the
+ * solution below is hardcoded to `def solve(nums): return sum(nums)`.
  */
-const CORRECT_SOLUTION = `from typing import List, Optional
+const CORRECT_SOLUTION = "def solve(nums):\n    return sum(nums)\n";
 
-
-def maxSumSubarray(nums: List[int], k: int) -> int:
-    best = sum(nums[:k])
-    cur = best
-    for i in range(k, len(nums)):
-        cur += nums[i] - nums[i - k]
-        best = max(best, cur)
-    return best
-`;
-
-/** Set when the stack under test has auth enabled (SUPABASE_URL configured). Left unset for a
- * single-user stack, where these steps are skipped entirely. */
 const E2E_EMAIL = process.env.E2E_EMAIL;
 const E2E_PASSWORD = process.env.E2E_PASSWORD;
 
-async function signInIfRequired(page: import("@playwright/test").Page) {
-  if (!E2E_EMAIL || !E2E_PASSWORD) return;
+async function signIn(page: import("@playwright/test").Page) {
+  // Every test run gets a fresh, storage-less browser context (Playwright's default), so there is
+  // no "might already be signed in" case to special-case here the way an app with an optional
+  // single-user bypass once needed — auth is required in both apps now (PLAN_BACKEND.md §9).
   await page.goto("/login");
-  // Already signed in from a previous run: the guard bounces straight back to practice.
-  if (
-    !(await page
-      .getByLabel("Email")
-      .isVisible({ timeout: 3000 })
-      .catch(() => false))
-  )
-    return;
-  await page.getByLabel("Email").fill(E2E_EMAIL);
-  await page.getByLabel("Password").fill(E2E_PASSWORD);
+  await page.getByLabel("Email").fill(E2E_EMAIL!);
+  await page.getByLabel("Password").fill(E2E_PASSWORD!);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/(?!login)/, { timeout: 15_000 });
+  // Not `toHaveURL(/\/(?!login)/)`: that regex is unanchored, so it matches the "//" in
+  // "http://" and passes on every URL including /login itself — vacuously true, never actually
+  // checked navigation left the sign-in page. The nav's "Sign out" button only renders once a
+  // session exists (`NavBar.tsx`), so waiting for it is a direct check on the thing that matters.
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible({ timeout: 15_000 });
 }
 
-test("practice serves a problem -> solve -> live verdict -> practice serves next -> the concept tree shows a rating", async ({
+test("practice generates and serves a problem -> solve -> accepted -> next -> rating moved", async ({
   page,
 }) => {
-  await signInIfRequired(page);
+  test.skip(!E2E_EMAIL || !E2E_PASSWORD, "requires E2E_EMAIL/E2E_PASSWORD against a Supabase project");
 
+  await signIn(page);
   await page.goto("/");
 
-  // Practice's entry point into the workspace. "Work through it" rather than "Start" when the
-  // server decided to teach this one instead of testing it (Practice.tsx) — either is a valid way
-  // in, and which one appears depends on the account's history, so accept both.
-  const startLink = page.getByRole("link", { name: /^(Start|Work through it)$/ }).first();
-  await expect(startLink).toBeVisible({ timeout: 20_000 });
+  // A brand-new (or exhausted) queue starts from "generating" — practice bootstraps it via
+  // `POST /api/practice/replenish` on first load. Either state is reachable depending on what an
+  // earlier run left behind, so accept both.
+  await expect(
+    page
+      .getByRole("link", { name: /^(Start|Continue)$/ })
+      .or(page.getByText(/Writing you a new problem/i))
+      .first(),
+  ).toBeVisible({ timeout: 20_000 });
+
+  const startLink = page.getByRole("link", { name: /^(Start|Continue)$/ });
+  await expect(startLink).toBeVisible({ timeout: 120_000 }); // generation can take a while even stubbed
   await startLink.click();
   await expect(page).toHaveURL(/\/problem\//);
 
-  // Not keyboard.type(): Monaco's own smart-indent rewrites whatever we type as we type it (an
-  // auto-inserted indent after `:` collides with our own leading whitespace, corrupting the
-  // program), and simulated Cmd/Ctrl+A here selects only the current line rather than the whole
-  // buffer. Driving the model directly is the standard workaround and exercises the same
-  // onChange path a real paste would.
+  // `POST /problems/{id}/open` fires on mount — the statement is unobtainable before it
+  // (amendment 41), so this is also the moment the workspace has anything to show at all.
+  await expect(page.getByRole("heading", { name: "Sum It Up" })).toBeVisible({ timeout: 15_000 });
+
+  // Not keyboard.type(): Monaco's own smart-indent rewrites whatever we type as we type it.
   const editor = page.locator(".monaco-editor").first();
   await expect(editor).toBeVisible({ timeout: 15_000 });
   await page.evaluate((code) => {
@@ -75,36 +67,26 @@ test("practice serves a problem -> solve -> live verdict -> practice serves next
 
   await page.getByRole("button", { name: "Submit" }).click();
 
-  // Live verdict, delivered over SSE without a reload (QA-PLAN.md §1.1 — the exact P0 this test
-  // is named for: a live verdict that never reached the client, only visible after a manual
-  // refresh, would time out here instead). With auth on, this also proves the SSE stream's
-  // query-parameter token is accepted, since EventSource cannot send a header.
-  //
-  // Arriving at the submissions panel is itself part of the assertion: Problem.tsx switches the
-  // left tab to "submissions" when a verdict lands, so if the event never reached the client the
-  // panel stays hidden behind the problem tab and this times out.
-  const submissionsPanel = page.locator('[data-testid="submissions-panel"]');
-  await expect(submissionsPanel).toBeVisible({ timeout: 30_000 });
-  await expect(submissionsPanel.getByText(/accepted/i).first()).toBeVisible({ timeout: 10_000 });
+  // Run/submit are synchronous now (§8.3) — no SSE verdict to wait on, the response itself is the
+  // result. Landing on the Result tab and reading "accepted" there is the whole assertion.
+  const resultsPanel = page.locator('[data-testid="results-panel"]');
+  await expect(resultsPanel).toBeVisible({ timeout: 30_000 });
+  await expect(resultsPanel.getByText("accepted")).toBeVisible({ timeout: 10_000 });
+
+  // The rating-update breakdown (#22) rides along on the same response.
+  await expect(page.locator('[data-testid="rating-update-panel"]')).toBeVisible();
 
   // Practice must have something to say afterwards — either the next problem, or a visible
   // "generating" state. What it must NOT do is dead-end.
   await page.goto("/");
   await expect(
     page
-      .getByRole("link", { name: /^(Start|Work through it)$/ })
+      .getByRole("link", { name: /^(Start|Continue)$/ })
       .or(page.getByText(/Writing you a new problem/i))
       .first(),
   ).toBeVisible({ timeout: 20_000 });
 
-  // The practice card offers exactly one way forward. A re-roll here would let a user shop past
-  // whatever the model picked without the ratings ever recording that they did.
-  await expect(page.getByRole("button", { name: "Something else" })).toHaveCount(0);
-
-  // And the concept tree must reflect the solve: the solve wrote a `user_concept_state` row, so
-  // at least one concept now carries a rating badge. Before any problem is attempted the tree has
-  // none at all, so this is the whole of "the metrics landed somewhere the user can see"
-  // (QA-PLAN.md §1.4, restated against the endpoint that replaced /api/progress).
+  // And the concepts page must reflect the solve: at least one type now carries a rating badge.
   await page.goto("/concepts");
   await expect(page.getByText(/^\d{3,4}$/).first()).toBeVisible({ timeout: 15_000 });
 });

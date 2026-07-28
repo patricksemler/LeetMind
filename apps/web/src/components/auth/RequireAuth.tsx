@@ -13,10 +13,8 @@ import { useAuth } from "../../lib/auth";
  * were rather than dumping them on the home page.
  */
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { ready, session, authRequired } = useAuth();
+  const { ready, session } = useAuth();
   const location = useLocation();
-
-  if (!authRequired) return <>{children}</>;
 
   if (!ready) {
     return <div className="flex h-full items-center justify-center text-text-faint">Loading…</div>;

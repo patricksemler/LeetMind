@@ -12,7 +12,7 @@ import { Button, Panel } from "../components/ui";
  * Credentials go straight to Supabase Auth from the browser; the LeetMind API never sees them.
  */
 export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
-  const { session, ready, authRequired, signIn, signUp } = useAuth();
+  const { session, ready, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -22,9 +22,6 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
   const [pending, setPending] = useState(false);
   const [checkInbox, setCheckInbox] = useState(false);
 
-  // Nothing to sign into: this build talks to a single-user API. Send them to the app rather than
-  // showing a form that cannot work.
-  if (!authRequired) return <Navigate to="/" replace />;
   if (ready && session) {
     const from = (location.state as { from?: string } | null)?.from ?? "/";
     return <Navigate to={from} replace />;

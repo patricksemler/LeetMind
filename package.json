@@ -16,6 +16,7 @@
     "typecheck": "pnpm --filter web typecheck",
     "test": "pnpm --filter web test",
     "e2e": "pnpm --filter web e2e",
+    "gen:api": "bash scripts/gen-api.sh",
     "lint": "pnpm --filter web lint",
     "lint:fix": "pnpm --filter web lint:fix",
     "format": "prettier --write .",

@@ -24,6 +24,7 @@ from typing import TypeVar
 from pydantic import BaseModel, ValidationError
 
 from leetmind.config import Settings, get_settings
+from leetmind.fixtures import fixture_response
 
 logger = logging.getLogger("leetmind.llm")
 
@@ -137,6 +138,12 @@ class LLMClient:
             return await self._complete_once(retry_prompt, schema, settings)
 
     async def _complete_once(self, prompt: str, schema: type[T], settings: Settings) -> T:
+        if settings.llm_cli == "fixture":
+            # No subprocess at all: a canned response by prompt marker (leetmind.fixtures), for a
+            # live server with no CLI to call — e.g. the Playwright e2e smoke (§12). Deliberately
+            # not caught by `complete()`'s retry-on-validation-failure: a fixture that doesn't
+            # match should fail loudly, not retry into the same miss.
+            return schema.model_validate(fixture_response(prompt))
         raw = await self._invoke(prompt, settings)
         body = _unwrap_envelope(raw, settings)
         try:

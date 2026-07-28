@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
 import Editor, { type BeforeMount } from "@monaco-editor/react";
-import type { Language } from "@shared";
-
-const MONACO_LANGUAGE: Record<Language, string> = { python: "python", cpp: "cpp" };
 
 type MonacoThemeName = "leetmind-dark" | "leetmind-light";
 
@@ -76,11 +73,9 @@ function useMonacoTheme(): MonacoThemeName {
 // consumer was teaching mode, which recorded (never blocked) a paste while the user typed out a
 // revealed solution. Teaching mode is gone; nothing observes pastes now.
 export function EditorPane({
-  language,
   value,
   onChange,
 }: {
-  language: Language;
   value: string;
   onChange: (v: string) => void;
 }) {
@@ -89,7 +84,7 @@ export function EditorPane({
   return (
     <Editor
       height="100%"
-      language={MONACO_LANGUAGE[language]}
+      language="python"
       value={value}
       onChange={(v: string | undefined) => onChange(v ?? "")}
       beforeMount={defineTheme}

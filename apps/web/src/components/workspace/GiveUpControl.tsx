@@ -20,16 +20,14 @@ import { api } from "../../lib/api";
 import { Button } from "../ui";
 
 export function GiveUpControl({
-  versionId,
-  activeMs,
+  problemId,
   onGaveUp,
 }: {
-  versionId: string;
-  activeMs: number;
+  problemId: string;
   onGaveUp: (result: GiveUpResponse) => void;
 }) {
   const mutation = useMutation({
-    mutationFn: () => api.giveUp(versionId, { active_ms: activeMs }),
+    mutationFn: () => api.giveUp(problemId),
     onSuccess: onGaveUp,
   });
 
