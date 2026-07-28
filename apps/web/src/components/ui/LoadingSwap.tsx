@@ -26,7 +26,7 @@ export function LoadingSwap({
         className={`[grid-area:1/1] ${transition} ${
           loading
             ? "pointer-events-none translate-y-px scale-95 opacity-0"
-            : "translate-y-0 scale-100 opacity-100"
+            : "opacity-100"
         }`}
       >
         {children}

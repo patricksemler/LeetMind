@@ -45,19 +45,18 @@ export function ActionBar({
       action();
       return;
     }
-    if (leavingCoach) return;
     setLeavingCoach(kind);
+    action();
     coachTimerRef.current = window.setTimeout(() => {
       setLeavingCoach(null);
-      action();
     }, coachExitMs);
   }
 
   return (
     <Toolbar className="justify-end px-4">
-      {/* Run and Submit differ only in which tests they execute — Run the public examples, Submit
-          those plus the hidden suite. The titles say so, because "Run" vs "Submit" on their own
-          does not.
+      {/* No `title` on either button. The browser's own tooltip is the only thing that renders it,
+          it arrives a second late and unstyled, and here it opened directly over the test cases and
+          the coach mark below — a lot of chrome for a sentence nobody asked to read.
 
           In flight, both are REPLACED by the spinner rather than disabled-and-relabelled: two
           greyed-out buttons next to a third state is more to read than "something is running", and
@@ -68,7 +67,7 @@ export function ActionBar({
         loading={busy}
         label={submitting ? "Submitting…" : "Running…"}
         className="min-h-[30px]"
-        spinnerClassName="text-text-dim"
+        spinnerClassName="justify-self-end text-text-dim"
         spinnerTestId="action-spinner"
       >
         <div className="flex items-center gap-2">
@@ -82,8 +81,7 @@ export function ActionBar({
               variant="secondary"
               className={runCoachMark ? "ring-2 ring-accent ring-offset-4 ring-offset-bg" : ""}
               onClick={() => triggerAction("run", runCoachMark, onRun)}
-              disabled={busy || runDisabled || leavingCoach === "run"}
-              title="Run against the public example tests (Cmd/Ctrl + ')"
+              disabled={busy || runDisabled}
             >
               Run
             </Button>
@@ -99,8 +97,7 @@ export function ActionBar({
               variant="primary"
               className={submitCoachMark ? "ring-2 ring-accent ring-offset-4 ring-offset-bg" : ""}
               onClick={() => triggerAction("submit", submitCoachMark, onSubmit)}
-              disabled={busy || submitDisabled || leavingCoach === "submit"}
-              title="Submit against the public examples AND the hidden tests (Cmd/Ctrl + Enter)"
+              disabled={busy || submitDisabled}
             >
               Submit
             </Button>

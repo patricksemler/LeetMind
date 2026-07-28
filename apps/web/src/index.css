@@ -190,12 +190,18 @@ p {
   }
 }
 
-.coach-mark-card {
+/* Split from `.coach-mark` so the enter animation can be dropped once it has played. A coach mark
+ * living inside a `hidden` tab panel is only display-toggled, not unmounted — and re-entering
+ * `display` restarts any animation still attached, which replayed the entrance on every tab
+ * switch. `.coach-mark` stays for the whole life of the card so the exit still has a target. */
+.coach-mark-enter {
   animation: coach-mark-enter 180ms ease-out both;
+  animation-delay: var(--coach-mark-delay, 0ms);
 }
 
-.coach-guide-leaving .coach-mark-card {
+.coach-guide-leaving .coach-mark {
   animation: coach-mark-exit 140ms ease-in both;
+  animation-delay: 0ms;
 }
 
 .content-enter {
@@ -212,12 +218,13 @@ p {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .coach-mark-card,
-  .coach-guide-leaving .coach-mark-card,
+  .coach-mark-enter,
+  .coach-guide-leaving .coach-mark,
   .content-enter,
   .dialog-backdrop-enter,
   .dialog-panel-enter {
     animation-duration: 1ms;
+    animation-delay: 0ms;
   }
 }
 

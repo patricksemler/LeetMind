@@ -9,6 +9,13 @@
       "port": 5173
     },
     {
+      "_comment": "The static guided demo (main.tsx swaps in StaticDemoApp for mode=demo). No API and no Supabase — every response is local and deterministic, so this needs nothing else running.",
+      "name": "web-demo",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["WEB_PORT=5174", "pnpm", "run", "dev:demo"],
+      "port": 5174
+    },
+    {
       "_comment": "Second dev server on its own port, so a second session can run one while 'web' is already up on 5173.",
       "name": "web-alt",
       "runtimeExecutable": "env",

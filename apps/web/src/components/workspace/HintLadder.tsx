@@ -16,15 +16,29 @@
  * `GiveUpControl`.
  */
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import type { HintResponse } from "@shared";
 import { api } from "../../lib/api";
+import { useEnterOnce } from "../../lib/useEnterOnce";
 import { Button, LoadingSwap, Plate } from "../ui";
 import { Markdown } from "./Markdown";
 
 const MAX_RUNG = 4;
 const RUNGS = Array.from({ length: MAX_RUNG }, (_, i) => i + 1);
+
+/** Its own component so the once-only entrance gets a hook per rung — see `useEnterOnce`. The text
+ * of a rung already taken is settled content, not something arriving, so it must not slide in again
+ * every time the panel is shown. */
+function HintText({ text }: { text: string }) {
+  const enter = useEnterOnce("content-enter");
+
+  return (
+    <div className={`mt-1 ${enter.className}`} onAnimationEnd={enter.onAnimationEnd}>
+      <Markdown className="text-xs">{text}</Markdown>
+    </div>
+  );
+}
 
 export function HintLadder({
   problemId,
@@ -33,7 +47,6 @@ export function HintLadder({
   onRevealed,
   revealHint = (rung) => api.revealHint(problemId, rung),
   revealCoachMark,
-  coachExitMs = 0,
 }: {
   problemId: string;
   /** `ProblemDetail`'s `revealed_hints`/`hints` — ordered rung 1..n, complete through whatever
@@ -45,10 +58,8 @@ export function HintLadder({
   revealHint?: (rung: number) => Promise<HintResponse>;
   /** Optional contextual guidance rendered beside the next available Reveal control. */
   revealCoachMark?: ReactNode;
-  coachExitMs?: number;
 }) {
   const [coachLeaving, setCoachLeaving] = useState(false);
-  const coachTimerRef = useRef<number | null>(null);
   const takeMutation = useMutation({
     mutationFn: revealHint,
     onSuccess: (res) => {
@@ -60,21 +71,9 @@ export function HintLadder({
 
   const nextRung = revealedHints.length + 1;
 
-  useEffect(
-    () => () => {
-      if (coachTimerRef.current !== null) window.clearTimeout(coachTimerRef.current);
-    },
-    [],
-  );
-
   function reveal(rung: number) {
-    if (!revealCoachMark || coachExitMs <= 0) {
-      takeMutation.mutate(rung);
-      return;
-    }
-    if (coachLeaving) return;
-    setCoachLeaving(true);
-    coachTimerRef.current = window.setTimeout(() => takeMutation.mutate(rung), coachExitMs);
+    if (revealCoachMark) setCoachLeaving(true);
+    takeMutation.mutate(rung);
   }
 
   return (
@@ -112,7 +111,7 @@ export function HintLadder({
                       loading={pending}
                       label="Revealing…"
                       className="min-h-[30px]"
-                      spinnerClassName="text-text-dim"
+                      spinnerClassName="justify-self-end text-text-dim"
                     >
                       <Button
                         size="sm"
@@ -123,7 +122,7 @@ export function HintLadder({
                             : ""
                         }
                         onClick={() => reveal(rung)}
-                        disabled={takeMutation.isPending || coachLeaving}
+                        disabled={takeMutation.isPending}
                       >
                         Reveal
                       </Button>
@@ -132,11 +131,7 @@ export function HintLadder({
                   </div>
                 )}
               </div>
-              {isTaken && (
-                <Markdown className="content-enter mt-1 text-xs">
-                  {revealedHints[rung - 1]!}
-                </Markdown>
-              )}
+              {isTaken && <HintText text={revealedHints[rung - 1]!} />}
             </div>
           </div>
         );

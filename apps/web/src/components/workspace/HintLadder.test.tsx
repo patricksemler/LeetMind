@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Providers } from "../../test/testUtils";
@@ -130,12 +130,36 @@ describe("HintLadder", () => {
 
     const pendingStatus = await screen.findByRole("status", { name: /revealing…/i });
     expect(screen.queryByRole("button", { name: /^reveal$/i })).not.toBeInTheDocument();
+    expect(pendingStatus).toHaveClass("justify-self-end");
     expect(pendingStatus.querySelector("svg")).toBeInTheDocument();
 
     resolveTake({ rung: 1, text: HINT_TEXT[0]! });
     await waitFor(() =>
       expect(screen.queryByRole("status", { name: /revealing…/i })).not.toBeInTheDocument(),
     );
+  });
+
+  it("slides revealed text in once, then leaves it alone", async () => {
+    const user = userEvent.setup();
+    render(
+      <Providers>
+        <Harness />
+      </Providers>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^reveal$/i }));
+    const text = await screen.findByText(HINT_TEXT[0]!);
+    const entering = text.closest(".content-enter")!;
+    expect(entering).toBeInTheDocument();
+
+    fireEvent.animationEnd(entering);
+    expect(entering).not.toHaveClass("content-enter");
+
+    // Taking the next rung re-renders the whole ladder; rung 1 is settled content by then and must
+    // not animate again — nor must showing the panel after it was hidden.
+    await user.click(screen.getByRole("button", { name: /^reveal$/i }));
+    await screen.findByText(HINT_TEXT[1]!);
+    expect(entering).not.toHaveClass("content-enter");
   });
 
   it("disables further reveals when told to", () => {

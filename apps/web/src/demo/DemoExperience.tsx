@@ -21,23 +21,24 @@ const REPOSITORY_URL = "https://github.com/patricksemler/LeetMind";
 function Welcome({ onContinue }: { onContinue: () => void }) {
   return (
     <CenteredPage>
-      <Panel className="w-full max-w-2xl overflow-hidden">
-        <div className="border-b border-border p-6 sm:p-9">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-faint">
-            Guided preview
-          </p>
-          <h1
-            aria-label="Welcome to LeetMind"
-            className="mt-4 font-display text-3xl tracking-tight text-text sm:text-4xl"
-          >
-            Welcome to Leet<span className="text-accent">Mind</span>
-          </h1>
-          <p className="mt-3 max-w-xl text-base leading-relaxed text-text-dim">
-            Progressive overload for problem solving. LeetMind chooses one verified algorithm
-            problem at the edge of your ability, then uses the result to shape what comes next.
-          </p>
-        </div>
-        <div className="flex justify-end p-6 sm:p-9">
+      {/* One block, the same shape as ReadyProblemPanel. A header/footer pair split by a rule cost
+          two lots of padding either side of the divider — most of the card was the gap, and the
+          rule separated nothing from nothing. */}
+      <Panel className="w-full max-w-2xl p-6 sm:p-8">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-faint">
+          Guided preview
+        </p>
+        <h1
+          aria-label="Welcome to LeetMind"
+          className="mt-4 font-display text-3xl tracking-tight text-text sm:text-4xl"
+        >
+          Welcome to Leet<span className="text-accent">Mind</span>
+        </h1>
+        <p className="mt-3 max-w-xl text-base leading-relaxed text-text-dim">
+          Progressive overload for problem solving. LeetMind chooses one verified algorithm problem
+          at the edge of your ability, then uses the result to shape what comes next.
+        </p>
+        <div className="mt-8 flex justify-end">
           <Button variant="primary" className="shrink-0" onClick={onContinue}>
             Begin demo
           </Button>
@@ -48,31 +49,15 @@ function Welcome({ onContinue }: { onContinue: () => void }) {
 }
 
 function ReadyProblem({ onOpen }: { onOpen: () => void }) {
-  const [coachLeaving, setCoachLeaving] = useState(false);
-  const openTimerRef = useRef<number | null>(null);
-
-  useEffect(
-    () => () => {
-      if (openTimerRef.current !== null) window.clearTimeout(openTimerRef.current);
-    },
-    [],
-  );
-
-  function openProblem() {
-    if (coachLeaving) return;
-    setCoachLeaving(true);
-    openTimerRef.current = window.setTimeout(onOpen, 160);
-  }
-
   return (
     <CenteredPage>
       <ReadyProblemPanel
         action={
-          <div className={`relative z-30 inline-flex ${coachLeaving ? "coach-guide-leaving" : ""}`}>
+          <div className="relative z-30 inline-flex">
             <Button
               variant="primary"
               className="ring-2 ring-accent ring-offset-4 ring-offset-bg-raised"
-              onClick={openProblem}
+              onClick={onOpen}
             >
               Start
             </Button>
@@ -266,7 +251,6 @@ export function DemoExperience({
               disabled={workspaceStep === "complete"}
               onRevealed={(rung, text) => revealHint({ rung, text })}
               revealHint={executor.revealHint}
-              coachExitMs={160}
               revealCoachMark={
                 workspaceStep === "hint" ? (
                   <CoachMark title="Explore, then reveal a hint">
@@ -296,7 +280,10 @@ export function DemoExperience({
         }
         submitCoachMark={
           workspaceStep === "submit" ? (
-            <CoachMark title="Submit against the hidden suite">
+            // Run's spinner is still swapping back to the buttons when this step lands. Waiting out
+            // that swap (LoadingSwap's 150ms) lets the card enter with the Submit button instead of
+            // arriving fully drawn above a control that is still fading in.
+            <CoachMark title="Submit against the hidden suite" enterDelayMs={150}>
               Both examples pass. Submit runs the remaining tests and concludes the demo.
             </CoachMark>
           ) : null

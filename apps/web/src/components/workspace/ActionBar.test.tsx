@@ -19,6 +19,7 @@ describe("ActionBar", () => {
     expect(screen.queryByRole("button", { name: "Run" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
     expect(screen.getByRole("status", { name: "Running…" })).toBeVisible();
+    expect(screen.getByTestId("action-spinner")).toHaveClass("justify-self-end");
     expect(screen.getByTestId("action-spinner").querySelector("svg")).toBeInTheDocument();
   });
 });

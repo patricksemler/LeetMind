@@ -40,7 +40,9 @@ export function TestCasePanel({
 
   if (cases.length === 0) {
     return (
-      <div className="p-4 text-sm text-text-faint">This problem has no public example cases.</div>
+      <div className="p-4 text-sm text-text-faint sm:p-5">
+        This problem has no public example cases.
+      </div>
     );
   }
 
@@ -49,7 +51,9 @@ export function TestCasePanel({
   const outcome = results?.[index];
 
   return (
-    <div className="space-y-3 p-4" data-testid="testcase-panel">
+    // `p-4 sm:p-5` matches the statement/result pane opposite it — the two panes meet at the split,
+    // so a narrower gutter here read as the cases sitting closer to the edge than anything else.
+    <div className="space-y-3 p-4 sm:p-5" data-testid="testcase-panel">
       <div role="tablist" aria-label="Test cases" className="flex flex-wrap items-center gap-1.5">
         {cases.map((_, i) => {
           const selected = i === index;

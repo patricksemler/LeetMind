@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
-import Editor, { type BeforeMount } from "@monaco-editor/react";
+import Editor, { type BeforeMount, type OnMount } from "@monaco-editor/react";
 
 type MonacoThemeName = "leetmind-dark" | "leetmind-light";
+
+const disableReadOnlyMessage: OnMount = (editor) => {
+  // The demo explains its read-only state in the source itself, so Monaco's floating edit warning
+  // would only repeat that information and obscure the code.
+  editor.getContribution("editor.contrib.readOnlyMessageController")?.dispose();
+};
 
 const defineTheme: BeforeMount = (monaco) => {
   monaco.editor.defineTheme("leetmind-dark", {
@@ -90,6 +96,7 @@ export function EditorPane({
       value={value}
       onChange={(v: string | undefined) => onChange(v ?? "")}
       beforeMount={defineTheme}
+      onMount={disableReadOnlyMessage}
       theme={theme}
       options={{
         fontSize: 13,
@@ -109,7 +116,6 @@ export function EditorPane({
         overviewRulerBorder: false,
         hideCursorInOverviewRuler: true,
         readOnly,
-        readOnlyMessage: { value: "This solution is preloaded and read-only in the demo." },
       }}
     />
   );

@@ -7,7 +7,9 @@ import type {
   TestOutcome,
 } from "@shared";
 
-export const DEMO_SOURCE = `def solve(nums, target):
+export const DEMO_SOURCE = `# This solution is preloaded and read-only in the demo.
+
+def solve(nums, target):
     seen = {}
 
     for index, value in enumerate(nums):
