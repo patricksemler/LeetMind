@@ -1,0 +1,41 @@
+# Local-first, VPS-shaped (PLAN_BACKEND.md §2 row 19): portable to any Docker host, hosting
+# itself out of scope. The judge image (leetmind-judge, §8.1) is built here starting Phase 1 —
+# apps/server/judge/ doesn't exist yet, so it's absent from this file until then.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: leetmind
+      POSTGRES_PASSWORD: leetmind
+      POSTGRES_DB: leetmind
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./apps/server/db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leetmind -d leetmind"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  server:
+    build: ./apps/server
+    environment:
+      DATABASE_URL: postgres://leetmind:leetmind@postgres:5432/leetmind
+      WEB_ORIGIN: http://localhost:5173
+    env_file:
+      - path: ./apps/server/.env
+        required: false
+    ports:
+      - "8080:8080"
+    volumes:
+      # The judge orchestrator drives sibling containers on the host's docker daemon, not a
+      # nested one — hence the host socket, not docker-in-docker.
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:

@@ -10,3 +10,11 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+
+# Python (apps/server)
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
