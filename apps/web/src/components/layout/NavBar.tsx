@@ -29,7 +29,7 @@ export function NavBar() {
                 key={link.to}
                 to={link.to}
                 end={link.end}
-                className={({ isActive }) =>
+                className={({ isActive }: { isActive: boolean }) =>
                   `rounded px-2.5 py-1.5 text-sm transition-colors ${
                     isActive ? "bg-bg-overlay text-text" : "text-text-dim hover:text-text"
                   }`

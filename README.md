@@ -1,18 +1,18 @@
-# LeetMind — web frontend
+# LeetMind
 
 **Progressive overload for problem solving.** LeetMind serves you one original, verified algorithm
 problem at a time, chosen for the edge of your ability, and folds every solve and give-up into a
 per-concept mastery rating that picks the next one.
 
-This repository holds **the frontend only** — the React workspace, the practice loop, the concept
-tree, and the typed client for the API. The backend that generates problems, judges submissions,
-and keeps the learner model lives elsewhere; this app talks to it over HTTP and SSE and has no
-other source of data.
+This is a pnpm workspace with two apps: `apps/web` (the React workspace, the practice loop, the
+concept tree, and the typed client for the API) and `apps/server` (FastAPI — generation, judging,
+and the learner model). [`PLAN_BACKEND.md`](PLAN_BACKEND.md) is the normative spec for the server
+and the wire contract between the two.
 
-## Running it
+## Running the frontend
 
-You need a backend serving the LeetMind API. Point `VITE_API_BASE` at it — the dev server proxies
-`/api` and `/health` there, so the browser sees a same-origin app.
+`apps/server` isn't listening yet by default — point `VITE_API_BASE` at wherever it runs. The dev
+server proxies `/api` and `/health` there, so the browser sees a same-origin app.
 
 ```bash
 pnpm install
@@ -54,21 +54,23 @@ and carries no mastery consequence.
 
 ## Layout
 
-| Path              | Purpose                                                              |
-| ----------------- | -------------------------------------------------------------------- |
-| `src/routes/`     | Practice, Problem, Concepts, auth screens                            |
-| `src/components/` | workspace (editor, hints, test cases, submissions) and UI primitives |
-| `src/hooks/`      | SSE subscription, hint state, active-time tracking                   |
-| `src/lib/`        | typed API client, auth, drafts, formatting                           |
-| `src/shared/`     | the API wire contract as zod schemas — see below                     |
-| `e2e/`            | Playwright smoke against a real backend                              |
+| Path                        | Purpose                                                               |
+| --------------------------- | ---------------------------------------------------------------------- |
+| `apps/web/src/routes/`      | Practice, Problem, Concepts, auth screens                            |
+| `apps/web/src/components/`  | workspace (editor, hints, test cases, submissions) and UI primitives |
+| `apps/web/src/hooks/`       | SSE subscription, hint state, active-time tracking                   |
+| `apps/web/src/lib/`         | typed API client, auth, drafts, formatting                           |
+| `apps/web/src/shared/`      | the API wire contract — see below                                    |
+| `apps/web/e2e/`             | Playwright smoke against a real backend                              |
+| `apps/server/`              | FastAPI backend — generation, judging, learner model                 |
 
-### `src/shared/` is the contract, not a utility folder
+### `apps/web/src/shared/` is the contract, not a utility folder
 
-Every response is parsed through the zod schemas in `src/shared/` before it reaches a component
-(see [`src/lib/api.ts`](src/lib/api.ts)). Nothing under `src/` redeclares an API shape by hand — if
-the backend's contract changes, it changes in one place here and the typechecker finds every
-consumer. [`docs/CONTRACTS.md`](docs/CONTRACTS.md) is the normative spec these schemas track.
+Every response is parsed through the schemas in `apps/web/src/shared/` before it reaches a
+component (see [`apps/web/src/lib/api.ts`](apps/web/src/lib/api.ts)). Nothing under `apps/web/src/`
+redeclares an API shape by hand — if the backend's contract changes, it changes in one place here
+and the typechecker finds every consumer. Once `apps/server`'s OpenAPI codegen lands (Phase 5 of
+[`PLAN_BACKEND.md`](PLAN_BACKEND.md)), this hand-written contract is replaced by generated types.
 
 ## Accounts
 

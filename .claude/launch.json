@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "_comment": "This repo is the frontend alone. Every entry here needs a backend already serving the API at VITE_API_BASE — vite proxies /api and /health there. With nothing listening the app still renders, but every query fails and practice never produces a problem.",
+      "_comment": "apps/web, run from the workspace root via the root 'dev' script. Every entry here needs apps/server already serving the API at VITE_API_BASE — vite proxies /api and /health there. With nothing listening the app still renders, but every query fails and practice never produces a problem.",
       "name": "web",
       "runtimeExecutable": "env",
       "runtimeArgs": ["VITE_API_BASE=http://localhost:8080", "pnpm", "run", "dev"],

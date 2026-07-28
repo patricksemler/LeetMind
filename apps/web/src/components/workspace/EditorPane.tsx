@@ -91,7 +91,7 @@ export function EditorPane({
       height="100%"
       language={MONACO_LANGUAGE[language]}
       value={value}
-      onChange={(v) => onChange(v ?? "")}
+      onChange={(v: string | undefined) => onChange(v ?? "")}
       beforeMount={defineTheme}
       theme={theme}
       options={{
