@@ -1,13 +1,21 @@
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
+from typing import Any
 
 import asyncpg
 
 logger = logging.getLogger("leetmind.db")
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent.parent / "migrations"
+
+
+def load_jsonb(value: object) -> Any:
+    """asyncpg returns `jsonb` columns as a raw string by default; this is the one helper needed
+    to parse them back into Python values (a `None` column stays `None`)."""
+    return json.loads(value) if isinstance(value, str) else value
 
 
 async def create_pool(database_url: str) -> asyncpg.Pool:

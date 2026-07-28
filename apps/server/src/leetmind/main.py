@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from leetmind.config import get_settings
 from leetmind.db import create_pool, run_migrations
-from leetmind.routes import health, me
+from leetmind.judge import JudgeClient
+from leetmind.routes import events, health, me
+from leetmind.worker import GenerationWorker
 
 
 @asynccontextmanager
@@ -23,11 +29,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logging.getLogger("leetmind").info("applied migrations: %s", ", ".join(applied))
 
     app.state.pool = pool
-    # The generation worker (PLAN_BACKEND.md §7.1) starts here once it exists (Phase 3).
     app.state.worker_started_at = None
+    inflight: set[uuid.UUID] = set()
+    app.state.judge_inflight = inflight
+
+    judge = JudgeClient(settings)
+    worker = GenerationWorker(pool, judge=judge, settings=settings)
+    app.state.judge = judge
+    app.state.worker = worker
+
+    worker_task: asyncio.Task[None] | None = None
+    if settings.worker_enabled:
+        app.state.worker_started_at = datetime.now(UTC)
+        worker_task = asyncio.create_task(worker.run_forever())
     try:
         yield
     finally:
+        if worker_task is not None:
+            worker_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await worker_task
         await pool.close()
 
 
@@ -45,6 +66,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(me.router)
+    app.include_router(events.router)
 
     return app
 

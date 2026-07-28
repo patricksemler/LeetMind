@@ -27,6 +27,27 @@ class ValueType(BaseModel):
     list_depth: int = 0
 
 
+class SignatureParam(BaseModel):
+    name: str
+    type: ValueType
+
+
+class Signature(BaseModel):
+    """A generated problem's callable shape: what the judge calls and what the frontend renders
+    as starter code (§8.4). `order_insensitive` applies to the *return* value only — a list
+    return compared as a multiset (e.g. "any valid ordering")."""
+
+    func_name: str
+    params: list[SignatureParam]
+    returns: ValueType
+    order_insensitive: bool = False
+
+
+class Complexity(BaseModel):
+    time: str
+    space: str
+
+
 class Verdict(StrEnum):
     PASS = "pass"
     WRONG_ANSWER = "wrong_answer"
@@ -139,6 +160,27 @@ def values_equal(
         value_type.list_depth,
         order_insensitive,
     )
+
+
+class GenerationJobStatus(StrEnum):
+    """Mirrors the DB `job_status` enum (migration 0001, PLAN_BACKEND.md §4)."""
+
+    QUEUED = "queued"
+    PLANNING = "planning"
+    BUILDING = "building"
+    VERIFYING = "verifying"
+    READY = "ready"
+    FAILED = "failed"
+
+
+class GenerationEvent(BaseModel):
+    """One `GET /api/events` SSE payload (§9): a generation job's stage transition."""
+
+    job_id: str
+    status: GenerationJobStatus
+    repair_count: int = 0
+    problem_id: str | None = None
+    error: str | None = None
 
 
 class TypeProfileView(BaseModel):

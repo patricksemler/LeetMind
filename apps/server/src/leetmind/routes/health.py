@@ -32,8 +32,8 @@ async def health(request: Request) -> dict[str, bool | str]:
 
     docker_ok = await _docker_available()
 
-    # The generation worker doesn't exist yet (PLAN_BACKEND.md Phase 3); report its absence
-    # honestly rather than faking a heartbeat.
+    # `worker_started_at` is set once the generation worker task is launched at lifespan startup
+    # (PLAN_BACKEND.md §7.1); it stays None if WORKER_ENABLED=false.
     worker_started_at = request.app.state.worker_started_at
     worker_status = "not_started" if worker_started_at is None else "ok"
 

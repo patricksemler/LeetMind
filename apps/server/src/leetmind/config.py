@@ -42,6 +42,26 @@ class Settings(BaseSettings):
     judge_cpus: str = "1"
     judge_pids_limit: int = 64
 
+    # LLM CLI transport (PLAN_BACKEND.md §7.5, decision 12). `llm_args` is a whitespace-split
+    # extra-flags string (e.g. the CLI's own tool-disable flags) — kept in config, not code, so
+    # flags can change without a deploy.
+    llm_cli: str = "claude"  # "claude" (default) or "codex"
+    llm_bin: str | None = None  # override the executable name/path; defaults to llm_cli
+    llm_model: str = "claude-sonnet-5"
+    llm_args: str = ""
+    llm_timeout_s: float = 600.0
+    # Amendment 40: cwd + a read-only sandbox alone doesn't stop absolute-path reads; this is an
+    # optional genuine boundary (its own container, no volume mounts beyond the temp/auth dirs)
+    # for hosted deployments. Off by default — local-first (decision 19).
+    llm_container: bool = False
+    llm_container_image: str = "leetmind-llm-cli"
+
+    # Generation worker (PLAN_BACKEND.md §7.1, §13).
+    worker_enabled: bool = True
+    worker_poll_interval_s: float = 2.0
+    worker_heartbeat_interval_s: float = 60.0
+    worker_lease_stale_s: float = 300.0
+
 
 @lru_cache
 def get_settings() -> Settings:
