@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Button } from "../ui";
 
 /**
@@ -52,6 +53,8 @@ export function ActionBar({
   disabled = false,
   runDisabled = disabled,
   submitDisabled = disabled,
+  runCoachMark,
+  submitCoachMark,
 }: {
   onRun: () => void;
   onSubmit: () => void;
@@ -63,6 +66,9 @@ export function ActionBar({
   /** Optional per-action gates for guided or staged flows. */
   runDisabled?: boolean;
   submitDisabled?: boolean;
+  /** Optional contextual guidance rendered beside the real control. */
+  runCoachMark?: ReactNode;
+  submitCoachMark?: ReactNode;
 }) {
   const busy = running || submitting;
 
@@ -82,24 +88,32 @@ export function ActionBar({
           <Spinner label={submitting ? "Submitting…" : "Running…"} />
         ) : (
           <>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={onRun}
-              disabled={runDisabled}
-              title="Run against the public example tests (Cmd/Ctrl + ')"
-            >
-              Run
-            </Button>
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={onSubmit}
-              disabled={submitDisabled}
-              title="Submit against the public examples AND the hidden tests (Cmd/Ctrl + Enter)"
-            >
-              Submit
-            </Button>
+            <div className={`relative ${runCoachMark ? "z-30" : ""}`}>
+              <Button
+                size="sm"
+                variant="secondary"
+                className={runCoachMark ? "ring-2 ring-accent ring-offset-4 ring-offset-bg" : ""}
+                onClick={onRun}
+                disabled={runDisabled}
+                title="Run against the public example tests (Cmd/Ctrl + ')"
+              >
+                Run
+              </Button>
+              {runCoachMark}
+            </div>
+            <div className={`relative ${submitCoachMark ? "z-30" : ""}`}>
+              <Button
+                size="sm"
+                variant="primary"
+                className={submitCoachMark ? "ring-2 ring-accent ring-offset-4 ring-offset-bg" : ""}
+                onClick={onSubmit}
+                disabled={submitDisabled}
+                title="Submit against the public examples AND the hidden tests (Cmd/Ctrl + Enter)"
+              >
+                Submit
+              </Button>
+              {submitCoachMark}
+            </div>
           </>
         )}
       </div>

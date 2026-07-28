@@ -35,6 +35,8 @@ export function ProblemWorkspace({
   submitting,
   runDisabled = false,
   submitDisabled = false,
+  runCoachMark,
+  submitCoachMark,
   actionErrorMessage,
   onDismissActionError,
   storageKeyPrefix = "workspace",
@@ -55,6 +57,8 @@ export function ProblemWorkspace({
   submitting: boolean;
   runDisabled?: boolean;
   submitDisabled?: boolean;
+  runCoachMark?: ReactNode;
+  submitCoachMark?: ReactNode;
   actionErrorMessage?: string | null;
   onDismissActionError?: () => void;
   storageKeyPrefix?: string;
@@ -107,6 +111,8 @@ export function ProblemWorkspace({
                 submitting={submitting}
                 runDisabled={runDisabled}
                 submitDisabled={submitDisabled}
+                runCoachMark={runCoachMark}
+                submitCoachMark={submitCoachMark}
               />
               {actionErrorMessage && (
                 <div className="flex items-center justify-between gap-3 border-b border-verdict-error bg-verdict-error-dim px-4 py-1.5 text-xs text-text">

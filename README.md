@@ -34,6 +34,11 @@ The workflow in `.github/workflows/deploy-demo.yml` publishes that artifact from
 repository's **Settings → Pages**, choose **GitHub Actions** as the source once; subsequent pushes
 deploy automatically.
 
+The intended public URL is `https://leetmind.patricksemler.dev`. Because deployment uses a custom
+GitHub Actions workflow, the repository does not need a `CNAME` file. Configure the repository's
+Pages custom domain as `leetmind.patricksemler.dev`, then add a DNS `CNAME` record named `leetmind`
+pointing to `patricksemler.github.io`.
+
 | Script            | What it does                                             |
 | ----------------- | -------------------------------------------------------- |
 | `pnpm dev`        | Vite dev server on `WEB_PORT` (default 5173)             |

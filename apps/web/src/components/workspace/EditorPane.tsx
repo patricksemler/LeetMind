@@ -109,7 +109,7 @@ export function EditorPane({
         overviewRulerBorder: false,
         hideCursorInOverviewRuler: true,
         readOnly,
-        readOnlyMessage: { value: "This solution is read-only in the interactive demo." },
+        readOnlyMessage: { value: "This solution is preloaded and read-only in the demo." },
       }}
     />
   );

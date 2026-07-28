@@ -12,25 +12,37 @@ vi.mock("../components/workspace/EditorPane", () => ({
 }));
 
 describe("DemoExperience", () => {
-  it("walks through run, submit, rating feedback, and replay without a backend", async () => {
+  it("guides the full practice loop and concludes with the repository link", async () => {
     const user = userEvent.setup();
     render(
       <Providers>
-        <DemoExperience executor={createDemoExecutor({ delayMs: 0 })} />
+        <DemoExperience executor={createDemoExecutor({ delayMs: 0 })} conclusionDelayMs={0} />
       </Providers>,
     );
 
-    expect(screen.getByText(/Start with one problem/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Welcome to LeetMind/i })).toBeInTheDocument();
+    expect(screen.getByText(/This is a guided demo/i)).toBeInTheDocument();
+    expect(screen.queryByText(/interactive demo/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/static product tour/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Begin demo" }));
+    expect(screen.getByRole("heading", { name: /A problem is ready/i })).toBeInTheDocument();
+    expect(screen.getByText(/Open your next challenge/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    expect(screen.getByText(/Explore, then reveal a hint/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled();
     expect(screen.getByLabelText("Code editor")).toHaveAttribute("readonly");
 
-    await user.click(screen.getByRole("button", { name: "Start demo" }));
+    await user.click(screen.getByRole("button", { name: "Reveal" }));
+    expect(await screen.findByText(/As you scan the list/i)).toBeInTheDocument();
+    expect(screen.getByText(/Check the public examples/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: "Run" }));
-    expect(await screen.findByText(/The examples pass/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Both examples pass/i)).toBeInTheDocument();
     expect(screen.getAllByRole("img", { name: "passed" })).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Submit" })).toBeEnabled();
 
@@ -38,10 +50,14 @@ describe("DemoExperience", () => {
     expect(await screen.findByText("accepted")).toBeInTheDocument();
     expect(screen.getByTestId("rating-update-panel")).toHaveTextContent("1035");
     expect(screen.getByTestId("rating-update-panel")).toHaveTextContent("1048");
+    expect(
+      await screen.findByRole("dialog", { name: /That’s the LeetMind loop/i }),
+    ).toBeInTheDocument();
 
+    const repositoryLink = screen.getByRole("link", { name: /View repository/i });
+    expect(repositoryLink).toHaveAttribute("href", "https://github.com/patricksemler/LeetMind");
+    expect(repositoryLink).toHaveAttribute("target", "_blank");
     await user.click(screen.getByRole("button", { name: "Replay" }));
-    expect(screen.getByText(/Start with one problem/i)).toBeInTheDocument();
-    await user.click(screen.getByRole("tab", { name: "Result" }));
-    expect(screen.getByText(/No submissions yet/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Welcome to LeetMind/i })).toBeInTheDocument();
   });
 });

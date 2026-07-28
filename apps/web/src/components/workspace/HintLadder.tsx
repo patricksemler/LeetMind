@@ -16,6 +16,7 @@
  * `GiveUpControl`.
  */
 import { useMutation } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import type { HintResponse } from "@shared";
 import { api } from "../../lib/api";
 import { Button, Plate } from "../ui";
@@ -30,6 +31,7 @@ export function HintLadder({
   disabled = false,
   onRevealed,
   revealHint = (rung) => api.revealHint(problemId, rung),
+  revealCoachMark,
 }: {
   problemId: string;
   /** `ProblemDetail`'s `revealed_hints`/`hints` — ordered rung 1..n, complete through whatever
@@ -39,6 +41,8 @@ export function HintLadder({
   onRevealed: (rung: number, text: string) => void;
   /** A contract-shaped injection point for offline/static experiences. */
   revealHint?: (rung: number) => Promise<HintResponse>;
+  /** Optional contextual guidance rendered beside the next available Reveal control. */
+  revealCoachMark?: ReactNode;
 }) {
   const takeMutation = useMutation({
     mutationFn: revealHint,
@@ -73,15 +77,22 @@ export function HintLadder({
               <div className="flex min-h-7 items-center justify-between gap-2">
                 <span className="text-sm font-medium text-text">Hint #{rung}</span>
                 {isNext && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="shrink-0"
-                    onClick={() => takeMutation.mutate(rung)}
-                    disabled={takeMutation.isPending}
-                  >
-                    {pending ? "Revealing…" : "Reveal"}
-                  </Button>
+                  <div className={`relative shrink-0 ${revealCoachMark ? "z-30" : ""}`}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className={
+                        revealCoachMark
+                          ? "ring-2 ring-accent ring-offset-4 ring-offset-bg-inset"
+                          : ""
+                      }
+                      onClick={() => takeMutation.mutate(rung)}
+                      disabled={takeMutation.isPending}
+                    >
+                      {pending ? "Revealing…" : "Reveal"}
+                    </Button>
+                    {revealCoachMark}
+                  </div>
                 )}
               </div>
               {isTaken && <Markdown className="mt-1 text-xs">{revealedHints[rung - 1]!}</Markdown>}
