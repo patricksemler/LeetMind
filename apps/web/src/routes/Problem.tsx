@@ -6,22 +6,13 @@ import type { GiveUpResponse, ProblemDetail, RatingUpdateView } from "@shared";
 import { api } from "../lib/api";
 import { loadDraft, saveDraft } from "../lib/draft";
 import { useHotkeys } from "../hooks/useHotkeys";
-import { Panel, RouteLoading, Tabs, tabPanelProps } from "../components/ui";
+import { Panel, RouteLoading } from "../components/ui";
 import { buttonClassName } from "../components/ui/Button";
-import { ActionBar } from "../components/workspace/ActionBar";
-import { EditorPane } from "../components/workspace/EditorPane";
 import { GiveUpControl } from "../components/workspace/GiveUpControl";
 import { HintLadder } from "../components/workspace/HintLadder";
-import { RatingUpdatePanel } from "../components/workspace/RatingUpdatePanel";
-import { ResultPanel, type LastResult } from "../components/workspace/ResultPanel";
+import { ProblemWorkspace, type WorkspaceTab } from "../components/workspace/ProblemWorkspace";
+import type { LastResult } from "../components/workspace/ResultPanel";
 import { SolutionPane } from "../components/workspace/SolutionPane";
-import { SplitPane } from "../components/workspace/SplitPane";
-import { StatementPane } from "../components/workspace/StatementPane";
-import { TestCasePanel } from "../components/workspace/TestCasePanel";
-
-/** No "hints" tab: the ladder and the give-up/solution flow live under the statement in "problem",
- * where they're read against the thing they're hints about. */
-type LeftTab = "problem" | "results";
 
 export function Problem() {
   const { problemId } = useParams<{ problemId: string }>();
@@ -40,7 +31,7 @@ export function Problem() {
   const problem = problemQuery.data;
   const resolved = problem ? isResolved(problem) : false;
 
-  const [leftTab, setLeftTab] = useState<LeftTab>("problem");
+  const [leftTab, setLeftTab] = useState<WorkspaceTab>("problem");
   const [source, setSource] = useState("");
   const [lastResult, setLastResult] = useState<LastResult | null>(null);
   const [ratingUpdate, setRatingUpdate] = useState<RatingUpdateView | null>(null);
@@ -53,7 +44,6 @@ export function Problem() {
     setLastResult(null);
     setRatingUpdate(null);
     setGaveUp(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problemId]);
 
   // Load starter code / draft once the problem is known.
@@ -72,7 +62,13 @@ export function Problem() {
   const runMutation = useMutation({
     mutationFn: () => api.run(problemId!, { code: source }),
     onSuccess: (res) => {
-      setLastResult({ kind: "run", passed: res.passed, solved: false, results: res.results, code: source });
+      setLastResult({
+        kind: "run",
+        passed: res.passed,
+        solved: false,
+        results: res.results,
+        code: source,
+      });
     },
   });
 
@@ -123,10 +119,14 @@ export function Problem() {
     run();
   }
   function triggerRun() {
-    guarded(() => runMutation.mutate(undefined, { onSettled: () => (actionInFlightRef.current = false) }));
+    guarded(() =>
+      runMutation.mutate(undefined, { onSettled: () => (actionInFlightRef.current = false) }),
+    );
   }
   function triggerSubmit() {
-    guarded(() => submitMutation.mutate(undefined, { onSettled: () => (actionInFlightRef.current = false) }));
+    guarded(() =>
+      submitMutation.mutate(undefined, { onSettled: () => (actionInFlightRef.current = false) }),
+    );
   }
 
   useHotkeys(
@@ -155,118 +155,66 @@ export function Problem() {
   }
 
   const revealedHints = isResolved(problem) ? problem.hints : problem.revealed_hints;
-  const referenceSolution = gaveUp?.reference_solution ?? (isResolved(problem) ? problem.reference_solution : null);
+  const referenceSolution =
+    gaveUp?.reference_solution ?? (isResolved(problem) ? problem.reference_solution : null);
+  const actionError = runMutation.error ?? submitMutation.error;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1">
-        <SplitPane
-          storageKey="workspace-split"
-          first={
-            <div className="flex h-full min-h-0 flex-col">
-              <Tabs
-                id="problem-left"
-                tabs={[
-                  { id: "problem", label: "Problem" },
-                  { id: "results", label: "Result" },
-                ]}
-                active={leftTab}
-                onChange={(id) => setLeftTab(id as LeftTab)}
-                className="sticky top-0 z-10 bg-bg px-2"
-                trailing={
-                  resolved ? (
-                    <Link to="/" className={buttonClassName({ variant: "primary", size: "sm" })}>
-                      Next problem
-                    </Link>
-                  ) : null
-                }
-              />
-              {leftTab === "problem" ? (
-                <div {...tabPanelProps("problem-left", "problem")}>
-                  <div className="space-y-6 p-5">
-                    <StatementPane problem={problem} />
-                    <section className="space-y-3">
-                      <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">
-                        Hints
-                      </h3>
-                      <HintLadder
-                        problemId={problemId}
-                        revealedHints={revealedHints}
-                        disabled={resolved}
-                        onRevealed={handleHintRevealed}
-                      />
-                    </section>
-                    {(!resolved || referenceSolution) && <div className="border-t border-border" />}
-                    {!resolved && !gaveUp && (
-                      <GiveUpControl problemId={problemId} onGaveUp={handleGaveUp} />
-                    )}
-                    {referenceSolution && (
-                      <Panel className="space-y-3 p-4">
-                        <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">
-                          Solution
-                        </h3>
-                        <SolutionPane referenceSolution={referenceSolution} />
-                      </Panel>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div {...tabPanelProps("problem-left", "results")}>
-                  <ResultPanel problem={problem} result={lastResult} />
-                  {/* Lives beside the verdict it explains, not under the statement two tabs away
-                      — the Result tab is exactly where a "why did my rating move" question gets
-                      asked. */}
-                  {ratingUpdate && (
-                    <div className="px-5 pb-5">
-                      <RatingUpdatePanel update={ratingUpdate} />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          }
-          second={
-            <div className="flex h-full min-h-0 flex-col">
-              <ActionBar
-                onRun={triggerRun}
-                onSubmit={triggerSubmit}
-                running={runMutation.isPending}
-                submitting={submitMutation.isPending}
-                disabled={attemptOver}
-              />
-              {(runMutation.isError || submitMutation.isError) && (
-                <div className="flex items-center justify-between gap-3 border-b border-verdict-error bg-verdict-error-dim px-4 py-1.5 text-xs text-text">
-                  <span>
-                    {(runMutation.error ?? submitMutation.error) instanceof Error
-                      ? (runMutation.error ?? submitMutation.error)?.message
-                      : "Something went wrong — try again."}
-                  </span>
-                  <button
-                    className="shrink-0 underline"
-                    onClick={() => {
-                      runMutation.reset();
-                      submitMutation.reset();
-                    }}
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              )}
-              <div className="min-h-0 flex-1">
-                <SplitPane
-                  orientation="vertical"
-                  storageKey="workspace-split-cases"
-                  initialFirstPct={62}
-                  minFirstPct={25}
-                  maxFirstPct={85}
-                  first={<EditorPane value={source} onChange={handleSourceChange} />}
-                  second={<TestCasePanel problem={problem} results={lastResult?.results} />}
-                />
-              </div>
-            </div>
-          }
-        />
-      </div>
-    </div>
+    <ProblemWorkspace
+      problem={problem}
+      source={source}
+      onSourceChange={handleSourceChange}
+      activeTab={leftTab}
+      onTabChange={setLeftTab}
+      tabsTrailing={
+        resolved ? (
+          <Link to="/" className={buttonClassName({ variant: "primary", size: "sm" })}>
+            Next problem
+          </Link>
+        ) : null
+      }
+      problemTools={
+        <>
+          <section className="space-y-3">
+            <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">Hints</h3>
+            <HintLadder
+              problemId={problemId}
+              revealedHints={revealedHints}
+              disabled={resolved}
+              onRevealed={handleHintRevealed}
+            />
+          </section>
+          {(!resolved || referenceSolution) && <div className="border-t border-border" />}
+          {!resolved && !gaveUp && <GiveUpControl problemId={problemId} onGaveUp={handleGaveUp} />}
+          {referenceSolution && (
+            <Panel className="space-y-3 p-4">
+              <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">
+                Solution
+              </h3>
+              <SolutionPane referenceSolution={referenceSolution} />
+            </Panel>
+          )}
+        </>
+      }
+      result={lastResult}
+      ratingUpdate={ratingUpdate}
+      onRun={triggerRun}
+      onSubmit={triggerSubmit}
+      running={runMutation.isPending}
+      submitting={submitMutation.isPending}
+      runDisabled={attemptOver}
+      submitDisabled={attemptOver}
+      actionErrorMessage={
+        actionError instanceof Error
+          ? actionError.message
+          : actionError
+            ? "Something went wrong — try again."
+            : null
+      }
+      onDismissActionError={() => {
+        runMutation.reset();
+        submitMutation.reset();
+      }}
+    />
   );
 }

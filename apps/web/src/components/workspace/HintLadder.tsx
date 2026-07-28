@@ -16,6 +16,7 @@
  * `GiveUpControl`.
  */
 import { useMutation } from "@tanstack/react-query";
+import type { HintResponse } from "@shared";
 import { api } from "../../lib/api";
 import { Button, Plate } from "../ui";
 import { Markdown } from "./Markdown";
@@ -28,6 +29,7 @@ export function HintLadder({
   revealedHints,
   disabled = false,
   onRevealed,
+  revealHint = (rung) => api.revealHint(problemId, rung),
 }: {
   problemId: string;
   /** `ProblemDetail`'s `revealed_hints`/`hints` — ordered rung 1..n, complete through whatever
@@ -35,9 +37,11 @@ export function HintLadder({
   revealedHints: string[];
   disabled?: boolean;
   onRevealed: (rung: number, text: string) => void;
+  /** A contract-shaped injection point for offline/static experiences. */
+  revealHint?: (rung: number) => Promise<HintResponse>;
 }) {
   const takeMutation = useMutation({
-    mutationFn: (rung: number) => api.revealHint(problemId, rung),
+    mutationFn: revealHint,
     onSuccess: (res) => onRevealed(res.rung, res.text),
   });
 
@@ -80,9 +84,7 @@ export function HintLadder({
                   </Button>
                 )}
               </div>
-              {isTaken && (
-                <Markdown className="mt-1 text-xs">{revealedHints[rung - 1]!}</Markdown>
-              )}
+              {isTaken && <Markdown className="mt-1 text-xs">{revealedHints[rung - 1]!}</Markdown>}
             </div>
           </div>
         );

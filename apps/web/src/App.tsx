@@ -3,6 +3,7 @@ import { Link, Route, Routes } from "react-router-dom";
 import { RequireAuth } from "./components/auth/RequireAuth";
 import { NavBar } from "./components/layout/NavBar";
 import { ShortcutHelp } from "./components/shortcuts/ShortcutHelp";
+import { DemoExperience } from "./demo/DemoExperience";
 import { useHotkeys } from "./hooks/useHotkeys";
 import { AuthProvider } from "./lib/auth";
 import { Concepts } from "./routes/Concepts";
@@ -35,6 +36,7 @@ export function App() {
             {/* The only two routes reachable without a session. */}
             <Route path="/login" element={<SignIn />} />
             <Route path="/signup" element={<SignUp />} />
+            <Route path="/demo" element={<DemoExperience />} />
 
             <Route
               path="/"

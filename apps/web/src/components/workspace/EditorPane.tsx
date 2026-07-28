@@ -75,9 +75,11 @@ function useMonacoTheme(): MonacoThemeName {
 export function EditorPane({
   value,
   onChange,
+  readOnly = false,
 }: {
   value: string;
   onChange: (v: string) => void;
+  readOnly?: boolean;
 }) {
   const theme = useMonacoTheme();
 
@@ -106,6 +108,8 @@ export function EditorPane({
         overviewRulerLanes: 0,
         overviewRulerBorder: false,
         hideCursorInOverviewRuler: true,
+        readOnly,
+        readOnlyMessage: { value: "This solution is read-only in the interactive demo." },
       }}
     />
   );

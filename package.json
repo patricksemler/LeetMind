@@ -11,8 +11,10 @@
   },
   "scripts": {
     "dev": "pnpm --filter web dev",
+    "dev:demo": "pnpm --filter web dev:demo",
     "dev:server": "cd apps/server && uv run python -m leetmind",
     "build": "pnpm --filter web build",
+    "build:demo": "pnpm --filter web build:demo",
     "preview": "pnpm --filter web preview",
     "typecheck": "pnpm --filter web typecheck",
     "test": "pnpm --filter web test",

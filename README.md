@@ -23,16 +23,28 @@ pnpm dev
 With nothing listening at `VITE_API_BASE` the app still boots and renders, but every query fails
 and practice never produces a problem. That is the expected failure mode, not a bug in the app.
 
-| Script           | What it does                                             |
-| ---------------- | -------------------------------------------------------- |
-| `pnpm dev`       | Vite dev server on `WEB_PORT` (default 5173)             |
-| `pnpm build`     | typecheck, then production bundle to `dist/`             |
-| `pnpm preview`   | serve the built bundle                                   |
-| `pnpm test`      | Vitest component + unit suite (jsdom)                    |
-| `pnpm e2e`       | Playwright smoke — needs a running app **and** a backend |
-| `pnpm typecheck` | `tsc --noEmit`                                           |
-| `pnpm lint`      | ESLint                                                   |
-| `pnpm format`    | Prettier                                                 |
+### Static interactive demo
+
+The demo reuses the production problem workspace but replaces its API calls with a deterministic,
+contract-typed executor. It needs no backend, authentication, environment variables, or writable
+editor. Run it locally with `pnpm dev:demo`, or create the GitHub Pages artifact with
+`pnpm build:demo` (`apps/web/dist`).
+
+The workflow in `.github/workflows/deploy-demo.yml` publishes that artifact from `master`. In the
+repository's **Settings → Pages**, choose **GitHub Actions** as the source once; subsequent pushes
+deploy automatically.
+
+| Script            | What it does                                             |
+| ----------------- | -------------------------------------------------------- |
+| `pnpm dev`        | Vite dev server on `WEB_PORT` (default 5173)             |
+| `pnpm build`      | typecheck, then production bundle to `dist/`             |
+| `pnpm build:demo` | build the backend-free static demo for GitHub Pages      |
+| `pnpm preview`    | serve the built bundle                                   |
+| `pnpm test`       | Vitest component + unit suite (jsdom)                    |
+| `pnpm e2e`        | Playwright smoke — needs a running app **and** a backend |
+| `pnpm typecheck`  | `tsc --noEmit`                                           |
+| `pnpm lint`       | ESLint                                                   |
+| `pnpm format`     | Prettier                                                 |
 
 ## How it works
 
@@ -54,15 +66,15 @@ and carries no mastery consequence.
 
 ## Layout
 
-| Path                        | Purpose                                                               |
-| --------------------------- | ---------------------------------------------------------------------- |
-| `apps/web/src/routes/`      | Practice, Problem, Concepts, auth screens                            |
-| `apps/web/src/components/`  | workspace (editor, hints, test cases, submissions) and UI primitives |
-| `apps/web/src/hooks/`       | SSE subscription, hint state, active-time tracking                   |
-| `apps/web/src/lib/`         | typed API client, auth, drafts, formatting                           |
-| `apps/web/src/shared/`      | the API wire contract — see below                                    |
-| `apps/web/e2e/`             | Playwright smoke against a real backend                              |
-| `apps/server/`              | FastAPI backend — generation, judging, learner model                 |
+| Path                       | Purpose                                                              |
+| -------------------------- | -------------------------------------------------------------------- |
+| `apps/web/src/routes/`     | Practice, Problem, Concepts, auth screens                            |
+| `apps/web/src/components/` | workspace (editor, hints, test cases, submissions) and UI primitives |
+| `apps/web/src/hooks/`      | SSE subscription, hint state, active-time tracking                   |
+| `apps/web/src/lib/`        | typed API client, auth, drafts, formatting                           |
+| `apps/web/src/shared/`     | the API wire contract — see below                                    |
+| `apps/web/e2e/`            | Playwright smoke against a real backend                              |
+| `apps/server/`             | FastAPI backend — generation, judging, learner model                 |
 
 ### `apps/web/src/shared/` is the contract, not a utility folder
 

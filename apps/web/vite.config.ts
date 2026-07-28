@@ -9,6 +9,8 @@ export default defineConfig(({ mode }) => {
   const apiBase = env.VITE_API_BASE ?? "http://localhost:8080";
 
   return {
+    // Relative assets make the static demo portable to any GitHub Pages repository path.
+    base: mode === "demo" ? "./" : "/",
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

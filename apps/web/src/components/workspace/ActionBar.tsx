@@ -50,6 +50,8 @@ export function ActionBar({
   running,
   submitting,
   disabled = false,
+  runDisabled = disabled,
+  submitDisabled = disabled,
 }: {
   onRun: () => void;
   onSubmit: () => void;
@@ -58,6 +60,9 @@ export function ActionBar({
   /** Once a problem is resolved, the server 409s any run/submit (§8.3 requires `active`) — greyed
    * out rather than hidden, so the corner doesn't jump when a solve lands. */
   disabled?: boolean;
+  /** Optional per-action gates for guided or staged flows. */
+  runDisabled?: boolean;
+  submitDisabled?: boolean;
 }) {
   const busy = running || submitting;
 
@@ -81,7 +86,7 @@ export function ActionBar({
               size="sm"
               variant="secondary"
               onClick={onRun}
-              disabled={disabled}
+              disabled={runDisabled}
               title="Run against the public example tests (Cmd/Ctrl + ')"
             >
               Run
@@ -90,7 +95,7 @@ export function ActionBar({
               size="sm"
               variant="primary"
               onClick={onSubmit}
-              disabled={disabled}
+              disabled={submitDisabled}
               title="Submit against the public examples AND the hidden tests (Cmd/Ctrl + Enter)"
             >
               Submit
