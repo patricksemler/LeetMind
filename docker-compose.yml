@@ -2,14 +2,17 @@
 # itself out of scope.
 services:
   # Built, not run as a standing service: judge.py launches one throwaway leetmind-judge
-  # container per execution via the host docker CLI (§8.1). The "build-only" profile keeps
-  # `docker compose up` from starting it; `docker compose --profile build-only build judge`
-  # (or plain `docker build ./apps/server/judge -t leetmind-judge`) produces the image the
-  # server and the test suite both expect to already exist.
+  # container per execution via the host docker CLI (§8.1). This service exists so a fresh
+  # `docker compose up` produces the leetmind-judge image (matching JUDGE_IMAGE's default)
+  # before the server needs it: the entrypoint is overridden to a no-op (the image's real
+  # entrypoint, runner.py, expects a stdin handshake and would hang), so it builds, exits 0,
+  # and the server's depends_on gate opens. `docker build ./apps/server/judge -t leetmind-judge`
+  # still works for rebuilding it by hand.
   judge:
     build: ./apps/server/judge
     image: leetmind-judge
-    profiles: ["build-only"]
+    entrypoint: ["/bin/true"]
+    restart: "no"
 
   postgres:
     image: postgres:16-alpine
@@ -33,6 +36,16 @@ services:
     environment:
       DATABASE_URL: postgres://leetmind:leetmind@postgres:5432/leetmind
       WEB_ORIGIN: http://localhost:5173
+      # Reaches the host's local `supabase start` stack from inside the container (auth is
+      # mandatory, PLAN_BACKEND.md §9). host.docker.internal is built into Docker Desktop;
+      # the extra_hosts entry below makes it resolve on plain Linux engines too.
+      SUPABASE_URL: http://host.docker.internal:54321
+      # The image ships no claude/codex binary, so real generation is impossible in-container —
+      # fixture mode returns canned responses instead. For real generation run the server on
+      # the host: `pnpm dev:server`.
+      LLM_CLI: fixture
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file:
       - path: ./apps/server/.env
         required: false
@@ -45,6 +58,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # Guarantees the leetmind-judge image exists (freshly built if needed) before the server
+      # can accept a submission — the judge "service" is a build-and-exit no-op, see above.
+      judge:
+        condition: service_completed_successfully
 
 volumes:
   postgres-data:

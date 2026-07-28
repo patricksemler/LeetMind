@@ -138,6 +138,27 @@ async def test_fails_after_retry_exhausted(tmp_path: Path):
         await client.complete("say hi", Greeting)
 
 
+async def test_missing_binary_raises_llm_error(tmp_path: Path):
+    # Regression: a nonexistent binary used to escape as FileNotFoundError, which neither the
+    # planner nor the worker catches — the generation job kept its lease and re-crashed forever.
+    # As LLMError it takes the normal failure path (deterministic fallback / failed job).
+    missing = str(tmp_path / "no-such-cli")
+    client = LLMClient(_settings(missing))
+
+    with pytest.raises(LLMError, match="no-such-cli"):
+        await client.complete("say hi", Greeting)
+
+
+async def test_unexecutable_binary_raises_llm_error(tmp_path: Path):
+    # Same escape path via PermissionError: the file exists but has no execute bit.
+    path = tmp_path / "not-executable"
+    path.write_text("#!/bin/sh\n")
+    client = LLMClient(_settings(str(path)))
+
+    with pytest.raises(LLMError, match="not-executable"):
+        await client.complete("say hi", Greeting)
+
+
 async def test_timeout_raises(tmp_path: Path):
     script = "#!/bin/sh\ncat >/dev/null\nsleep 5\n"
     bin_path = _write_fake_cli(tmp_path, script)

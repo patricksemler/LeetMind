@@ -2,8 +2,10 @@ FROM python:3.12-slim
 
 # The judge orchestrator shells out to the docker CLI (PLAN_BACKEND.md §8.1); the server container
 # needs it installed and the host's docker.sock bind-mounted at run time (see docker-compose.yml).
+# `docker-cli` (client only), NOT `docker.io`: on Debian 13 (trixie, this base image) docker.io
+# ships only the daemon — no `docker` binary — which silently made judging impossible in-container.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends docker.io \
+    && apt-get install -y --no-install-recommends docker-cli \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/

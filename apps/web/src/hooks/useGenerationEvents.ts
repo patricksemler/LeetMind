@@ -28,19 +28,25 @@ export interface UseGenerationEventsOptions {
   maxBackoffMs?: number;
 }
 
-/** Parses complete `\n\n`-terminated SSE frames out of a growing text buffer, returning the
- * still-incomplete remainder to keep accumulating. Only `event:`/`data:` fields are used; `:`
- * comment lines (sse-starlette's heartbeat ping) and any other field are ignored. */
-function consumeFrames(
+/** Parses complete SSE frames out of a growing text buffer, returning the still-incomplete
+ * remainder to keep accumulating. A frame ends at a blank line, and the SSE spec lets each line
+ * end with `\r\n`, `\n`, or `\r` — sse-starlette (our server) emits `\r\n`, so the boundary on
+ * the wire is `\r\n\r\n` and a bare `indexOf("\n\n")` scan would never find it. Searching the
+ * accumulated buffer (rather than normalizing chunk-by-chunk) also means a separator split
+ * across two network chunks simply stays pending until the closing bytes arrive. Only
+ * `event:`/`data:` fields are used; `:` comment lines (sse-starlette's heartbeat ping) and any
+ * other field are ignored. Exported for unit tests; the hook below is the real consumer. */
+export function consumeFrames(
   buffer: string,
   onFrame: (event: string, data: string) => void,
 ): string {
+  const boundary = /\r?\n\r?\n/g;
   let start = 0;
   while (true) {
-    const sep = buffer.indexOf("\n\n", start);
-    if (sep === -1) break;
-    const frame = buffer.slice(start, sep);
-    start = sep + 2;
+    const match = boundary.exec(buffer);
+    if (match === null) break;
+    const frame = buffer.slice(start, match.index);
+    start = boundary.lastIndex;
 
     let event = "message";
     const dataLines: string[] = [];

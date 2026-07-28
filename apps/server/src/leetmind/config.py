@@ -1,13 +1,19 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# apps/server/.env, anchored to this file rather than the CWD so launching from the repo root
+# doesn't silently load the legacy root .env instead. A missing file is fine (every field has a
+# default; the Docker image ships no .env at all).
+_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
 
 class Settings(BaseSettings):
     """Parsed once at startup; a missing required var fails loudly at boot (PLAN_BACKEND.md §9)."""
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
 
     database_url: str = Field(
         default="postgres://leetmind:leetmind@localhost:5432/leetmind",

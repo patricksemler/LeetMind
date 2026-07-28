@@ -75,12 +75,39 @@ and the typechecker finds every consumer. Once `apps/server`'s OpenAPI codegen l
 ## Accounts
 
 Authentication is **Supabase Auth** (email + password), spoken directly from the browser — the API
-never sees a credential, only a verified token.
+never sees a credential, only a verified token. **Auth is mandatory** (PLAN_BACKEND.md §9): there
+is no single-user/no-auth mode any more. The backend requires `SUPABASE_URL`; without it every
+authed route returns 401. The frontend requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`;
+without them every route past `/login` redirects back to it.
 
-Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to enable sign-in. Leave both unset to build
-the single-user app with no sign-in; the backend must agree, and is single-user whenever
-`SUPABASE_URL` is absent from _its_ environment. A mismatch here means the app either asks for a
-session the API ignores, or skips one the API requires.
+Token verification defaults to asymmetric (ES256/RS256) against the project's published JWKS at
+`SUPABASE_URL/auth/v1/.well-known/jwks.json` — this covers both local `supabase start` (ES256) and
+current hosted projects. Set `SUPABASE_JWT_SECRET` only for a legacy project that still signs
+HS256; leave it empty otherwise.
+
+## Running the stack locally
+
+```bash
+supabase start                # local Supabase (auth) at http://127.0.0.1:54321
+docker compose up postgres    # the database (port 5432)
+docker compose build judge    # the leetmind-judge sandbox image — required for Run/Submit
+pnpm dev:server               # API on http://localhost:8080 (uv run python -m leetmind)
+```
+
+`apps/server/.env` (see `.env.example`) points `SUPABASE_URL` at the local Supabase stack. Run the
+web app via the `web-auth` launch configuration in `.claude/launch.json`, which supplies
+`VITE_API_BASE` plus the local `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` — or export those
+yourself and `pnpm dev`.
+
+Judging launches one throwaway `leetmind-judge` container per execution, so that image must exist
+on the host's Docker daemon (the compose build above, or
+`docker build ./apps/server/judge -t leetmind-judge`).
+
+Problem generation shells out to an already-logged-in `claude` (or `codex`) CLI. For development
+without an LLM, set `LLM_CLI=fixture` in `apps/server/.env` — canned responses, no subprocess, no
+login. `docker compose up` can run the whole backend too, but the image ships no LLM CLI, so
+compose forces fixture mode; real generation means running the server on the host
+(`pnpm dev:server`).
 
 ## Tests
 

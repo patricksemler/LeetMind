@@ -176,14 +176,23 @@ class LLMClient:
 
         with tempfile.TemporaryDirectory(prefix="leetmind-llm-") as cwd:
             run_argv = _containerize(argv, cwd, env, settings) if settings.llm_container else argv
-            proc = await asyncio.create_subprocess_exec(
-                *run_argv,
-                cwd=None if settings.llm_container else cwd,
-                env=env,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *run_argv,
+                    cwd=None if settings.llm_container else cwd,
+                    env=env,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+            except (FileNotFoundError, PermissionError) as exc:
+                # Without this, a missing/unexecutable binary escapes as a bare OSError that
+                # neither the planner (LLMError, ValidationError) nor the worker (LLMError,
+                # BuilderError) catches — the job keeps its lease and re-crashes forever.
+                raise LLMError(
+                    f"LLM CLI binary {run_argv[0]!r} could not be executed ({exc}). "
+                    "Check LLM_CLI/LLM_BIN, or set LLM_CLI=fixture for LLM-free development."
+                ) from exc
             assert proc.stdin is not None
             proc.stdin.write(prompt.encode())
             await proc.stdin.drain()
