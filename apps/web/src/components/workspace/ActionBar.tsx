@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Button } from "../ui";
 
@@ -55,6 +56,7 @@ export function ActionBar({
   submitDisabled = disabled,
   runCoachMark,
   submitCoachMark,
+  coachExitMs = 0,
 }: {
   onRun: () => void;
   onSubmit: () => void;
@@ -69,8 +71,31 @@ export function ActionBar({
   /** Optional contextual guidance rendered beside the real control. */
   runCoachMark?: ReactNode;
   submitCoachMark?: ReactNode;
+  coachExitMs?: number;
 }) {
   const busy = running || submitting;
+  const [leavingCoach, setLeavingCoach] = useState<"run" | "submit" | null>(null);
+  const coachTimerRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (coachTimerRef.current !== null) window.clearTimeout(coachTimerRef.current);
+    },
+    [],
+  );
+
+  function triggerAction(kind: "run" | "submit", coachMark: ReactNode, action: () => void) {
+    if (!coachMark || coachExitMs <= 0) {
+      action();
+      return;
+    }
+    if (leavingCoach) return;
+    setLeavingCoach(kind);
+    coachTimerRef.current = window.setTimeout(() => {
+      setLeavingCoach(null);
+      action();
+    }, coachExitMs);
+  }
 
   return (
     <div className="flex items-center justify-end gap-3 border-b border-border bg-bg px-4 py-2">
@@ -88,26 +113,34 @@ export function ActionBar({
           <Spinner label={submitting ? "Submitting…" : "Running…"} />
         ) : (
           <>
-            <div className={`relative ${runCoachMark ? "z-30" : ""}`}>
+            <div
+              className={`relative ${runCoachMark ? "z-30" : ""} ${
+                leavingCoach === "run" ? "coach-guide-leaving" : ""
+              }`}
+            >
               <Button
                 size="sm"
                 variant="secondary"
                 className={runCoachMark ? "ring-2 ring-accent ring-offset-4 ring-offset-bg" : ""}
-                onClick={onRun}
-                disabled={runDisabled}
+                onClick={() => triggerAction("run", runCoachMark, onRun)}
+                disabled={runDisabled || leavingCoach === "run"}
                 title="Run against the public example tests (Cmd/Ctrl + ')"
               >
                 Run
               </Button>
               {runCoachMark}
             </div>
-            <div className={`relative ${submitCoachMark ? "z-30" : ""}`}>
+            <div
+              className={`relative ${submitCoachMark ? "z-30" : ""} ${
+                leavingCoach === "submit" ? "coach-guide-leaving" : ""
+              }`}
+            >
               <Button
                 size="sm"
                 variant="primary"
                 className={submitCoachMark ? "ring-2 ring-accent ring-offset-4 ring-offset-bg" : ""}
-                onClick={onSubmit}
-                disabled={submitDisabled}
+                onClick={() => triggerAction("submit", submitCoachMark, onSubmit)}
+                disabled={submitDisabled || leavingCoach === "submit"}
                 title="Submit against the public examples AND the hidden tests (Cmd/Ctrl + Enter)"
               >
                 Submit

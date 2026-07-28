@@ -127,6 +127,43 @@ body {
   outline-offset: 2px;
 }
 
+@keyframes coach-mark-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-0.4rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes coach-mark-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-0.3rem);
+  }
+}
+
+.coach-mark-card {
+  animation: coach-mark-enter 180ms ease-out both;
+}
+
+.coach-guide-leaving .coach-mark-card {
+  animation: coach-mark-exit 140ms ease-in both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coach-mark-card,
+  .coach-guide-leaving .coach-mark-card {
+    animation-duration: 1ms;
+  }
+}
+
 /* Scrollbars are deliberately left unstyled. Setting `scrollbar-width`/`scrollbar-color` (or any
  * `::-webkit-scrollbar` rule) opts the element OUT of the platform's overlay scrollbars, which is
  * what pinned a permanent grey thumb down the side of the statement pane, the case list and every

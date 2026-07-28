@@ -21,7 +21,9 @@ describe("DemoExperience", () => {
     );
 
     expect(screen.getByRole("heading", { name: /Welcome to LeetMind/i })).toBeInTheDocument();
-    expect(screen.getByText(/This is a guided demo/i)).toBeInTheDocument();
+    expect(screen.getByText("Guided preview")).toBeInTheDocument();
+    expect(screen.queryByText(/about one minute/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/preloaded, read-only solution/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/interactive demo/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/static product tour/i)).not.toBeInTheDocument();
 
@@ -30,12 +32,15 @@ describe("DemoExperience", () => {
     expect(screen.getByText(/Open your next challenge/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Start" }));
-    expect(screen.getByText(/Explore, then reveal a hint/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Explore, then reveal a hint/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled();
     expect(screen.getByLabelText("Code editor")).toHaveAttribute("readonly");
 
     await user.click(screen.getByRole("button", { name: "Reveal" }));
+    expect(
+      screen.getByText(/Explore, then reveal a hint/i).closest(".coach-guide-leaving"),
+    ).not.toBeNull();
     expect(await screen.findByText(/As you scan the list/i)).toBeInTheDocument();
     expect(screen.getByText(/Check the public examples/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run" })).toBeEnabled();

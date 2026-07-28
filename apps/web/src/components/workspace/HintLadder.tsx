@@ -16,6 +16,7 @@
  * `GiveUpControl`.
  */
 import { useMutation } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { HintResponse } from "@shared";
 import { api } from "../../lib/api";
@@ -32,6 +33,7 @@ export function HintLadder({
   onRevealed,
   revealHint = (rung) => api.revealHint(problemId, rung),
   revealCoachMark,
+  coachExitMs = 0,
 }: {
   problemId: string;
   /** `ProblemDetail`'s `revealed_hints`/`hints` — ordered rung 1..n, complete through whatever
@@ -43,13 +45,34 @@ export function HintLadder({
   revealHint?: (rung: number) => Promise<HintResponse>;
   /** Optional contextual guidance rendered beside the next available Reveal control. */
   revealCoachMark?: ReactNode;
+  coachExitMs?: number;
 }) {
+  const [coachLeaving, setCoachLeaving] = useState(false);
+  const coachTimerRef = useRef<number | null>(null);
   const takeMutation = useMutation({
     mutationFn: revealHint,
     onSuccess: (res) => onRevealed(res.rung, res.text),
+    onError: () => setCoachLeaving(false),
   });
 
   const nextRung = revealedHints.length + 1;
+
+  useEffect(
+    () => () => {
+      if (coachTimerRef.current !== null) window.clearTimeout(coachTimerRef.current);
+    },
+    [],
+  );
+
+  function reveal(rung: number) {
+    if (!revealCoachMark || coachExitMs <= 0) {
+      takeMutation.mutate(rung);
+      return;
+    }
+    if (coachLeaving) return;
+    setCoachLeaving(true);
+    coachTimerRef.current = window.setTimeout(() => takeMutation.mutate(rung), coachExitMs);
+  }
 
   return (
     <div className="space-y-2">
@@ -77,7 +100,11 @@ export function HintLadder({
               <div className="flex min-h-7 items-center justify-between gap-2">
                 <span className="text-sm font-medium text-text">Hint #{rung}</span>
                 {isNext && (
-                  <div className={`relative shrink-0 ${revealCoachMark ? "z-30" : ""}`}>
+                  <div
+                    className={`relative shrink-0 ${revealCoachMark ? "z-30" : ""} ${
+                      coachLeaving ? "coach-guide-leaving" : ""
+                    }`}
+                  >
                     <Button
                       size="sm"
                       variant="secondary"
@@ -86,8 +113,8 @@ export function HintLadder({
                           ? "ring-2 ring-accent ring-offset-4 ring-offset-bg-inset"
                           : ""
                       }
-                      onClick={() => takeMutation.mutate(rung)}
-                      disabled={takeMutation.isPending}
+                      onClick={() => reveal(rung)}
+                      disabled={takeMutation.isPending || coachLeaving}
                     >
                       {pending ? "Revealing…" : "Reveal"}
                     </Button>

@@ -29,11 +29,10 @@ export function CoachMark({
   placement?: Placement;
 }) {
   return (
-    <>
-      <div className="pointer-events-none fixed inset-0 z-20 bg-black/45" aria-hidden="true" />
+    <div className={`pointer-events-none absolute z-40 w-72 ${position[placement]}`}>
       <div
         role="status"
-        className={`pointer-events-none absolute z-40 w-72 rounded-lg border border-border-strong bg-bg-overlay p-4 text-left shadow-2xl ${position[placement]}`}
+        className="coach-mark-card relative w-full rounded-lg border border-border-strong bg-bg-overlay p-4 text-left"
       >
         <span
           className={`absolute -top-[5px] h-2.5 w-2.5 rotate-45 border-l border-t border-border-strong bg-bg-overlay ${arrow[placement]}`}
@@ -43,6 +42,6 @@ export function CoachMark({
         <p className="mt-1 text-sm font-medium text-text">{title}</p>
         <p className="mt-1.5 text-xs leading-relaxed text-text-dim">{children}</p>
       </div>
-    </>
+    </div>
   );
 }

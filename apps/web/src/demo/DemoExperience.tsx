@@ -21,7 +21,7 @@ function Welcome({ onContinue }: { onContinue: () => void }) {
       <Panel className="w-full max-w-2xl overflow-hidden">
         <div className="border-b border-border p-7 sm:p-9">
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-faint">
-            Guided preview · about one minute
+            Guided preview
           </p>
           <h1
             aria-label="Welcome to LeetMind"
@@ -34,11 +34,7 @@ function Welcome({ onContinue }: { onContinue: () => void }) {
             problem at the edge of your ability, then uses the result to shape what comes next.
           </p>
         </div>
-        <div className="flex flex-col gap-5 p-7 sm:flex-row sm:items-center sm:justify-between sm:p-9">
-          <p className="max-w-md text-sm leading-relaxed text-text-dim">
-            This is a guided demo with a preloaded, read-only solution. No account is needed, and
-            nothing will be submitted or saved.
-          </p>
+        <div className="flex justify-end p-7 sm:p-9">
           <Button variant="primary" className="shrink-0" onClick={onContinue}>
             Begin demo
           </Button>
@@ -49,6 +45,22 @@ function Welcome({ onContinue }: { onContinue: () => void }) {
 }
 
 function ReadyProblem({ onOpen }: { onOpen: () => void }) {
+  const [coachLeaving, setCoachLeaving] = useState(false);
+  const openTimerRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (openTimerRef.current !== null) window.clearTimeout(openTimerRef.current);
+    },
+    [],
+  );
+
+  function openProblem() {
+    if (coachLeaving) return;
+    setCoachLeaving(true);
+    openTimerRef.current = window.setTimeout(onOpen, 160);
+  }
+
   return (
     <div className="flex h-full items-center justify-center p-6">
       <Panel className="w-full max-w-lg p-6">
@@ -57,11 +69,11 @@ function ReadyProblem({ onOpen }: { onOpen: () => void }) {
           Picked for the edge of your ability. Open it to see what it is.
         </p>
         <div className="mt-5">
-          <div className="relative z-30 inline-flex">
+          <div className={`relative z-30 inline-flex ${coachLeaving ? "coach-guide-leaving" : ""}`}>
             <Button
               variant="primary"
               className="ring-2 ring-accent ring-offset-4 ring-offset-bg-raised"
-              onClick={onOpen}
+              onClick={openProblem}
             >
               Start
             </Button>
@@ -255,6 +267,7 @@ export function DemoExperience({
               disabled={workspaceStep === "complete"}
               onRevealed={(rung, text) => revealHint({ rung, text })}
               revealHint={executor.revealHint}
+              coachExitMs={160}
               revealCoachMark={
                 workspaceStep === "hint" ? (
                   <CoachMark title="Explore, then reveal a hint">
@@ -289,6 +302,7 @@ export function DemoExperience({
             </CoachMark>
           ) : null
         }
+        coachExitMs={160}
         storageKeyPrefix="demo-workspace"
       />
       <CompletionDialog
