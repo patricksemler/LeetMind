@@ -204,6 +204,27 @@ p {
   animation-delay: 0ms;
 }
 
+.coach-mark-arrow {
+  position: absolute;
+  left: var(--coach-arrow-left);
+  width: 0.625rem;
+  height: 0.625rem;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--color-bg-overlay);
+}
+
+.coach-mark-positioner[data-side="below"] .coach-mark-arrow {
+  top: -5px;
+  border-top: 1px solid var(--color-border-strong);
+  border-left: 1px solid var(--color-border-strong);
+}
+
+.coach-mark-positioner[data-side="above"] .coach-mark-arrow {
+  bottom: -5px;
+  border-right: 1px solid var(--color-border-strong);
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
 .content-enter {
   animation: content-enter 180ms ease-out both;
 }

@@ -159,6 +159,7 @@ export function SplitPane({
       style={{ "--split-first": `${firstPct}%` } as CSSProperties}
     >
       <div
+        data-coach-boundary
         className={
           vertical
             ? `h-[var(--split-first)] min-h-0 w-full overflow-y-auto ${scrollbarDuringDrag}`
@@ -199,6 +200,7 @@ export function SplitPane({
         />
       </div>
       <div
+        data-coach-boundary
         className={
           vertical
             ? // The second pane of a vertical split is the one that gets squeezed, so it owns its
