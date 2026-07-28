@@ -4,10 +4,11 @@ is the comparator's law — the only place "is this answer right" gets decided."
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 ScalarKind = Literal["int", "float", "bool", "str"]
 
@@ -195,3 +196,145 @@ class TypeProfileView(BaseModel):
 
 class MeResponse(BaseModel):
     types: list[TypeProfileView]
+
+
+# -- Phase 4: practice API (PLAN_BACKEND.md §9) --------------------------------------------------
+
+
+class JobStub(BaseModel):
+    status: GenerationJobStatus
+    repair_count: int = 0
+
+
+class PracticeNextResponse(BaseModel):
+    """`GET /api/practice/next` (amendments 36, 41): a pure-read stub, never the statement."""
+
+    state: Literal["active", "generating", "stalled"]
+    problem_id: str | None = None
+    opened: bool = False
+    job: JobStub | None = None
+
+
+class ReplenishResponse(BaseModel):
+    created: list[str]
+
+
+class TestCaseView(BaseModel):
+    """A test case as shown to the client: args + the agreed expected value, no `value_type`
+    (the client doesn't need the comparator's internals)."""
+
+    args: list[Any]
+    expected: Any
+
+
+class ProblemViewBase(BaseModel):
+    id: str
+    status: str
+    primary_type: str
+    support_types: list[str]
+    shape: str
+    problem_rating: int
+    is_probe: bool
+    title: str
+    statement_md: str
+    signature: Signature
+    starter_code: str
+    public_tests: list[TestCaseView]
+    complexity: Complexity
+    par_minutes: int
+    created_at: datetime
+    served_at: datetime | None
+
+
+class ProblemView(ProblemViewBase):
+    """Unresolved view (§9): private tests, unrevealed hints, and both solutions are not fields
+    of this model, so they cannot leak by construction — not because a route remembers to
+    scrub them. Siblings with `ResolvedProblemView`, not a superclass, so the two can never be
+    confused by response-model coercion."""
+
+    revealed_hints: list[str]
+
+
+class ResolvedProblemView(ProblemViewBase):
+    """Produced only once status is `solved`/`given_up` (§9): adds the reference solution, the
+    full hint ladder, and the private tests for post-mortem study."""
+
+    hints: list[str]
+    private_tests: list[TestCaseView]
+    reference_solution: str
+    resolved_at: datetime | None
+
+
+class CodeRequest(BaseModel):
+    code: str = Field(max_length=65536)  # §9: code fields capped at 64 KB
+
+
+class RunResponse(BaseModel):
+    results: list[TestOutcome]
+    passed: bool
+
+
+class FailingCaseView(BaseModel):
+    """§8.3/§9: the first failing private case's input, expected output, and the user's output."""
+
+    input: list[Any]
+    expected: Any
+    actual: Any
+
+
+class RatingUpdateView(BaseModel):
+    """§9, #22: every resolution response carries a full rating-update breakdown."""
+
+    type_slug: str
+    rating_before: float
+    rating_after: float
+    delta: float
+    problem_rating: int
+    expected_score: float
+    performance_score: float
+    k_factor: float
+    metrics: dict[str, Any]
+
+
+class SubmitResponse(BaseModel):
+    """§8.3: a public failure demotes `kind` to `'run'`; an all-private-pass submit sets
+    `solved=True` and carries `rating_update`."""
+
+    kind: Literal["run", "submit"]
+    passed: bool
+    solved: bool = False
+    results: list[TestOutcome]
+    failing_case: FailingCaseView | None = None
+    rating_update: RatingUpdateView | None = None
+
+
+class HintResponse(BaseModel):
+    rung: int
+    text: str
+
+
+class GiveUpResponse(BaseModel):
+    reference_solution: str
+    rating_update: RatingUpdateView
+
+
+class RatingHistoryPoint(BaseModel):
+    type_slug: str
+    rating_before: float
+    rating_after: float
+    delta: float
+    created_at: datetime
+
+
+class ResolvedProblemSummary(BaseModel):
+    id: str
+    title: str
+    primary_type: str
+    status: str
+    resolved_at: datetime | None
+    problem_rating: int
+
+
+class ProgressResponse(BaseModel):
+    rating_history: list[RatingHistoryPoint]
+    recent_problems: list[ResolvedProblemSummary]

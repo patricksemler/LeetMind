@@ -8,14 +8,17 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from leetmind.config import get_settings
 from leetmind.db import create_pool, run_migrations
 from leetmind.judge import JudgeClient
-from leetmind.routes import events, health, me
+from leetmind.routes import events, execution, health, hints, me, practice, problems, progress
 from leetmind.worker import GenerationWorker
+
+MAX_BODY_BYTES = 128 * 1024  # §9: JSON bodies capped at 128 KB
 
 
 @asynccontextmanager
@@ -64,9 +67,21 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def limit_body_size(request: Request, call_next):  # type: ignore[no-untyped-def]
+        content_length = request.headers.get("content-length")
+        if content_length is not None and int(content_length) > MAX_BODY_BYTES:
+            return JSONResponse(status_code=413, content={"detail": "request body too large"})
+        return await call_next(request)
+
     app.include_router(health.router)
     app.include_router(me.router)
     app.include_router(events.router)
+    app.include_router(practice.router)
+    app.include_router(problems.router)
+    app.include_router(execution.router)
+    app.include_router(hints.router)
+    app.include_router(progress.router)
 
     return app
 
