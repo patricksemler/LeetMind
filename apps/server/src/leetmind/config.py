@@ -31,6 +31,17 @@ class Settings(BaseSettings):
     port: int = 8080
     log_level: str = "info"
 
+    # Judge tunables (PLAN_BACKEND.md §8, §13).
+    judge_image: str = "leetmind-judge"
+    judge_concurrency: int = 4
+    judge_interactive_wall_s: float = 60.0
+    judge_verify_wall_s: float = 300.0
+    judge_per_test_limit_s: float = 2.0
+    judge_oracle_limit_s: float = 10.0
+    judge_memory: str = "256m"
+    judge_cpus: str = "1"
+    judge_pids_limit: int = 64
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,7 +1,16 @@
 # Local-first, VPS-shaped (PLAN_BACKEND.md §2 row 19): portable to any Docker host, hosting
-# itself out of scope. The judge image (leetmind-judge, §8.1) is built here starting Phase 1 —
-# apps/server/judge/ doesn't exist yet, so it's absent from this file until then.
+# itself out of scope.
 services:
+  # Built, not run as a standing service: judge.py launches one throwaway leetmind-judge
+  # container per execution via the host docker CLI (§8.1). The "build-only" profile keeps
+  # `docker compose up` from starting it; `docker compose --profile build-only build judge`
+  # (or plain `docker build ./apps/server/judge -t leetmind-judge`) produces the image the
+  # server and the test suite both expect to already exist.
+  judge:
+    build: ./apps/server/judge
+    image: leetmind-judge
+    profiles: ["build-only"]
+
   postgres:
     image: postgres:16-alpine
     environment:
