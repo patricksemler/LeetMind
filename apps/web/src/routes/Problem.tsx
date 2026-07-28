@@ -6,7 +6,7 @@ import type { GiveUpResponse, ProblemDetail, RatingUpdateView } from "@shared";
 import { api } from "../lib/api";
 import { loadDraft, saveDraft } from "../lib/draft";
 import { useHotkeys } from "../hooks/useHotkeys";
-import { Panel, RouteLoading } from "../components/ui";
+import { CenteredPage, Panel, RouteLoading, SectionLabel } from "../components/ui";
 import { buttonClassName } from "../components/ui/Button";
 import { GiveUpControl } from "../components/workspace/GiveUpControl";
 import { HintLadder } from "../components/workspace/HintLadder";
@@ -145,12 +145,12 @@ export function Problem() {
 
   if (problemQuery.isError || !problem) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-text-dim">
+      <CenteredPage className="flex-col gap-3 text-center text-text-dim">
         <p>Couldn't load that problem.</p>
         <Link to="/" className="text-accent underline">
           Back to practice
         </Link>
-      </div>
+      </CenteredPage>
     );
   }
 
@@ -176,7 +176,7 @@ export function Problem() {
       problemTools={
         <>
           <section className="space-y-3">
-            <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">Hints</h3>
+            <SectionLabel>Hints</SectionLabel>
             <HintLadder
               problemId={problemId}
               revealedHints={revealedHints}
@@ -188,9 +188,7 @@ export function Problem() {
           {!resolved && !gaveUp && <GiveUpControl problemId={problemId} onGaveUp={handleGaveUp} />}
           {referenceSolution && (
             <Panel className="space-y-3 p-4">
-              <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">
-                Solution
-              </h3>
+              <SectionLabel>Solution</SectionLabel>
               <SolutionPane referenceSolution={referenceSolution} />
             </Panel>
           )}

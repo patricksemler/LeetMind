@@ -1,4 +1,5 @@
 import type { ProblemDetail } from "@shared";
+import { SectionLabel } from "../ui";
 import { Markdown } from "./Markdown";
 
 function ExampleBlock({ args, expected }: { args: unknown[]; expected: unknown }) {
@@ -29,9 +30,7 @@ export function StatementPane({ problem }: { problem: ProblemDetail }) {
       <Markdown>{problem.statement_md}</Markdown>
 
       <section>
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-text-faint">
-          Examples
-        </h3>
+        <SectionLabel className="mb-2">Examples</SectionLabel>
         <div className="space-y-3">
           {problem.public_tests.map((ex, i) => (
             <ExampleBlock key={i} args={ex.args} expected={ex.expected} />
@@ -42,9 +41,7 @@ export function StatementPane({ problem }: { problem: ProblemDetail }) {
       {/* The bar to aim for, not a hint: it says how good a solution has to be without saying what
           shape gets you there. */}
       <section>
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-text-faint">
-          Target complexity
-        </h3>
+        <SectionLabel className="mb-2">Target complexity</SectionLabel>
         <dl className="space-y-1 text-sm">
           <div className="flex gap-2">
             <dt className="text-text-dim">Time:</dt>
@@ -59,9 +56,7 @@ export function StatementPane({ problem }: { problem: ProblemDetail }) {
 
       {problem.constraints.length > 0 && (
         <section>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-text-faint">
-            Constraints
-          </h3>
+          <SectionLabel className="mb-2">Constraints</SectionLabel>
           <ul className="space-y-1.5">
             {problem.constraints.map((constraint, i) => (
               <li key={i}>

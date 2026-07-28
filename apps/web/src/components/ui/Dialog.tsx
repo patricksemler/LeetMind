@@ -97,7 +97,7 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
             ✕
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
+        <div className="max-h-[70vh] overscroll-contain overflow-y-auto px-5 py-4">{children}</div>
         {footer && (
           <div className="flex justify-end gap-2 border-t border-border px-5 py-3">{footer}</div>
         )}

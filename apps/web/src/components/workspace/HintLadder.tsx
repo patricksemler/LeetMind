@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { HintResponse } from "@shared";
 import { api } from "../../lib/api";
-import { Button, Plate } from "../ui";
+import { Button, LoadingSwap, Plate } from "../ui";
 import { Markdown } from "./Markdown";
 
 const MAX_RUNG = 4;
@@ -108,21 +108,26 @@ export function HintLadder({
                       coachLeaving ? "coach-guide-leaving" : ""
                     }`}
                   >
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className={
-                        revealCoachMark
-                          ? "ring-2 ring-accent ring-offset-4 ring-offset-bg-inset"
-                          : ""
-                      }
-                      onClick={() => reveal(rung)}
-                      disabled={takeMutation.isPending || coachLeaving}
+                    <LoadingSwap
                       loading={pending}
-                      loadingLabel="Revealing…"
+                      label="Revealing…"
+                      className="min-h-[30px]"
+                      spinnerClassName="text-text-dim"
                     >
-                      Reveal
-                    </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className={
+                          revealCoachMark
+                            ? "ring-2 ring-accent ring-offset-4 ring-offset-bg-inset"
+                            : ""
+                        }
+                        onClick={() => reveal(rung)}
+                        disabled={takeMutation.isPending || coachLeaving}
+                      >
+                        Reveal
+                      </Button>
+                    </LoadingSwap>
                     {revealCoachMark}
                   </div>
                 )}

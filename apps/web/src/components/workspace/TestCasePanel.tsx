@@ -64,7 +64,7 @@ export function TestCasePanel({
               // landed, the label alone before one has. The width never changes between those two
               // states — see BLANK_SLOT — so the cases stay exactly where they are and the distance
               // between them is the same before and after a run.
-              className={`flex items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs tabular-nums transition-colors ${
+              className={`flex touch-manipulation items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs tabular-nums transition-colors duration-150 motion-reduce:transition-none ${
                 selected
                   ? "bg-bg-overlay text-text"
                   : "text-text-dim hover:bg-bg-overlay hover:text-text"

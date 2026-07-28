@@ -4,7 +4,7 @@
  * before/after numbers are the first things read.
  */
 import type { RatingUpdateView } from "@shared";
-import { Panel } from "../ui";
+import { Panel, SectionLabel } from "../ui";
 import { formatRating } from "../../lib/format";
 
 function metricLabel(key: string): string {
@@ -18,9 +18,9 @@ export function RatingUpdatePanel({ update }: { update: RatingUpdateView }) {
   return (
     <Panel className="space-y-3 p-4" data-testid="rating-update-panel">
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">
+        <SectionLabel>
           {update.type_slug.replace(/_/g, " ")}
-        </h3>
+        </SectionLabel>
         <span
           className={`font-mono text-sm ${
             flat ? "text-text-dim" : rose ? "text-verdict-accepted" : "text-verdict-error"

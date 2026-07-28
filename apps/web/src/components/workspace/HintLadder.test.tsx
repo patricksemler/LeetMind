@@ -115,7 +115,7 @@ describe("HintLadder", () => {
     expect(screen.getByText(HINT_TEXT[0]!)).toBeInTheDocument();
   });
 
-  it("shows a stable spinner button while the take is in flight", async () => {
+  it("replaces Reveal with a spinner while the take is in flight", async () => {
     const user = userEvent.setup();
     let resolveTake!: (v: Awaited<ReturnType<typeof api.revealHint>>) => void;
     vi.mocked(api.revealHint).mockReturnValueOnce(new Promise((resolve) => (resolveTake = resolve)));
@@ -128,14 +128,13 @@ describe("HintLadder", () => {
 
     await user.click(screen.getByRole("button", { name: /^reveal$/i }));
 
-    const pendingButton = await screen.findByRole("button", { name: /revealing…/i });
-    expect(pendingButton).toBeDisabled();
-    expect(pendingButton.querySelector("svg")).toBeInTheDocument();
-    expect(pendingButton).not.toHaveTextContent("Revealing…");
+    const pendingStatus = await screen.findByRole("status", { name: /revealing…/i });
+    expect(screen.queryByRole("button", { name: /^reveal$/i })).not.toBeInTheDocument();
+    expect(pendingStatus.querySelector("svg")).toBeInTheDocument();
 
     resolveTake({ rung: 1, text: HINT_TEXT[0]! });
     await waitFor(() =>
-      expect(screen.queryByRole("button", { name: /revealing…/i })).not.toBeInTheDocument(),
+      expect(screen.queryByRole("status", { name: /revealing…/i })).not.toBeInTheDocument(),
     );
   });
 

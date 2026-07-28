@@ -4,8 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { GenerationJobStatus } from "@shared";
 import { api } from "../lib/api";
 import { useGenerationEvents } from "../hooks/useGenerationEvents";
-import { Button, Panel, QueryError, RouteLoading } from "../components/ui";
+import { Button, CenteredPage, Panel, QueryError, RouteLoading } from "../components/ui";
 import { buttonClassName } from "../components/ui/Button";
+import { ReadyProblemPanel } from "../components/practice/ReadyProblemPanel";
 
 /**
  * `/` — practice. One problem at a time, forever.
@@ -38,7 +39,7 @@ function GeneratingPanel({ status, repairCount }: { status: GenerationJobStatus;
   return (
     <Panel className="w-full max-w-md p-6 text-center">
       <span
-        className="mb-3 inline-block h-2 w-2 animate-pulse rounded-full bg-accent"
+        className="mb-3 inline-block h-2 w-2 animate-pulse rounded-full bg-accent motion-reduce:animate-none"
         aria-hidden="true"
       />
       <h1 className="font-display text-xl text-text">Writing you a new problem</h1>
@@ -59,7 +60,11 @@ function GeneratingPanel({ status, repairCount }: { status: GenerationJobStatus;
               <span
                 key={stage}
                 className={`h-1.5 flex-1 rounded-full ${
-                  done ? "bg-accent" : active ? "animate-pulse bg-accent" : "bg-border"
+                  done
+                    ? "bg-accent"
+                    : active
+                      ? "animate-pulse bg-accent motion-reduce:animate-none"
+                      : "bg-border"
                 }`}
               />
             );
@@ -145,35 +150,31 @@ export function Practice() {
 
   if (data?.state === "generating" && data.job) {
     return (
-      <div className="flex h-full items-center justify-center p-6">
+      <CenteredPage>
         <GeneratingPanel status={data.job.status} repairCount={data.job.repair_count} />
-      </div>
+      </CenteredPage>
     );
   }
 
   if (data?.state === "active" && data.problem_id) {
     return (
-      <div className="flex h-full items-center justify-center p-6">
-        <Panel className="w-full max-w-lg p-6">
-          <h1 className="font-display text-xl text-text">A problem is ready for you</h1>
-          <p className="mt-2 text-sm text-text-dim">
-            Picked for the edge of your ability. Open it to see what it is.
-          </p>
-          <div className="mt-5">
+      <CenteredPage>
+        <ReadyProblemPanel
+          action={
             <Link
               to={`/problem/${data.problem_id}`}
               className={buttonClassName({ variant: "primary" })}
             >
               {data.opened ? "Continue" : "Start"}
             </Link>
-          </div>
-        </Panel>
-      </div>
+          }
+        />
+      </CenteredPage>
     );
   }
 
   return (
-    <div className="flex h-full items-center justify-center p-6">
+    <CenteredPage>
       <Panel className="max-w-md p-6 text-center">
         <h1 className="font-display text-xl text-text">Getting a problem ready</h1>
         <p className="mt-2 text-sm text-text-dim">This shouldn't take long.</p>
@@ -181,6 +182,6 @@ export function Practice() {
           Check again
         </Button>
       </Panel>
-    </div>
+    </CenteredPage>
   );
 }

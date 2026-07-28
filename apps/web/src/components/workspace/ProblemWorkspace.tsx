@@ -87,7 +87,7 @@ export function ProblemWorkspace({
               />
               {activeTab === "problem" ? (
                 <div className="content-enter" {...tabPanelProps(tabsId, "problem")}>
-                  <div className="space-y-6 p-5">
+                  <div className="space-y-6 p-4 sm:p-5">
                     <StatementPane problem={problem} />
                     {problemTools}
                   </div>
@@ -96,7 +96,7 @@ export function ProblemWorkspace({
                 <div className="content-enter" {...tabPanelProps(tabsId, "results")}>
                   <ResultPanel problem={problem} result={result} />
                   {ratingUpdate && (
-                    <div className="px-5 pb-5">
+                    <div className="px-4 pb-4 sm:px-5 sm:pb-5">
                       <RatingUpdatePanel update={ratingUpdate} />
                     </div>
                   )}

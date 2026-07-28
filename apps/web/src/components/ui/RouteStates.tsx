@@ -1,3 +1,6 @@
+import { CenteredPage } from "./CenteredPage";
+import { Spinner } from "./Spinner";
+
 /**
  * Shared full-screen route states: a loading placeholder and an error state with an optional retry
  * button. Extracted from the identical markup that `Concepts`, `Progress`, and `Practice` each had
@@ -8,27 +11,22 @@
  */
 export function RouteLoading({ message = "Loading…" }: { message?: string }) {
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="flex h-full items-center justify-center gap-2 text-sm text-text-faint"
-    >
+    <CenteredPage role="status" aria-live="polite" className="gap-2 text-sm text-text-faint">
       <Spinner />
       <span>{message}</span>
-    </div>
+    </CenteredPage>
   );
 }
 
 export function QueryError({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 text-text-dim">
+    <CenteredPage className="flex-col gap-3 text-center text-text-dim">
       <p>{message}</p>
       {onRetry && (
         <button className="text-accent underline" onClick={onRetry}>
           Retry
         </button>
       )}
-    </div>
+    </CenteredPage>
   );
 }
-import { Spinner } from "./Spinner";

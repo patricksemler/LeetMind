@@ -3,6 +3,7 @@ import { Link, Route, Routes } from "react-router-dom";
 import { RequireAuth } from "./components/auth/RequireAuth";
 import { NavBar } from "./components/layout/NavBar";
 import { ShortcutHelp } from "./components/shortcuts/ShortcutHelp";
+import { CenteredPage } from "./components/ui";
 import { DemoExperience } from "./demo/DemoExperience";
 import { useHotkeys } from "./hooks/useHotkeys";
 import { AuthProvider } from "./lib/auth";
@@ -13,12 +14,12 @@ import { SignIn, SignUp } from "./routes/SignIn";
 
 function NotFound() {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 text-text-dim">
+    <CenteredPage className="flex-col gap-3 text-center text-text-dim">
       <p>Nothing here.</p>
       <Link to="/" className="text-accent underline">
         Back to practice
       </Link>
-    </div>
+    </CenteredPage>
   );
 }
 
@@ -30,8 +31,14 @@ export function App() {
   return (
     <AuthProvider>
       <div className="flex h-screen flex-col bg-bg text-text">
+        <a
+          href="#main-content"
+          className="fixed left-4 top-2 z-[60] -translate-y-16 rounded-md bg-accent px-3 py-2 text-sm font-medium text-accent-fg transition-transform duration-150 focus-visible:translate-y-0 motion-reduce:transition-none"
+        >
+          Skip to main content
+        </a>
         <NavBar />
-        <main className="min-h-0 min-w-0 flex-1">
+        <main id="main-content" className="min-h-0 min-w-0 flex-1">
           <Routes>
             {/* The only two routes reachable without a session. */}
             <Route path="/login" element={<SignIn />} />

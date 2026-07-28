@@ -1,5 +1,7 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/auth";
+import { AppHeader } from "./AppHeader";
+import { BrandName } from "./BrandName";
 
 const LINKS = [
   { to: "/", label: "Practice", end: true },
@@ -15,10 +17,10 @@ export function NavBar() {
   const signedIn = Boolean(session);
 
   return (
-    <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-bg px-4">
-      <div className="flex items-center gap-6">
-        <Link to="/" className="font-display text-[15px] tracking-tight text-text">
-          Leet<span className="text-accent">Mind</span>
+    <AppHeader className="justify-between">
+      <div className="flex min-w-0 items-center gap-3 sm:gap-6">
+        <Link to="/">
+          <BrandName />
         </Link>
         {signedIn && (
           <nav className="flex items-center gap-1">
@@ -28,7 +30,7 @@ export function NavBar() {
                 to={link.to}
                 end={link.end}
                 className={({ isActive }: { isActive: boolean }) =>
-                  `rounded px-2.5 py-1.5 text-sm transition-colors duration-150 motion-reduce:transition-none ${
+                  `touch-manipulation rounded px-2 py-1.5 text-sm transition-colors duration-150 motion-reduce:transition-none sm:px-2.5 ${
                     isActive ? "bg-bg-overlay text-text" : "text-text-dim hover:text-text"
                   }`
                 }
@@ -53,13 +55,13 @@ export function NavBar() {
                 await signOut();
                 navigate("/login", { replace: true });
               }}
-              className="rounded border border-border px-2 py-1 text-xs text-text-faint transition-colors duration-150 hover:border-border-strong hover:text-text-dim motion-reduce:transition-none"
+              className="touch-manipulation rounded border border-border px-2 py-1 text-xs text-text-faint transition-colors duration-150 hover:border-border-strong hover:text-text-dim motion-reduce:transition-none"
             >
               Sign out
             </button>
           </>
         )}
       </div>
-    </header>
+    </AppHeader>
   );
 }

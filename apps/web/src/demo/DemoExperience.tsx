@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { HintResponse, RatingUpdateView } from "@shared";
-import { Button, Dialog, Panel } from "../components/ui";
+import { Button, CenteredPage, Dialog, Panel, SectionLabel } from "../components/ui";
 import { buttonClassName } from "../components/ui/Button";
+import { ReadyProblemPanel } from "../components/practice/ReadyProblemPanel";
+import { AppHeader } from "../components/layout/AppHeader";
+import { BrandName } from "../components/layout/BrandName";
 import { HintLadder } from "../components/workspace/HintLadder";
 import { ProblemWorkspace, type WorkspaceTab } from "../components/workspace/ProblemWorkspace";
 import type { LastResult } from "../components/workspace/ResultPanel";
@@ -17,9 +20,9 @@ const REPOSITORY_URL = "https://github.com/patricksemler/LeetMind";
 
 function Welcome({ onContinue }: { onContinue: () => void }) {
   return (
-    <div className="flex h-full items-center justify-center p-6">
+    <CenteredPage>
       <Panel className="w-full max-w-2xl overflow-hidden">
-        <div className="border-b border-border p-7 sm:p-9">
+        <div className="border-b border-border p-6 sm:p-9">
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-faint">
             Guided preview
           </p>
@@ -34,13 +37,13 @@ function Welcome({ onContinue }: { onContinue: () => void }) {
             problem at the edge of your ability, then uses the result to shape what comes next.
           </p>
         </div>
-        <div className="flex justify-end p-7 sm:p-9">
+        <div className="flex justify-end p-6 sm:p-9">
           <Button variant="primary" className="shrink-0" onClick={onContinue}>
             Begin demo
           </Button>
         </div>
       </Panel>
-    </div>
+    </CenteredPage>
   );
 }
 
@@ -62,13 +65,9 @@ function ReadyProblem({ onOpen }: { onOpen: () => void }) {
   }
 
   return (
-    <div className="flex h-full items-center justify-center p-6">
-      <Panel className="w-full max-w-lg p-6">
-        <h1 className="font-display text-xl text-text">A problem is ready for you</h1>
-        <p className="mt-2 text-sm text-text-dim">
-          Picked for the edge of your ability. Open it to see what it is.
-        </p>
-        <div className="mt-5">
+    <CenteredPage>
+      <ReadyProblemPanel
+        action={
           <div className={`relative z-30 inline-flex ${coachLeaving ? "coach-guide-leaving" : ""}`}>
             <Button
               variant="primary"
@@ -81,9 +80,9 @@ function ReadyProblem({ onOpen }: { onOpen: () => void }) {
               The practice loop always begins with one problem selected from your current mastery.
             </CoachMark>
           </div>
-        </div>
-      </Panel>
-    </div>
+        }
+      />
+    </CenteredPage>
   );
 }
 
@@ -260,7 +259,7 @@ export function DemoExperience({
         onTabChange={setActiveTab}
         problemTools={
           <section className="space-y-3">
-            <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">Hints</h3>
+            <SectionLabel>Hints</SectionLabel>
             <HintLadder
               problemId={problem.id}
               revealedHints={revealedHints}
@@ -317,11 +316,9 @@ export function DemoExperience({
 export function StaticDemoApp() {
   return (
     <div className="flex h-screen flex-col bg-bg text-text">
-      <header className="flex h-12 shrink-0 items-center border-b border-border bg-bg px-4">
-        <span className="font-display text-[15px] tracking-tight text-text">
-          Leet<span className="text-accent">Mind</span>
-        </span>
-      </header>
+      <AppHeader>
+        <BrandName />
+      </AppHeader>
       <main className="min-h-0 flex-1">
         <DemoExperience />
       </main>

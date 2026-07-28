@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { Button, Panel } from "../components/ui";
+import { Button, CenteredPage, Panel } from "../components/ui";
 
 /**
  * `/login` and `/signup` — the same form with two modes, because they differ only in which
@@ -59,7 +59,7 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
 
   if (checkInbox) {
     return (
-      <div className="flex h-full items-center justify-center p-6">
+      <CenteredPage>
         <Panel className="max-w-sm p-6 text-center">
           <h1 className="font-display text-xl text-text">Check your inbox</h1>
           <p className="mt-2 text-sm text-text-dim">
@@ -70,12 +70,12 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
             Back to sign in
           </Link>
         </Panel>
-      </div>
+      </CenteredPage>
     );
   }
 
   return (
-    <div className="flex h-full items-center justify-center p-6">
+    <CenteredPage>
       <Panel className="w-full max-w-sm p-6">
         <h1 className="font-display text-xl text-text">
           {isSignUp ? "Create your account" : "Sign in"}
@@ -158,7 +158,7 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
           )}
         </p>
       </Panel>
-    </div>
+    </CenteredPage>
   );
 }
 

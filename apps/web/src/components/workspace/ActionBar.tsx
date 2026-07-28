@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Button, Spinner } from "../ui";
+import { Button, LoadingSwap, Toolbar } from "../ui";
 
 export function ActionBar({
   onRun,
@@ -54,7 +54,7 @@ export function ActionBar({
   }
 
   return (
-    <div className="flex h-12 shrink-0 items-center justify-end gap-3 border-b border-border bg-bg px-4">
+    <Toolbar className="justify-end px-4">
       {/* Run and Submit differ only in which tests they execute — Run the public examples, Submit
           those plus the hidden suite. The titles say so, because "Run" vs "Submit" on their own
           does not.
@@ -64,52 +64,50 @@ export function ActionBar({
           a disabled button under the cursor invites clicking at exactly the moment nothing can be
           clicked. The hotkeys stay guarded by `submitInFlightRef` in Problem.tsx, so there is no
           way in through the keyboard either. */}
-      <div className="flex min-h-[30px] items-center gap-2">
-        {busy ? (
-          <Spinner
-            label={submitting ? "Submitting…" : "Running…"}
-            className="px-2 text-text-dim"
-            data-testid="action-spinner"
-          />
-        ) : (
-          <>
-            <div
-              className={`relative ${runCoachMark ? "z-30" : ""} ${
-                leavingCoach === "run" ? "coach-guide-leaving" : ""
-              }`}
+      <LoadingSwap
+        loading={busy}
+        label={submitting ? "Submitting…" : "Running…"}
+        className="min-h-[30px]"
+        spinnerClassName="text-text-dim"
+        spinnerTestId="action-spinner"
+      >
+        <div className="flex items-center gap-2">
+          <div
+            className={`relative ${runCoachMark ? "z-30" : ""} ${
+              leavingCoach === "run" ? "coach-guide-leaving" : ""
+            }`}
+          >
+            <Button
+              size="sm"
+              variant="secondary"
+              className={runCoachMark ? "ring-2 ring-accent ring-offset-4 ring-offset-bg" : ""}
+              onClick={() => triggerAction("run", runCoachMark, onRun)}
+              disabled={busy || runDisabled || leavingCoach === "run"}
+              title="Run against the public example tests (Cmd/Ctrl + ')"
             >
-              <Button
-                size="sm"
-                variant="secondary"
-                className={runCoachMark ? "ring-2 ring-accent ring-offset-4 ring-offset-bg" : ""}
-                onClick={() => triggerAction("run", runCoachMark, onRun)}
-                disabled={runDisabled || leavingCoach === "run"}
-                title="Run against the public example tests (Cmd/Ctrl + ')"
-              >
-                Run
-              </Button>
-              {runCoachMark}
-            </div>
-            <div
-              className={`relative ${submitCoachMark ? "z-30" : ""} ${
-                leavingCoach === "submit" ? "coach-guide-leaving" : ""
-              }`}
+              Run
+            </Button>
+            {runCoachMark}
+          </div>
+          <div
+            className={`relative ${submitCoachMark ? "z-30" : ""} ${
+              leavingCoach === "submit" ? "coach-guide-leaving" : ""
+            }`}
+          >
+            <Button
+              size="sm"
+              variant="primary"
+              className={submitCoachMark ? "ring-2 ring-accent ring-offset-4 ring-offset-bg" : ""}
+              onClick={() => triggerAction("submit", submitCoachMark, onSubmit)}
+              disabled={busy || submitDisabled || leavingCoach === "submit"}
+              title="Submit against the public examples AND the hidden tests (Cmd/Ctrl + Enter)"
             >
-              <Button
-                size="sm"
-                variant="primary"
-                className={submitCoachMark ? "ring-2 ring-accent ring-offset-4 ring-offset-bg" : ""}
-                onClick={() => triggerAction("submit", submitCoachMark, onSubmit)}
-                disabled={submitDisabled || leavingCoach === "submit"}
-                title="Submit against the public examples AND the hidden tests (Cmd/Ctrl + Enter)"
-              >
-                Submit
-              </Button>
-              {submitCoachMark}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+              Submit
+            </Button>
+            {submitCoachMark}
+          </div>
+        </div>
+      </LoadingSwap>
+    </Toolbar>
   );
 }

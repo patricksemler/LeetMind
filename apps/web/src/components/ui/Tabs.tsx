@@ -1,4 +1,5 @@
 import type { KeyboardEvent, ReactNode } from "react";
+import { Toolbar } from "./Toolbar";
 
 export interface TabDef {
   id: string;
@@ -59,7 +60,7 @@ export function Tabs({ id, tabs, active, onChange, className = "", trailing }: T
   }
 
   return (
-    <div className={`flex h-12 shrink-0 items-center border-b border-border ${className}`}>
+    <Toolbar className={className}>
       <div role="tablist" className="flex h-full items-center gap-1">
         {tabs.map((tab, index) => {
           const selected = tab.id === active;
@@ -90,6 +91,6 @@ export function Tabs({ id, tabs, active, onChange, className = "", trailing }: T
         })}
       </div>
       {trailing && <div className="ml-auto pl-2">{trailing}</div>}
-    </div>
+    </Toolbar>
   );
 }

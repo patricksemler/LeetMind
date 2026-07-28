@@ -6,3 +6,7 @@ export * from "./Dialog";
 export * from "./Plate";
 export * from "./RouteStates";
 export * from "./Spinner";
+export * from "./CenteredPage";
+export * from "./LoadingSwap";
+export * from "./SectionLabel";
+export * from "./Toolbar";

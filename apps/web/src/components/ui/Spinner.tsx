@@ -23,6 +23,7 @@ export function Spinner({
     <span
       role={label ? "status" : undefined}
       aria-live={label ? "polite" : undefined}
+      aria-label={label}
       aria-hidden={label ? undefined : true}
       className={`inline-flex shrink-0 items-center justify-center ${className}`}
       {...rest}

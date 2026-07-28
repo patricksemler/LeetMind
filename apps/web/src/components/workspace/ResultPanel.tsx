@@ -10,6 +10,7 @@
  * cover it) and the code that produced it.
  */
 import type { CodeRequest, FailingCaseView, ProblemDetail, TestOutcome } from "@shared";
+import { SectionLabel } from "../ui";
 import { CaseDetail } from "./CaseDetail";
 import { CodeBlock } from "./CodeBlock";
 
@@ -31,7 +32,7 @@ export function ResultPanel({
 }) {
   if (!result) {
     return (
-      <div className="p-5 text-sm text-text-faint" data-testid="results-panel">
+      <div className="p-4 text-sm text-text-faint sm:p-5" data-testid="results-panel">
         No submissions yet. Submit to run your code against the hidden tests as well as the
         examples.
       </div>
@@ -40,7 +41,7 @@ export function ResultPanel({
 
   if (result.kind === "run") {
     return (
-      <div className="p-5 text-sm text-text-faint" data-testid="results-panel">
+      <div className="p-4 text-sm text-text-faint sm:p-5" data-testid="results-panel">
         That was a run against the public examples only — see the test cases below. Submit to run
         the hidden suite too.
       </div>
@@ -48,7 +49,7 @@ export function ResultPanel({
   }
 
   return (
-    <div className="space-y-4 p-5" data-testid="results-panel">
+    <div className="space-y-4 p-4 sm:p-5" data-testid="results-panel">
       <div className="flex items-baseline justify-between gap-3">
         <span
           className={`text-sm font-medium uppercase tracking-wide ${
@@ -79,7 +80,7 @@ export function ResultPanel({
       )}
 
       <div className="space-y-1">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-text-faint">Code</h3>
+        <SectionLabel>Code</SectionLabel>
         <CodeBlock code={result.code} />
       </div>
     </div>

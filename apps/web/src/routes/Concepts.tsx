@@ -30,7 +30,7 @@ export function Concepts() {
 
   return (
     <div className="h-full min-w-0 overflow-x-auto overflow-y-auto">
-      <div className="mx-auto max-w-3xl p-6">
+      <div className="mx-auto max-w-3xl p-4 sm:p-6">
         <h1 className="mb-1 font-display text-xl text-text">Concepts</h1>
         <p className="mb-4 text-sm text-text-dim">
           Your rating on each type you've been served a problem for. Types with no rating haven't
