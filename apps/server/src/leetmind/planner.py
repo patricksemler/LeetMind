@@ -1,12 +1,10 @@
-"""Step 1 of the generation pipeline (PLAN_BACKEND.md §7.2).
+"""Deterministic activity selection for the generation pipeline.
 
-Gathers the Elo profile plus reservations (amendment 30: pending `active`/`ready`/`building`
-problems and every non-terminal job's `plan_json` count too, so concurrent jobs for one user can
-never pick the same type or shape), scores a deterministic shortlist via `selection.py`, then
-makes one LLM call to pick the primary type, support types, target rating, and premise from that
-shortlist. Every field is validated against the constraints the LLM was given; one re-ask on
-violation, then a fully deterministic fallback so the pipeline never stalls on a chatty or
-unavailable model (decision 10).
+The adaptive scorer already owns the decisions that matter: which concept needs work, what target
+rating fits the learner, and which activity shape is least recently used. Making another model
+choose among those constrained values added latency and a second semantic-failure surface without
+adding information. Planning is therefore DB + pure selection only; the builder remains responsible
+for the creative premise.
 """
 
 from __future__ import annotations
@@ -33,7 +31,7 @@ from leetmind.selection import (
     support_candidates,
     target_band,
 )
-from leetmind.taxonomy import PROBLEM_TYPES
+from leetmind.taxonomy import PROBLEM_TYPES, TYPE_SHAPES
 
 logger = logging.getLogger("leetmind.planner")
 
@@ -52,7 +50,7 @@ _PREMISE_MAX_CHARS = 2000
 
 
 class PlanOutput(BaseModel):
-    """The planner CLI call's JSON-schema-validated output (§7.2)."""
+    """Legacy planner output retained for fixture/backward-compatible helper tests."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -65,19 +63,20 @@ class PlanOutput(BaseModel):
 
 
 class PlanReviewOutput(BaseModel):
-    """Independent semantic review of a candidate curriculum plan."""
-
     model_config = ConfigDict(extra="forbid")
 
     aligned_with_activity: bool
     issues: list[str]
 
-
 @dataclass(frozen=True)
 class Plan:
-    """The persisted `generation_jobs.plan_json` payload. `is_probe` is not something the LLM
-    decides — it's a deterministic consequence of whether the chosen primary type has any
-    evidence (§6.2), enforced after the fact rather than merely validated."""
+    """Versioned `generation_jobs.plan_json` payload.
+
+    `support_types` are options the single creative builder may use; it is not forced to add
+    scaffolding. `recent_problems` supplies anti-repetition context without requiring a separate
+    premise-generating model call. `legacy_premise` is read only from v1 jobs and is explicitly
+    advisory so a crash-resumed job cannot recreate the old premise-vs-problem rejection loop.
+    """
 
     primary_type: str
     support_types: list[str]
@@ -85,26 +84,32 @@ class Plan:
     problem_rating: int
     premise: str
     is_probe: bool
+    recent_problems: list[dict[str, str]] | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
+            "version": 2,
             "primary_type": self.primary_type,
-            "support_types": self.support_types,
+            "support_candidates": self.support_types,
             "shape": self.shape,
             "problem_rating": self.problem_rating,
-            "premise": self.premise,
             "is_probe": self.is_probe,
+            "recent_problems": self.recent_problems or [],
         }
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> Plan:
+        support = data.get("support_candidates")
+        if support is None:
+            support = data.get("support_types")
         return cls(
             primary_type=data["primary_type"],
-            support_types=list(data.get("support_types") or []),
+            support_types=list(support or []),
             shape=data["shape"],
             problem_rating=int(data["problem_rating"]),
-            premise=data["premise"],
+            premise=data.get("premise") or "",
             is_probe=bool(data.get("is_probe", False)),
+            recent_problems=list(data.get("recent_problems") or []),
         )
 
 
@@ -220,17 +225,20 @@ async def _lru_shape_for_type(
     recency: dict[str, float] = {}
     for index, shape in enumerate(ordered):
         recency.setdefault(shape, float(index))  # first (most recent) occurrence wins
-    return lru_shape(recency)
+    return lru_shape(recency, TYPE_SHAPES[primary_type])
 
 
 async def _recent_titles_and_premises(
     conn: asyncpg.Connection, user_id: UUID
 ) -> list[dict[str, str]]:
-    """Anti-repetition context (§7.2): a problem's premise isn't stored on its own row, but it's
-    exactly what the originating job's `plan_json` carried, so it's reconstructed from there."""
+    """Anti-repetition context for the creative builder.
+
+    V1 jobs carried a planner-authored premise; V2 deliberately does not. Use the persisted problem
+    statement as the durable scenario summary, with the legacy premise preferred where available.
+    """
     rows = await conn.fetch(
         """
-        SELECT p.title, gj.plan_json->>'premise' AS premise
+        SELECT p.title, COALESCE(NULLIF(gj.plan_json->>'premise', ''), p.statement_md) AS premise
         FROM problems p
         JOIN generation_jobs gj ON gj.problem_id = p.id
         WHERE p.user_id = $1
@@ -382,21 +390,10 @@ No markdown fences and no prose outside the JSON.
 
 async def _call_plan_reviewer(llm: LLMClient, output: PlanOutput) -> PlanReviewOutput:
     prompt = _render_plan_review_prompt(output)
-    current_prompt = prompt
-    last_error: str | None = None
-    for attempt in range(2):
-        try:
-            review = await llm.complete(current_prompt, PlanReviewOutput)
-        except (LLMError, ValidationError) as exc:
-            last_error = str(exc)
-            logger.warning("plan reviewer CLI call failed (attempt %d): %s", attempt, exc)
-            current_prompt = f"{prompt}\n\nYour previous response failed: {exc}\nRespond again."
-            continue
-        if review.aligned_with_activity or review.issues:
-            return review
-        last_error = "issues must explain why aligned_with_activity is false"
-        current_prompt = f"{prompt}\n\n{last_error}\nRespond again."
-    raise LLMError(f"plan reviewer could not produce a valid review: {last_error}")
+    review = await llm.complete(prompt, PlanReviewOutput)
+    if not review.aligned_with_activity and not review.issues:
+        raise LLMError("issues must explain why aligned_with_activity is false")
+    return review
 
 
 def _validate(
@@ -467,13 +464,11 @@ async def _call_planner(
     support_pool: dict[str, list[str]],
     fallback_primary: str,
 ) -> PlanOutput:
-    current_prompt = prompt
-    for attempt in range(2):  # one original call + one re-ask on violation (decision 10)
-        try:
-            output = await llm.complete(current_prompt, PlanOutput)
-        except (LLMError, ValidationError) as exc:
-            logger.warning("planner CLI call failed (attempt %d): %s", attempt, exc)
-            break
+    try:
+        output = await llm.complete(prompt, PlanOutput)
+    except (LLMError, ValidationError) as exc:
+        logger.warning("legacy planner call failed: %s", exc)
+    else:
         error = _validate(
             output,
             shortlist_slugs=shortlist_slugs,
@@ -485,16 +480,15 @@ async def _call_planner(
             try:
                 review = await _call_plan_reviewer(llm, output)
             except LLMError as exc:
-                logger.warning("plan reviewer failed; falling back deterministically: %s", exc)
-                break
-            if review.aligned_with_activity:
-                return output
-            error = (
-                "independent curriculum review found the plan mismatched the learner activity: "
-                + "; ".join(review.issues)
-            )
-        logger.warning("planner output violated constraints (attempt %d): %s", attempt, error)
-        current_prompt = f"{prompt}\n\nYour previous answer was invalid: {error}\nRespond again."
+                logger.warning("legacy plan reviewer failed: %s", exc)
+            else:
+                if review.aligned_with_activity:
+                    return output
+                error = (
+                    "independent curriculum review found a mismatch: "
+                    + "; ".join(review.issues)
+                )
+        logger.warning("legacy planner output violated constraints: %s", error)
 
     logger.warning("planner falling back to a deterministic plan (primary=%s)", fallback_primary)
     return _deterministic_plan(
@@ -505,65 +499,46 @@ async def _call_planner(
 async def plan_generation(
     conn: asyncpg.Connection, llm: LLMClient, *, user_id: UUID, job_id: UUID
 ) -> Plan:
-    """The full step-1 pipeline: gather context, score the deterministic shortlist, call the
-    planner CLI (validate/re-ask/fallback), and enforce the probe consequences (§6.2, §7.2)."""
+    """Select the next activity without an LLM call.
+
+    `llm` remains in the signature so injected workers and older call sites stay source-compatible;
+    it is intentionally unused. Creativity belongs in the single builder call.
+    """
+    del llm
     generation_index = await _generation_index(conn, user_id, job_id)
     signals = await gather_signals(conn, user_id)
     signal_by_slug = {s.slug: s for s in signals}
 
     probe_only = is_probe_generation(generation_index, signals)
     picks = shortlist(signals, probe_only=probe_only)
-    picks_slugs = [p.slug for p in picks]
-    shortlist_slugs = set(picks_slugs)
+    primary_type = picks[0].slug
+    primary_signal = signal_by_slug[primary_type]
 
-    reserved_types, reserved_shapes = await _reservations(conn, user_id)
-    shape_for = {
-        slug: await _lru_shape_for_type(conn, user_id, slug, reserved_shapes)
-        for slug in picks_slugs
-    }
-    support_pool = {
-        slug: support_candidates(
-            signals, primary_slug=slug, primary_rating=signal_by_slug[slug].rating
-        )
-        for slug in picks_slugs
-    }
+    _, reserved_shapes = await _reservations(conn, user_id)
+    shape = await _lru_shape_for_type(conn, user_id, primary_type, reserved_shapes)
     recent = await _recent_titles_and_premises(conn, user_id)
 
-    prompt = _render_prompt(
-        signals=signals,
-        picks_slugs=picks_slugs,
-        shape_for=shape_for,
-        support_pool=support_pool,
-        recent=recent,
-        reserved_types=reserved_types,
-    )
-
-    output = await _call_planner(
-        llm,
-        prompt,
-        shortlist_slugs=shortlist_slugs,
-        shape_for=shape_for,
-        signal_by_slug=signal_by_slug,
-        support_pool=support_pool,
-        fallback_primary=picks_slugs[0],
-    )
-
-    primary_signal = signal_by_slug[output.primary_type]
     is_probe = not primary_signal.evidenced
     if is_probe:
-        # §6.2: "probe problems get is_probe=true, problem_rating=1000, and no support types —
-        # nothing evidenced to lean on." Enforced, not merely requested of the model.
         support_types: list[str] = []
         problem_rating = PROBE_RATING
     else:
-        support_types = output.support_types
-        problem_rating = output.problem_rating
+        # Highest-rated eligible concepts first, capped before they reach the creative builder.
+        allowed = support_candidates(
+            signals, primary_slug=primary_type, primary_rating=primary_signal.rating
+        )
+        support_types = sorted(
+            allowed, key=lambda slug: (-signal_by_slug[slug].rating, slug)
+        )[:2]
+        lo, hi = target_band(primary_signal.rating)
+        problem_rating = round((lo + hi) / 2)
 
     return Plan(
-        primary_type=output.primary_type,
+        primary_type=primary_type,
         support_types=support_types,
-        shape=shape_for[output.primary_type],
+        shape=shape,
         problem_rating=problem_rating,
-        premise=output.premise,
+        premise="",
         is_probe=is_probe,
+        recent_problems=recent,
     )

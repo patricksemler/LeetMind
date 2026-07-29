@@ -241,11 +241,26 @@ export interface components {
             actual: unknown;
         };
         /**
+         * GenerationFailureCode
+         * @enum {string}
+         */
+        GenerationFailureCode: "provider_unavailable" | "generation_invalid" | "quality_mismatch" | "verification_failed" | "verification_unavailable" | "deadline_exceeded";
+        /**
          * GenerationJobStatus
          * @description Mirrors the DB `job_status` enum (migration 0001, PLAN_BACKEND.md §4).
          * @enum {string}
          */
         GenerationJobStatus: "queued" | "planning" | "building" | "verifying" | "ready" | "failed";
+        /**
+         * GenerationPhase
+         * @enum {string}
+         */
+        GenerationPhase: "waiting" | "selecting" | "drafting" | "independent_review" | "checking_examples" | "stress_testing" | "repairing" | "finalizing" | "ready" | "failed";
+        /**
+         * GenerationRecoveryReason
+         * @enum {string}
+         */
+        GenerationRecoveryReason: "format" | "activity_fit" | "test_disagreement" | "provider" | "verification_infrastructure";
         /** GiveUpResponse */
         GiveUpResponse: {
             /** Reference Solution */
@@ -266,12 +281,37 @@ export interface components {
         };
         /** JobStub */
         JobStub: {
+            /** Job Id */
+            job_id: string;
             status: components["schemas"]["GenerationJobStatus"];
+            phase: components["schemas"]["GenerationPhase"];
             /**
              * Repair Count
              * @default 0
              */
             repair_count: number;
+            /**
+             * Attempt
+             * @default 1
+             */
+            attempt: number;
+            /**
+             * Max Attempts
+             * @default 2
+             */
+            max_attempts: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /**
+             * Phase Started At
+             * Format: date-time
+             */
+            phase_started_at: string;
+            recovery_reason?: components["schemas"]["GenerationRecoveryReason"] | null;
+            failure_code?: components["schemas"]["GenerationFailureCode"] | null;
         };
         /** MeResponse */
         MeResponse: {
@@ -287,7 +327,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "active" | "generating" | "stalled";
+            state: "active" | "generating" | "generation_failed" | "stalled";
             /** Problem Id */
             problem_id?: string | null;
             /**

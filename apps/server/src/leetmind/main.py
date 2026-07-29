@@ -41,17 +41,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.judge = judge
     app.state.worker = worker
 
-    worker_task: asyncio.Task[None] | None = None
+    worker_tasks: list[asyncio.Task[None]] = []
     if settings.worker_enabled:
         app.state.worker_started_at = datetime.now(UTC)
-        worker_task = asyncio.create_task(worker.run_forever())
+        worker_tasks = [
+            asyncio.create_task(worker.run_forever(), name=f"generation-worker-{index + 1}")
+            for index in range(settings.worker_concurrency)
+        ]
     try:
         yield
     finally:
-        if worker_task is not None:
+        for worker_task in worker_tasks:
             worker_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await worker_task
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.gather(*worker_tasks)
         await pool.close()
 
 

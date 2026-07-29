@@ -19,6 +19,7 @@ import logging
 import os
 import shlex
 import tempfile
+import time
 from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -53,9 +54,18 @@ _RETRY_SUFFIX = (
     "Respond again with ONLY the corrected JSON — no prose, no markdown fences."
 )
 
+_SYSTEM_PROMPT = (
+    "Produce only the requested structured JSON. Follow the user's algorithm-problem contract "
+    "exactly. Do not use tools, inspect files, or add explanatory prose."
+)
+
 
 class LLMError(RuntimeError):
     """The CLI failed outright (nonzero exit, timeout, unparsable envelope)."""
+
+
+class LLMOutputError(LLMError):
+    """The provider returned an answer, but its body was not valid structured output."""
 
 
 def _sanitized_env() -> dict[str, str]:
@@ -74,8 +84,12 @@ def _build_argv(settings: Settings, schema: type[BaseModel]) -> list[str]:
             "json",
             "--model",
             settings.llm_model,
+            "--effort",
+            settings.llm_effort,
             "--json-schema",
             schema_json,
+            "--system-prompt",
+            _SYSTEM_PROMPT,
             "--safe-mode",
             "--no-session-persistence",
             "--tools",
@@ -142,18 +156,34 @@ def _unwrap_envelope(raw: str, settings: Settings) -> str:
 class LLMClient:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
+        self.logical_calls_started = 0
+        self.subprocess_invocations_started = 0
 
     async def complete(self, prompt: str, schema: type[T]) -> T:
         """Runs the CLI, parses+validates its output against `schema`. One retry on a parse or
         validation failure, with the error appended to the prompt (decision 12); a second failure
         propagates so the caller (planner/builder) can fall back."""
         settings = self._settings
+        self.logical_calls_started += 1
+        started = time.monotonic()
+        invocations_before = self.subprocess_invocations_started
         try:
-            return await self._complete_once(prompt, schema, settings)
-        except (LLMError, ValidationError, json.JSONDecodeError) as exc:
-            logger.warning("LLM call failed validation, retrying once: %s", exc)
-            retry_prompt = prompt + _RETRY_SUFFIX.format(error=exc)
-            return await self._complete_once(retry_prompt, schema, settings)
+            try:
+                return await self._complete_once(prompt, schema, settings)
+            except (LLMOutputError, ValidationError, json.JSONDecodeError) as exc:
+                logger.warning("LLM call failed validation, retrying once: %s", exc)
+                retry_prompt = prompt + _RETRY_SUFFIX.format(error=exc)
+                return await self._complete_once(retry_prompt, schema, settings)
+            except LLMError as exc:
+                logger.warning("LLM transport failed, retrying once: %s", exc)
+                return await self._complete_once(prompt, schema, settings)
+        finally:
+            logger.info(
+                "LLM logical call finished schema=%s duration_ms=%d invocations=%d",
+                schema.__name__,
+                int((time.monotonic() - started) * 1000),
+                self.subprocess_invocations_started - invocations_before,
+            )
 
     async def _complete_once(self, prompt: str, schema: type[T], settings: Settings) -> T:
         if settings.llm_cli == "fixture":
@@ -167,12 +197,14 @@ class LLMClient:
         try:
             parsed = json.loads(body)
         except json.JSONDecodeError as exc:
-            raise LLMError(f"model output was not valid JSON: {exc}") from exc
+            raise LLMOutputError(f"model output was not valid JSON: {exc}") from exc
         return schema.model_validate(parsed)
 
     async def _invoke(self, prompt: str, settings: Settings, schema: type[BaseModel]) -> str:
+        self.subprocess_invocations_started += 1
         argv = _build_argv(settings, schema)
         env = _sanitized_env()
+        started = time.monotonic()
 
         with tempfile.TemporaryDirectory(prefix="leetmind-llm-") as cwd:
             run_argv = _containerize(argv, cwd, env, settings) if settings.llm_container else argv
@@ -208,9 +240,20 @@ class LLMClient:
                 raise LLMError(
                     f"LLM CLI timed out after {settings.llm_timeout_s}s"
                 ) from None
+            except asyncio.CancelledError:
+                # A job-level deadline cancels this coroutine. Never leave a costly detached CLI
+                # process running after the fenced worker has already failed the job.
+                proc.kill()
+                await proc.wait()
+                raise
 
         if proc.returncode != 0:
             raise LLMError(
                 f"LLM CLI exited {proc.returncode}: {stderr.decode(errors='replace')[:2000]}"
             )
+        logger.info(
+            "LLM call completed schema=%s duration_ms=%d",
+            schema.__name__,
+            int((time.monotonic() - started) * 1000),
+        )
         return stdout.decode()

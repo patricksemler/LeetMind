@@ -10,7 +10,13 @@ import type { components } from "./api-types";
 export interface GenerationEvent {
   job_id: string;
   status: components["schemas"]["GenerationJobStatus"];
+  phase: components["schemas"]["GenerationPhase"];
   repair_count: number;
+  attempt: number;
+  max_attempts: number;
+  started_at: string;
+  phase_started_at: string;
+  recovery_reason: components["schemas"]["GenerationRecoveryReason"] | null;
+  failure_code: components["schemas"]["GenerationFailureCode"] | null;
   problem_id: string | null;
-  error: string | null;
 }

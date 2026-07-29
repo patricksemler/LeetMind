@@ -14,18 +14,22 @@ import json
 import uuid
 from typing import Any
 
-from leetmind.builder import BuilderOutput, BuiltProblem
+from leetmind.builder import BuilderOutput, BuiltProblem, IndependentReviewOutput
 from leetmind.config import Settings
 from leetmind.judge import JudgeClient
 from leetmind.planner import Plan
-from leetmind.worker import GenerationWorker
+from leetmind.schemas import GenerationFailureCode
+from leetmind.worker import GenerationWorker, PipelineFailure
+from tests.conftest import insert_problem
 from tests.llm_fixtures import (
     BUILDER_MARKER,
     BUILDER_REPAIR_MARKER,
+    INDEPENDENT_REVIEW_MARKER,
     ORACLE_MARKER,
     PLANNER_MARKER,
     QUALITY_REVIEW_MARKER,
     FakeLLM,
+    aligned_independent_review_output,
     aligned_quality_review_output,
     fresh_user_plan_output,
     sum_problem_builder_output,
@@ -74,6 +78,29 @@ async def test_claim_skips_a_user_with_another_live_leased_job(pool):
     # cannot be claimed even though it's independently claimable in isolation.
     claimed2 = await worker._claim_job()
     assert claimed2 is None
+
+
+async def test_two_users_can_be_claimed_concurrently(pool):
+    worker = GenerationWorker(pool, settings=_fast_settings(worker_concurrency=2))
+    users = [uuid.uuid4(), uuid.uuid4()]
+    jobs = [await _insert_job(pool, user_id) for user_id in users]
+
+    claimed = await asyncio.gather(worker._claim_job(), worker._claim_job())
+
+    assert all(job is not None for job in claimed)
+    assert {job.id for job in claimed if job is not None} == set(jobs)
+    assert {job.user_id for job in claimed if job is not None} == set(users)
+
+
+async def test_concurrent_claims_still_serialize_one_user(pool):
+    worker = GenerationWorker(pool, settings=_fast_settings(worker_concurrency=2))
+    user_id = uuid.uuid4()
+    await _insert_job(pool, user_id)
+    await _insert_job(pool, user_id)
+
+    claimed = await asyncio.gather(worker._claim_job(), worker._claim_job())
+
+    assert sum(job is not None for job in claimed) == 1
 
 
 async def test_claim_reclaims_a_stale_lease(pool):
@@ -156,8 +183,9 @@ async def test_resolve_plan_resumes_without_replanning(pool):
         support_types=[],
         shape="optimize_subarray",
         problem_rating=1000,
-        premise="already planned",
+        premise="",
         is_probe=True,
+        recent_problems=[],
     )
     job_id = await _insert_job(
         pool, user_id, status="building", plan_json=json.dumps(plan.to_json())
@@ -211,6 +239,80 @@ async def test_replenish_tops_up_an_established_user_missing_a_ready_slot(pool):
     assert await worker.replenish(user_id) == []
 
 
+async def test_failed_background_job_automatically_enqueues_a_bounded_replacement(pool):
+    worker = GenerationWorker(
+        pool,
+        settings=_fast_settings(generation_background_restart_limit=2),
+    )
+    user_id = uuid.uuid4()
+    await insert_problem(pool, user_id)
+    failed_job_id = await _insert_job(pool, user_id)
+    claimed = await worker._claim_job()
+    assert claimed is not None and claimed.id == failed_job_id
+
+    await worker._record_failure(
+        claimed,
+        PipelineFailure(GenerationFailureCode.DEADLINE_EXCEEDED, "deadline"),
+    )
+
+    failed = await _job_row(pool, failed_job_id)
+    replacement = await pool.fetchrow(
+        """
+        SELECT id, status, background_restart_count
+        FROM generation_jobs
+        WHERE user_id = $1 AND id <> $2
+        """,
+        user_id,
+        failed_job_id,
+    )
+    assert failed["status"] == "failed"
+    assert replacement is not None
+    assert replacement["status"] == "queued"
+    assert replacement["background_restart_count"] == 1
+
+
+async def test_background_restart_stops_at_the_configured_limit(pool):
+    worker = GenerationWorker(
+        pool,
+        settings=_fast_settings(generation_background_restart_limit=2),
+    )
+    user_id = uuid.uuid4()
+    await insert_problem(pool, user_id)
+    failed_job_id = await _insert_job(pool, user_id, background_restart_count=2)
+    claimed = await worker._claim_job()
+    assert claimed is not None and claimed.id == failed_job_id
+
+    await worker._record_failure(
+        claimed,
+        PipelineFailure(GenerationFailureCode.DEADLINE_EXCEEDED, "deadline"),
+    )
+
+    assert (
+        await pool.fetchval("SELECT COUNT(*) FROM generation_jobs WHERE user_id = $1", user_id) == 1
+    )
+
+
+async def test_foreground_failure_remains_terminal_until_the_user_retries(pool):
+    worker = GenerationWorker(
+        pool,
+        settings=_fast_settings(generation_background_restart_limit=2),
+    )
+    user_id = uuid.uuid4()
+    failed_job_id = await _insert_job(pool, user_id)
+    claimed = await worker._claim_job()
+    assert claimed is not None and claimed.id == failed_job_id
+
+    await worker._record_failure(
+        claimed,
+        PipelineFailure(GenerationFailureCode.DEADLINE_EXCEEDED, "deadline"),
+    )
+
+    assert (
+        await pool.fetchval("SELECT COUNT(*) FROM generation_jobs WHERE user_id = $1", user_id) == 1
+    )
+    assert (await _job_row(pool, failed_job_id))["status"] == "failed"
+
+
 # -- amendment 42 regression: cleanup on a mid-repair crash --------------------------------------
 
 
@@ -227,13 +329,16 @@ async def test_problem_row_marked_failed_when_builder_crashes_mid_repair(pool, m
         [
             (BUILDER_REPAIR_MARKER, {"title": "incomplete, missing required fields"}),
             (BUILDER_MARKER, sum_problem_builder_output()),
+            (INDEPENDENT_REVIEW_MARKER, aligned_independent_review_output()),
             (QUALITY_REVIEW_MARKER, aligned_quality_review_output()),
             (ORACLE_MARKER, sum_problem_oracle_output()),
             (PLANNER_MARKER, fresh_user_plan_output()),
         ]
     )
 
-    async def _always_fails(judge: Any, built: Any, *, settings: Any = None) -> VerifyResult:
+    async def _always_fails(
+        judge: Any, built: Any, *, settings: Any = None, on_phase: Any = None
+    ) -> VerifyResult:
         return VerifyResult(ok=False, disagreements=[Disagreement("x", "seeded failure")])
 
     monkeypatch.setattr(worker_module, "verify_problem", _always_fails)
@@ -251,6 +356,139 @@ async def test_problem_row_marked_failed_when_builder_crashes_mid_repair(pool, m
     assert problem["status"] == "failed"
 
 
+async def test_deadline_exhaustion_cleans_up_with_a_safe_code(pool):
+    worker = GenerationWorker(
+        pool,
+        settings=_fast_settings(generation_job_timeout_s=30),
+    )
+    user_id = uuid.uuid4()
+    job_id = await pool.fetchval(
+        """
+        INSERT INTO generation_jobs (user_id, created_at)
+        VALUES ($1, now() - interval '31 seconds')
+        RETURNING id
+        """,
+        user_id,
+    )
+
+    assert await worker.run_once() is True
+
+    row = await _job_row(pool, job_id)
+    assert row["status"] == "failed"
+    assert row["phase"] == "failed"
+    assert row["failure_code"] == "deadline_exceeded"
+
+
+async def test_verification_infrastructure_retry_does_not_regenerate(pool, monkeypatch):
+    from leetmind import worker as worker_module
+    from leetmind.verify import Disagreement, VerifyResult
+
+    user_id = uuid.uuid4()
+    llm = FakeLLM(
+        [
+            (BUILDER_MARKER, sum_problem_builder_output()),
+            (INDEPENDENT_REVIEW_MARKER, aligned_independent_review_output()),
+        ]
+    )
+    verification_calls = 0
+
+    async def _flaky_infrastructure(
+        judge: Any, built: Any, *, settings: Any = None, on_phase: Any = None
+    ) -> VerifyResult:
+        nonlocal verification_calls
+        verification_calls += 1
+        if verification_calls == 1:
+            return VerifyResult(
+                ok=False,
+                disagreements=[Disagreement("judge", "temporary protocol failure")],
+                retryable_infrastructure=True,
+            )
+        return VerifyResult(ok=True)
+
+    monkeypatch.setattr(worker_module, "verify_problem", _flaky_infrastructure)
+    worker = GenerationWorker(pool, llm=llm, settings=_fast_settings())
+    job_id = await _insert_job(pool, user_id)
+
+    assert await worker.run_once() is True
+
+    row = await _job_row(pool, job_id)
+    assert row["status"] == "ready"
+    assert verification_calls == 2
+    assert sum(BUILDER_MARKER in prompt for prompt in llm.calls) == 1
+    assert sum(INDEPENDENT_REVIEW_MARKER in prompt for prompt in llm.calls) == 1
+
+
+async def test_semantic_rejection_gets_one_targeted_repair_and_persists_support_choice(
+    pool, monkeypatch
+):
+    from leetmind import worker as worker_module
+    from leetmind.verify import VerifyResult
+
+    user_id = uuid.uuid4()
+    plan = Plan(
+        primary_type="arrays_hashing",
+        support_types=["two_pointers"],
+        shape="pairing_matching",
+        problem_rating=1200,
+        premise="",
+        is_probe=False,
+    )
+    first = sum_problem_builder_output(title="Rejected draft")
+    second = sum_problem_builder_output(title="Repaired draft")
+    second["support_types"] = ["two_pointers"]
+
+    class RepairingLLM:
+        def __init__(self) -> None:
+            self.drafts = 0
+            self.reviews = 0
+
+        async def complete(self, prompt: str, schema: Any) -> Any:
+            if schema is BuilderOutput:
+                self.drafts += 1
+                return schema.model_validate(first if self.drafts == 1 else second)
+            if schema is IndependentReviewOutput:
+                self.reviews += 1
+                if self.reviews == 1:
+                    return schema.model_validate(
+                        {
+                            "aligned_with_plan": False,
+                            "issues": ["The activity shape is not central to the draft."],
+                            "brute_solution": None,
+                        }
+                    )
+                return schema.model_validate(aligned_independent_review_output())
+            raise AssertionError(schema)
+
+    async def _passes(
+        judge: Any, built: Any, *, settings: Any = None, on_phase: Any = None
+    ) -> VerifyResult:
+        return VerifyResult(ok=True)
+
+    monkeypatch.setattr(worker_module, "verify_problem", _passes)
+    llm = RepairingLLM()
+    worker = GenerationWorker(pool, llm=llm, settings=_fast_settings())
+    job_id = await _insert_job(
+        pool,
+        user_id,
+        status="building",
+        phase="drafting",
+        plan_json=json.dumps(plan.to_json()),
+    )
+
+    assert await worker.run_once() is True
+
+    row = await _job_row(pool, job_id)
+    assert row["status"] == "ready"
+    assert row["repair_count"] == 1
+    assert llm.drafts == 2
+    assert llm.reviews == 2
+    problem = await pool.fetchrow(
+        "SELECT title, support_types FROM problems WHERE id = $1", row["problem_id"]
+    )
+    assert problem["title"] == "Repaired draft"
+    assert problem["support_types"] == ["two_pointers"]
+
+
 # -- full lifecycle, with a repair (real Docker) -------------------------------------------------
 
 
@@ -263,6 +501,7 @@ async def test_full_lifecycle_with_repair_produces_an_active_verified_problem(po
         [
             (BUILDER_REPAIR_MARKER, sum_problem_builder_output(buggy=False)),
             (BUILDER_MARKER, sum_problem_builder_output(buggy=True)),
+            (INDEPENDENT_REVIEW_MARKER, aligned_independent_review_output()),
             (QUALITY_REVIEW_MARKER, aligned_quality_review_output()),
             (ORACLE_MARKER, sum_problem_oracle_output()),
             (PLANNER_MARKER, fresh_user_plan_output()),

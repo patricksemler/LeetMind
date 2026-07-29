@@ -72,6 +72,8 @@ def test_claude_argv_enforces_schema_in_minimal_one_shot_mode():
     assert "--safe-mode" in argv
     assert "--no-session-persistence" in argv
     assert argv[argv.index("--tools") + 1] == ""
+    assert argv[argv.index("--effort") + 1] == "low"
+    assert "structured JSON" in argv[argv.index("--system-prompt") + 1]
 
 
 async def test_nonzero_exit_raises(tmp_path: Path):
@@ -136,6 +138,22 @@ async def test_fails_after_retry_exhausted(tmp_path: Path):
 
     with pytest.raises(LLMError):
         await client.complete("say hi", Greeting)
+
+
+async def test_transport_failures_are_capped_at_two_total_invocations(monkeypatch):
+    client = LLMClient(Settings(_env_file=None, llm_cli="claude", llm_bin="/unused"))
+    calls = 0
+
+    async def fail_invoke(prompt, settings, schema):  # noqa: ANN001, ANN202
+        nonlocal calls
+        calls += 1
+        raise LLMError("provider unavailable")
+
+    monkeypatch.setattr(client, "_invoke", fail_invoke)
+
+    with pytest.raises(LLMError, match="provider unavailable"):
+        await client.complete("say hi", Greeting)
+    assert calls == 2
 
 
 async def test_missing_binary_raises_llm_error(tmp_path: Path):

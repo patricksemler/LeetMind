@@ -174,14 +174,50 @@ class GenerationJobStatus(StrEnum):
     FAILED = "failed"
 
 
+class GenerationPhase(StrEnum):
+    WAITING = "waiting"
+    SELECTING = "selecting"
+    DRAFTING = "drafting"
+    INDEPENDENT_REVIEW = "independent_review"
+    CHECKING_EXAMPLES = "checking_examples"
+    STRESS_TESTING = "stress_testing"
+    REPAIRING = "repairing"
+    FINALIZING = "finalizing"
+    READY = "ready"
+    FAILED = "failed"
+
+
+class GenerationRecoveryReason(StrEnum):
+    FORMAT = "format"
+    ACTIVITY_FIT = "activity_fit"
+    TEST_DISAGREEMENT = "test_disagreement"
+    PROVIDER = "provider"
+    VERIFICATION_INFRASTRUCTURE = "verification_infrastructure"
+
+
+class GenerationFailureCode(StrEnum):
+    PROVIDER_UNAVAILABLE = "provider_unavailable"
+    GENERATION_INVALID = "generation_invalid"
+    QUALITY_MISMATCH = "quality_mismatch"
+    VERIFICATION_FAILED = "verification_failed"
+    VERIFICATION_UNAVAILABLE = "verification_unavailable"
+    DEADLINE_EXCEEDED = "deadline_exceeded"
+
+
 class GenerationEvent(BaseModel):
     """One `GET /api/events` SSE payload (§9): a generation job's stage transition."""
 
     job_id: str
     status: GenerationJobStatus
+    phase: GenerationPhase
     repair_count: int = 0
+    attempt: int = 1
+    max_attempts: int = 2
+    started_at: datetime
+    phase_started_at: datetime
+    recovery_reason: GenerationRecoveryReason | None = None
+    failure_code: GenerationFailureCode | None = None
     problem_id: str | None = None
-    error: str | None = None
 
 
 class TypeProfileView(BaseModel):
@@ -202,14 +238,22 @@ class MeResponse(BaseModel):
 
 
 class JobStub(BaseModel):
+    job_id: str
     status: GenerationJobStatus
+    phase: GenerationPhase
     repair_count: int = 0
+    attempt: int = 1
+    max_attempts: int = 2
+    started_at: datetime
+    phase_started_at: datetime
+    recovery_reason: GenerationRecoveryReason | None = None
+    failure_code: GenerationFailureCode | None = None
 
 
 class PracticeNextResponse(BaseModel):
     """`GET /api/practice/next` (amendments 36, 41): a pure-read stub, never the statement."""
 
-    state: Literal["active", "generating", "stalled"]
+    state: Literal["active", "generating", "generation_failed", "stalled"]
     problem_id: str | None = None
     opened: bool = False
     job: JobStub | None = None

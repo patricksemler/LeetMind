@@ -26,20 +26,23 @@ workspace running against a deterministic in-browser executor.
 
 ## How generation works
 
-A background worker claims one job at a time (`FOR UPDATE SKIP LOCKED`, lease + fencing token) and
-runs it through four stages:
+Two background workers can process independent users while advisory locking, leases, and fencing
+tokens preserve per-user serialization. Each job has a 120-second enqueue-to-terminal deadline:
 
-1. **Plan** — deterministic scoring picks a shortlist of candidate concepts, shapes, and a target
-   rating from your Elo profile; one LLM call chooses from that shortlist. Every field is validated
-   against the constraints it was given, with a deterministic fallback so the pipeline still
-   produces a plan when the model is unavailable.
-2. **Build** — a second LLM call writes the statement, reference solution, test suite, and an
-   input generator.
-3. **Verify** — three gates in the same sandbox image users get: reference solution against the
-   authored tests, an independently generated brute-force oracle against those same tests, and
-   reference-vs-oracle agreement on 50 seeded random inputs.
-4. **Repair** — a verification disagreement feeds a targeted repair prompt and the job re-enters
-   the loop. Only problems that clear all three gates ever reach a user.
+1. **Select** — deterministic adaptive scoring picks the highest-scored concept, its target-band
+   midpoint, up to two eligible support concepts, and the least-recently-used compatible activity
+   shape. Recent problems are supplied as anti-repetition context; planning makes no LLM call.
+2. **Draft** — one low-effort structured-output call writes the concise statement, three public
+   tests, eight private tests, four hints, the reference solution, and a batched input generator.
+3. **Independent review** — one separate call sees only the public contract and activity plan. It
+   checks curriculum fit and authors the brute-force oracle without seeing the proposed solution
+   or authored tests.
+4. **Verify** — reference and oracle run the authored suite concurrently, then agree on 50 seeded
+   randomized inputs. All seeds are generated in one sandbox process with a repeated-seed purity
+   check.
+5. **Recover** — transport/schema errors get at most one bounded retry; content disagreements get
+   at most one targeted repair; judge infrastructure retries verification without redrafting.
+   Only problems that clear every gate reach a user.
 
 ## Stack
 
@@ -68,6 +71,8 @@ pnpm workspace, two apps.
 | `apps/server/src/leetmind` | routes, generation pipeline, learner model, judge orchestration |
 | `apps/server/judge/`       | the sandbox image and its in-container runner                   |
 | `apps/server/migrations/`  | schema                                                          |
+| `apps/server/queries/`     | generation latency and reliability reports                     |
+| `apps/server/scripts/`     | live generation benchmark                                      |
 
 The schemas in `apps/web/src/shared/` are the single source of truth for the wire format: every
 response is parsed through them before it reaches a component, so a contract change lands in one
@@ -95,6 +100,13 @@ pnpm dev:server               # API on http://localhost:8080
 Server configuration lives in `apps/server/.env` (see `apps/server/.env.example`). Generation
 shells out to a logged-in `claude` or `codex` CLI; `LLM_CLI=fixture` swaps that for canned
 responses, which is what `docker compose up` uses since the server image ships no LLM CLI.
+
+Run the live eight-concept SLO benchmark with:
+
+```bash
+cd apps/server
+uv run python scripts/benchmark_generation.py --output ../../benchmark-results/generation.json
+```
 
 The demo needs none of the above — `pnpm dev:demo` runs the workspace against the in-browser
 executor.

@@ -11,6 +11,9 @@ export type TypeProfileView = components["schemas"]["TypeProfileView"];
 export type MeResponse = components["schemas"]["MeResponse"];
 
 export type GenerationJobStatus = components["schemas"]["GenerationJobStatus"];
+export type GenerationPhase = components["schemas"]["GenerationPhase"];
+export type GenerationRecoveryReason = components["schemas"]["GenerationRecoveryReason"];
+export type GenerationFailureCode = components["schemas"]["GenerationFailureCode"];
 export type JobStub = components["schemas"]["JobStub"];
 export type PracticeNextResponse = components["schemas"]["PracticeNextResponse"];
 export type ReplenishResponse = components["schemas"]["ReplenishResponse"];

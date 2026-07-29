@@ -3,7 +3,9 @@ insensitivity, and nullable structures (level-order trees). Pure unit tests, no 
 
 from __future__ import annotations
 
-from leetmind.schemas import ValueType, values_equal
+from datetime import UTC, datetime
+
+from leetmind.schemas import GenerationEvent, ValueType, values_equal
 
 INT = ValueType(kind="int")
 FLOAT = ValueType(kind="float")
@@ -67,3 +69,19 @@ def test_nested_lists():
 
 def test_length_mismatch_is_not_equal():
     assert not values_equal([1, 2, 3], [1, 2], INT_LIST)
+
+
+def test_generation_event_contract_never_contains_raw_error_details():
+    now = datetime.now(UTC)
+    event = GenerationEvent(
+        job_id="job-1",
+        status="verifying",
+        phase="stress_testing",
+        repair_count=0,
+        attempt=1,
+        max_attempts=2,
+        started_at=now,
+        phase_started_at=now,
+    )
+
+    assert "error" not in event.model_dump()

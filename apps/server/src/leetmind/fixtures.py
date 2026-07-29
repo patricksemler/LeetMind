@@ -20,6 +20,7 @@ BUILDER_MARKER = "Generate one algorithm practice problem as JSON"
 BUILDER_REPAIR_MARKER = "Your previous attempt failed verification"
 ORACLE_MARKER = "You are an independent verifier"
 QUALITY_REVIEW_MARKER = "You are an independent curriculum reviewer"
+INDEPENDENT_REVIEW_MARKER = "independent reviewer and brute-force oracle author"
 
 # -- a tiny, judge-executable "sum a list" problem, shared by builder/verify/worker/e2e -----------
 
@@ -77,6 +78,7 @@ def sum_problem_builder_output(*, buggy: bool = False, title: str = "Sum It Up")
         "title": title,
         "statement_md": "Given a list of integers `nums`, return the sum of its elements.",
         "constraints": ["0 <= nums.length <= 100", "-100 <= nums[i] <= 100"],
+        "support_types": [],
         "signature": copy.deepcopy(_SUM_SIGNATURE),
         "starter_code": "def solve(nums):\n    pass\n",
         "public_tests": copy.deepcopy(_SUM_PUBLIC_TESTS),
@@ -102,6 +104,14 @@ def aligned_quality_review_output() -> dict[str, Any]:
     return {"aligned_with_plan": True, "issues": []}
 
 
+def aligned_independent_review_output() -> dict[str, Any]:
+    return {
+        "aligned_with_plan": True,
+        "issues": [],
+        "brute_solution": sum_problem_oracle_output()["brute_solution"],
+    }
+
+
 def aligned_plan_review_output() -> dict[str, Any]:
     return {"aligned_with_activity": True, "issues": []}
 
@@ -113,7 +123,7 @@ def fresh_user_plan_output(**overrides: Any) -> dict[str, Any]:
     data: dict[str, Any] = {
         "primary_type": "arrays_hashing",
         "support_types": [],
-        "shape": "optimize_subarray",
+        "shape": "count_structures",
         "problem_rating": 1000,
         "premise": "A warehouse robot needs the total weight of a batch of packages.",
         "rationale": "fixture",
@@ -128,6 +138,8 @@ def fixture_response(prompt: str) -> dict[str, Any]:
     builder's repair prompt also contains the generic builder marker."""
     if BUILDER_REPAIR_MARKER in prompt:
         return sum_problem_builder_output()
+    if INDEPENDENT_REVIEW_MARKER in prompt:
+        return aligned_independent_review_output()
     if PLANNER_MARKER in prompt:
         return fresh_user_plan_output()
     if PLAN_REVIEW_MARKER in prompt:

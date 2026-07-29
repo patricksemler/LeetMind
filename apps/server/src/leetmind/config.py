@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -54,6 +55,7 @@ class Settings(BaseSettings):
     llm_cli: str = "claude"  # "claude" (default), "codex", or "fixture" (canned responses, §12)
     llm_bin: str | None = None  # override the executable name/path; defaults to llm_cli
     llm_model: str = "claude-sonnet-5"
+    llm_effort: Literal["low", "medium", "high", "xhigh", "max"] = "low"
     llm_args: str = ""
     llm_timeout_s: float = 600.0
     # Amendment 40: cwd + a read-only sandbox alone doesn't stop absolute-path reads; this is an
@@ -64,9 +66,13 @@ class Settings(BaseSettings):
 
     # Generation worker (PLAN_BACKEND.md §7.1, §13).
     worker_enabled: bool = True
+    worker_concurrency: int = Field(default=2, ge=1, le=8)
     worker_poll_interval_s: float = 2.0
     worker_heartbeat_interval_s: float = 60.0
     worker_lease_stale_s: float = 300.0
+    generation_job_timeout_s: float = Field(default=120.0, ge=30.0)
+    generation_repair_min_remaining_s: float = Field(default=35.0, ge=1.0)
+    generation_background_restart_limit: int = Field(default=2, ge=0, le=5)
 
 
 @lru_cache

@@ -10,21 +10,26 @@ targeted repair prompt (verification found a disagreement) or, eventually, givin
 from __future__ import annotations
 
 import json
-import logging
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    ValidationError,
+    model_validator,
+)
 
 from leetmind.llm import LLMClient, LLMError
 from leetmind.planner import DIFFICULTY_RUBRIC, Plan
 from leetmind.schemas import Complexity, Signature, ValueType
 
-logger = logging.getLogger("leetmind.builder")
-
-PUBLIC_TEST_RANGE = (3, 4)
-PRIVATE_TEST_RANGE = (8, 12)
+PUBLIC_TEST_RANGE = (3, 3)
+PRIVATE_TEST_RANGE = (8, 8)
 CONSTRAINT_RANGE = (2, 6)
 HINT_RUNGS = 4
 STATEMENT_MAX_CHARS = 650
@@ -94,10 +99,11 @@ class BuilderOutput(BaseModel):
     title: str = Field(min_length=1, max_length=80)
     statement_md: str = Field(min_length=1, max_length=STATEMENT_MAX_CHARS)
     constraints: list[ConstraintText] = Field(min_length=2, max_length=6)
+    support_types: list[str] = Field(default_factory=list, max_length=2)
     signature: Signature
     starter_code: str = Field(min_length=1)
-    public_tests: list[BuilderTest] = Field(min_length=3, max_length=4)
-    private_tests: list[BuilderTest] = Field(min_length=8, max_length=12)
+    public_tests: list[BuilderTest] = Field(min_length=3, max_length=3)
+    private_tests: list[BuilderTest] = Field(min_length=8, max_length=8)
     hints: list[str] = Field(min_length=4, max_length=4)
     reference_solution: str = Field(min_length=1)
     input_generator: str = Field(min_length=1)
@@ -121,6 +127,32 @@ class QualityReviewOutput(BaseModel):
     issues: list[str]
 
 
+class IndependentReviewOutput(BaseModel):
+    """One independent call owns both activity review and brute-force oracle generation.
+
+    It never receives authored tests or the reference solution. A rejected candidate carries
+    actionable issues; an accepted one must carry the independent solution used by differential
+    verification.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    aligned_with_plan: bool
+    issues: list[str]
+    brute_solution: str | None = None
+
+    @model_validator(mode="after")
+    def validate_decision(self) -> IndependentReviewOutput:
+        if self.aligned_with_plan:
+            if self.issues:
+                raise ValueError("issues must be empty when aligned_with_plan is true")
+            if not self.brute_solution or "def " not in self.brute_solution:
+                raise ValueError("an aligned review must include a Python brute_solution")
+        elif not self.issues:
+            raise ValueError("a rejected review must include at least one repair issue")
+        return self
+
+
 @dataclass(frozen=True)
 class BuiltProblem:
     output: BuilderOutput
@@ -136,12 +168,26 @@ class RepairContext:
     failure_report: str
 
 
+class ReviewRejected(BuilderError):
+    def __init__(
+        self,
+        output: BuilderOutput,
+        issues: list[str],
+        *,
+        reason: Literal["format", "activity_fit"],
+    ) -> None:
+        super().__init__("independent review rejected the candidate: " + "; ".join(issues))
+        self.output = output
+        self.issues = issues
+        self.reason = reason
+
+
 def _type_str(t: ValueType) -> str:
     leaf = f"{t.kind}?" if t.nullable else t.kind
     return "[" * t.list_depth + leaf + "]" * t.list_depth
 
 
-def _validate_structure(output: BuilderOutput) -> str | None:
+def _validate_structure(output: BuilderOutput, plan: Plan | None = None) -> str | None:
     """First violation found, or `None` if the output is structurally sound. Content quality
     (is the statement good, is the reference solution actually correct) is verify.py's job —
     this only catches shapes that would break the judge or the value contract."""
@@ -168,6 +214,12 @@ def _validate_structure(output: BuilderOutput) -> str | None:
         return "constraints must not contain empty strings"
     if any(len(constraint) > CONSTRAINT_MAX_CHARS for constraint in output.constraints):
         return f"each constraint must be at most {CONSTRAINT_MAX_CHARS} characters"
+
+    if plan is not None:
+        if plan.primary_type in output.support_types:
+            return "support_types must not include primary_type"
+        if not set(output.support_types) <= set(plan.support_types):
+            return f"support_types must be drawn from {sorted(plan.support_types)}"
 
     if len(output.hints) != HINT_RUNGS:
         return f"hints must have exactly {HINT_RUNGS} entries, one per rung"
@@ -208,15 +260,35 @@ def _validate_structure(output: BuilderOutput) -> str | None:
 
 
 def _render_builder_prompt(plan: Plan, *, repair: RepairContext | None = None) -> str:
+    recent = plan.recent_problems or []
+    recent_lines = (
+        "\n".join(
+            f'- "{item.get("title", "")}": {item.get("premise", "")[:500]}' for item in recent
+        )
+        or "- (none yet)"
+    )
+    legacy_hint = (
+        f"\nA legacy plan suggested this scenario, but it is optional and must be changed if it "
+        f"conflicts with the activity: {plan.premise}\n"
+        if plan.premise
+        else ""
+    )
     base = f"""\
 Generate one algorithm practice problem as JSON.
 
-Plan (already decided, do not change):
+Activity plan (already decided):
 - primary_type: {plan.primary_type}
-- support_types: {plan.support_types}
+- allowed_support_types: {plan.support_types}
 - shape: {plan.shape}
 - target problem_rating: {plan.problem_rating}
-- premise: {plan.premise}
+{legacy_hint}
+
+Create the premise yourself. It must naturally require the primary type and requested shape; never
+force a technique that a simpler or asymptotically better method makes unnecessary. You may use
+zero to two allowed support types, but they must only scaffold the primary activity.
+
+Avoid repeating these recent titles or scenarios:
+{recent_lines}
 
 Difficulty rubric — the problem's structure must match its target rating:
 {DIFFICULTY_RUBRIC}
@@ -247,15 +319,17 @@ Produce:
 - constraints: 2-6 short strings (at most {CONSTRAINT_MAX_CHARS} characters each) containing only
   input bounds and guarantees, such as `1 <= nums.length <= 10^5`. They must match the signature,
   tests, and input generator. Do not repeat them in statement_md.
+- support_types: 0-2 values drawn only from {plan.support_types}; use an empty list unless a
+  support concept genuinely scaffolds the primary activity.
 - signature: func_name, params (name + type), returns (type), order_insensitive if applicable —
   each `type` field is an OBJECT per the example above, never a bare string.
 - starter_code: a Python stub defining `def <func_name>(...): ...` with a stub body, matching
   the signature exactly.
-- public_tests: 3-4 self-contained example cases, each
+- public_tests: exactly 3 self-contained example cases, each
   {{"args": [...], "expected": v}}. These are the ONLY worked examples and are rendered by the
   app's Examples section, so do not duplicate them in statement_md.
-- private_tests: 8-12 cases including edge cases, same shape as public_tests, never shown to the
-  user. Re-check every authored expected value against reference_solution before responding.
+- private_tests: exactly 8 cases including edge cases, same shape as public_tests, never shown
+  to the user. Re-check every authored expected value against reference_solution before responding.
 - hints: exactly 4 strings, one per rung, increasingly specific:
 {HINT_RUNG_GUIDE}
 - reference_solution: a correct, reasonably efficient Python solution defining the same function.
@@ -267,7 +341,7 @@ Produce:
 - par_minutes: a reasonable target solve time in minutes for a learner at the target rating.
 
 Respond with ONLY a JSON object with exactly these keys: title, statement_md, constraints,
-signature, starter_code, public_tests, private_tests, hints, reference_solution,
+support_types, signature, starter_code, public_tests, private_tests, hints, reference_solution,
 input_generator, complexity, par_minutes. No markdown fences, no prose outside the JSON.
 """
     if repair is None:
@@ -356,102 +430,116 @@ No markdown fences and no prose outside the JSON.
 """
 
 
+def _render_independent_review_prompt(plan: Plan, output: BuilderOutput) -> str:
+    params = ", ".join(f"{p.name}: {_type_str(p.type)}" for p in output.signature.params)
+    constraint_lines = "\n".join(f"- {constraint}" for constraint in output.constraints)
+    return f"""\
+You are the independent reviewer and brute-force oracle author for an algorithm-practice app.
+You have NOT seen the authored tests or proposed reference solution.
+
+Activity plan:
+- primary_type: {plan.primary_type}
+- selected_support_types: {output.support_types}
+- shape: {plan.shape}
+- problem_rating: {plan.problem_rating}
+
+Public problem contract:
+- title: {output.title}
+- statement:
+{output.statement_md}
+- constraints:
+{constraint_lines}
+- signature: def {output.signature.func_name}({params}) -> {_type_str(output.signature.returns)}
+- claimed complexity: {output.complexity.model_dump_json()}
+
+Set aligned_with_plan=false when the natural efficient solution does not centrally exercise the
+primary type, the task does not match the selected shape, a simpler/asymptotically better technique
+invalidates the activity, the difficulty is implausible for the target rating, or the public
+contract is internally inconsistent. Return 1-3 concise repair issues in that case and set
+brute_solution=null.
+
+When aligned_with_plan=true, issues must be empty and brute_solution must contain a deliberately
+naive but obviously-correct Python implementation of the required function. Favor correctness over
+performance; randomized verification inputs are intentionally small. The brute solution must be
+derived only from this public contract.
+
+Value contract:
+{VALUE_GRAMMAR}
+
+Respond with ONLY a JSON object with exactly these keys:
+{{"aligned_with_plan": true_or_false, "issues": ["..."], "brute_solution": "..."_or_null}}
+No markdown fences and no prose outside the JSON.
+"""
+
+
 async def _call_builder(llm: LLMClient, prompt: str) -> BuilderOutput:
-    current_prompt = prompt
-    last_error: str | None = None
-    for attempt in range(2):  # one original call + one re-ask on violation (decision 10)
-        try:
-            output = await llm.complete(current_prompt, BuilderOutput)
-        except (LLMError, ValidationError) as exc:
-            last_error = str(exc)
-            logger.warning("builder CLI call failed (attempt %d): %s", attempt, exc)
-            current_prompt = (
-                f"{prompt}\n\nYour previous response failed: {exc}\nRespond again with "
-                "corrected JSON."
-            )
-            continue
-        error = _validate_structure(output)
-        if error is None:
-            return output
-        last_error = error
-        logger.warning("builder output violated constraints (attempt %d): %s", attempt, error)
-        current_prompt = f"{prompt}\n\nYour previous answer was invalid: {error}\nRespond again."
-    raise BuilderError(f"builder CLI could not produce a valid problem: {last_error}")
+    try:
+        return await llm.complete(prompt, BuilderOutput)
+    except (LLMError, ValidationError) as exc:
+        raise BuilderError(f"builder CLI could not produce a valid problem: {exc}") from exc
 
 
 async def _call_oracle(llm: LLMClient, output: BuilderOutput) -> str:
     prompt = _render_oracle_prompt(output.statement_md, output.constraints, output.signature)
-    current_prompt = prompt
-    last_error: str | None = None
-    for attempt in range(2):
-        try:
-            oracle = await llm.complete(current_prompt, OracleOutput)
-        except (LLMError, ValidationError) as exc:
-            last_error = str(exc)
-            logger.warning("oracle CLI call failed (attempt %d): %s", attempt, exc)
-            current_prompt = f"{prompt}\n\nYour previous response failed: {exc}\nRespond again."
-            continue
-        if f"def {output.signature.func_name}" not in oracle.brute_solution:
-            last_error = f"brute_solution must define def {output.signature.func_name}(...)"
-            logger.warning(
-                "oracle output violated constraints (attempt %d): %s", attempt, last_error
-            )
-            current_prompt = f"{prompt}\n\n{last_error}\nRespond again."
-            continue
-        return oracle.brute_solution
-    raise BuilderError(f"oracle CLI could not produce a valid brute-force solution: {last_error}")
+    try:
+        oracle = await llm.complete(prompt, OracleOutput)
+    except (LLMError, ValidationError) as exc:
+        raise BuilderError(f"oracle CLI could not produce a valid solution: {exc}") from exc
+    if f"def {output.signature.func_name}" not in oracle.brute_solution:
+        raise BuilderError(
+            f"brute_solution must define def {output.signature.func_name}(...)"
+        )
+    return oracle.brute_solution
 
 
 async def _call_quality_reviewer(
     llm: LLMClient, plan: Plan, output: BuilderOutput
 ) -> QualityReviewOutput:
     prompt = _render_quality_review_prompt(plan, output)
-    current_prompt = prompt
-    last_error: str | None = None
-    for attempt in range(2):
-        try:
-            review = await llm.complete(current_prompt, QualityReviewOutput)
-        except (LLMError, ValidationError) as exc:
-            last_error = str(exc)
-            logger.warning("quality reviewer CLI call failed (attempt %d): %s", attempt, exc)
-            current_prompt = f"{prompt}\n\nYour previous response failed: {exc}\nRespond again."
-            continue
-        if review.aligned_with_plan or review.issues:
-            return review
-        last_error = "issues must explain why aligned_with_plan is false"
-        current_prompt = f"{prompt}\n\n{last_error}\nRespond again."
-    raise BuilderError(f"quality reviewer could not produce a valid review: {last_error}")
+    try:
+        review = await llm.complete(prompt, QualityReviewOutput)
+    except (LLMError, ValidationError) as exc:
+        raise BuilderError(f"quality reviewer could not produce a valid review: {exc}") from exc
+    if not review.aligned_with_plan and not review.issues:
+        raise BuilderError("issues must explain why aligned_with_plan is false")
+    return review
+
+
+async def _call_independent_reviewer(
+    llm: LLMClient, plan: Plan, output: BuilderOutput
+) -> IndependentReviewOutput:
+    try:
+        review = await llm.complete(
+            _render_independent_review_prompt(plan, output), IndependentReviewOutput
+        )
+    except (LLMError, ValidationError) as exc:
+        raise BuilderError(f"independent review failed: {exc}") from exc
+
+    if review.aligned_with_plan:
+        if f"def {output.signature.func_name}" not in (review.brute_solution or ""):
+            raise BuilderError(
+                f"independent review must define def {output.signature.func_name}(...)"
+            )
+    return review
 
 
 async def build_problem(
-    llm: LLMClient, plan: Plan, *, repair: RepairContext | None = None
+    llm: LLMClient,
+    plan: Plan,
+    *,
+    repair: RepairContext | None = None,
+    on_review: Callable[[], Awaitable[None]] | None = None,
 ) -> BuiltProblem:
-    """The full step-2 pipeline: build, independently review alignment with the activity-selected
-    plan (one rebuild on mismatch), then ask a separate oracle for a brute solution. The oracle
-    still sees no authored solution or tests, preserving amendment 32's independence."""
-    quality_repair = repair
-    last_issues: list[str] = []
-    for attempt in range(2):
-        prompt = _render_builder_prompt(plan, repair=quality_repair)
-        output = await _call_builder(llm, prompt)
-        review = await _call_quality_reviewer(llm, plan, output)
-        if review.aligned_with_plan:
-            brute_solution = await _call_oracle(llm, output)
-            return BuiltProblem(output=output, brute_solution=brute_solution)
+    """Two-call happy path: one creative draft, one independent review + oracle."""
+    output = await _call_builder(llm, _render_builder_prompt(plan, repair=repair))
+    structure_error = _validate_structure(output, plan)
+    if structure_error is not None:
+        raise ReviewRejected(output, [structure_error], reason="format")
 
-        last_issues = review.issues
-        logger.warning(
-            "builder output failed activity alignment (attempt %d): %s", attempt, last_issues
-        )
-        quality_repair = RepairContext(
-            previous_output=output.model_dump(mode="json"),
-            failure_report=(
-                "Independent curriculum review found that the generated problem does not match "
-                f"the activity-selected plan: {'; '.join(last_issues)}"
-            ),
-        )
-
-    raise BuilderError(
-        "builder could not align the problem with the activity-selected plan: "
-        + "; ".join(last_issues)
-    )
+    if on_review is not None:
+        await on_review()
+    review = await _call_independent_reviewer(llm, plan, output)
+    if not review.aligned_with_plan:
+        raise ReviewRejected(output, review.issues, reason="activity_fit")
+    assert review.brute_solution is not None
+    return BuiltProblem(output=output, brute_solution=review.brute_solution)

@@ -17,8 +17,9 @@ them. A problem that never verifies is never seen by a user.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -44,6 +45,7 @@ class Disagreement:
 class VerifyResult:
     ok: bool
     disagreements: list[Disagreement] = field(default_factory=list)
+    retryable_infrastructure: bool = False
 
     def report(self) -> str:
         return "\n".join(f"- {d.kind}: {d.detail}" for d in self.disagreements)
@@ -61,8 +63,29 @@ def _to_test_cases(tests: Sequence[Any], signature: Signature) -> list[TestCase]
     ]
 
 
+async def _emit_phase(callback: Callable[[str], Awaitable[None]] | None, phase: str) -> None:
+    if callback is not None:
+        await callback(phase)
+
+
+async def _collect(session: Any, tests: Sequence[TestCase]) -> list[Any]:
+    return [outcome async for outcome in session.run(tests)]
+
+
+def _infrastructure_failure(outcome: Any) -> bool:
+    return outcome.error in {
+        "judge container exited unexpectedly",
+        "malformed judge protocol response",
+        "judge wall-clock exceeded",
+    }
+
+
 async def verify_problem(
-    judge: JudgeClient, built: BuiltProblem, *, settings: Settings | None = None
+    judge: JudgeClient,
+    built: BuiltProblem,
+    *,
+    settings: Settings | None = None,
+    on_phase: Callable[[str], Awaitable[None]] | None = None,
 ) -> VerifyResult:
     s = settings or get_settings()
     output = built.output
@@ -73,6 +96,61 @@ async def verify_problem(
     disagreements: list[Disagreement] = []
 
     exec_prefix = uuid.uuid4().hex[:10]
+    # Generate all seeds in one sandboxed child process. Running the batch twice in the wrapper
+    # validates the builder contract that `generate(seed)` is pure while avoiding fifty Python
+    # interpreter startups just to obtain argument lists.
+    generator_code = (
+        f"{output.input_generator.rstrip()}\n\n"
+        "def __leetmind_generate_batch(seeds):\n"
+        "    first = [generate(seed) for seed in seeds]\n"
+        "    second = [generate(seed) for seed in seeds]\n"
+        "    if first != second:\n"
+        "        raise ValueError('input generator is not pure')\n"
+        "    return first\n"
+    )
+    seed_list = list(range(RANDOM_CASES))
+    seed_batch = [TestCase(args=[seed_list], expected=None, value_type=_PLACEHOLDER_TYPE)]
+
+    await _emit_phase(on_phase, "checking_examples")
+    # Materialize randomized inputs with one short-lived process before occupying the two
+    # long-lived solution sessions. This avoids a semaphore deadlock when two generation workers
+    # verify concurrently under the default four-container judge limit.
+    async with judge.session(
+        f"verify-gen-{exec_prefix}",
+        generator_code,
+        "__leetmind_generate_batch",
+        wall_s=wall_s,
+        per_test_limit_s=GENERATOR_LIMIT_S,
+    ) as gen_session:
+        generator_outcomes = await _collect(gen_session, seed_batch)
+
+    generator_outcome = generator_outcomes[0]
+    if generator_outcome.verdict in (Verdict.ERROR, Verdict.TIMEOUT) or not isinstance(
+        generator_outcome.value, list
+    ):
+        disagreement = Disagreement(
+            "generator_failed",
+            f"verdict={generator_outcome.verdict} error={generator_outcome.error}",
+        )
+        return VerifyResult(
+            ok=False,
+            disagreements=[disagreement],
+            retryable_infrastructure=_infrastructure_failure(generator_outcome),
+        )
+    random_arg_lists = generator_outcome.value
+    if len(random_arg_lists) != RANDOM_CASES or not all(
+        isinstance(args, list) for args in random_arg_lists
+    ):
+        return VerifyResult(
+            ok=False,
+            disagreements=[
+                Disagreement(
+                    "generator_failed",
+                    f"batch must return {RANDOM_CASES} positional-argument lists",
+                )
+            ],
+        )
+
     async with (
         judge.session(
             f"verify-ref-{exec_prefix}",
@@ -88,16 +166,12 @@ async def verify_problem(
             wall_s=wall_s,
             per_test_limit_s=s.judge_oracle_limit_s,
         ) as oracle_session,
-        judge.session(
-            f"verify-gen-{exec_prefix}",
-            output.input_generator,
-            "generate",
-            wall_s=wall_s,
-            per_test_limit_s=GENERATOR_LIMIT_S,
-        ) as gen_session,
     ):
-        # Gate 1: reference vs authored tests.
-        ref_outcomes = [o async for o in ref_session.run(authored_tests)]
+        # Gates 1 and 2 are independent processes and can execute authored tests concurrently.
+        ref_outcomes, oracle_outcomes = await asyncio.gather(
+            _collect(ref_session, authored_tests),
+            _collect(oracle_session, authored_tests),
+        )
         for tc, outcome in zip(authored_tests, ref_outcomes, strict=False):
             if outcome.verdict != Verdict.PASS:
                 disagreements.append(
@@ -108,8 +182,6 @@ async def verify_problem(
                     )
                 )
 
-        # Gate 2: independent oracle vs the same authored tests.
-        oracle_outcomes = [o async for o in oracle_session.run(authored_tests)]
         for tc, outcome in zip(authored_tests, oracle_outcomes, strict=False):
             if outcome.verdict != Verdict.PASS:
                 disagreements.append(
@@ -120,71 +192,69 @@ async def verify_problem(
                     )
                 )
 
-        # Gate 3: reference vs oracle on RANDOM_CASES seeded inputs — nothing authored these, so
-        # only mutual agreement (not a fixed `expected`) can validate them.
-        seed_tests = [
-            TestCase(args=[seed], expected=None, value_type=_PLACEHOLDER_TYPE)
-            for seed in range(RANDOM_CASES)
-        ]
-        gen_outcomes = [o async for o in gen_session.run(seed_tests)]
+        if disagreements:
+            infrastructure = any(
+                _infrastructure_failure(outcome) for outcome in [*ref_outcomes, *oracle_outcomes]
+            )
+            return VerifyResult(
+                ok=False,
+                disagreements=disagreements,
+                retryable_infrastructure=infrastructure,
+            )
 
-        random_arg_lists: list[list[Any]] = []
-        for seed, outcome in enumerate(gen_outcomes):
-            if outcome.verdict in (Verdict.ERROR, Verdict.TIMEOUT) or not isinstance(
-                outcome.value, list
-            ):
+        # Authored gates passed, so it is now worth paying for randomized solution probes.
+        await _emit_phase(on_phase, "stress_testing")
+        # Gate 3: reference and oracle see identical generated inputs concurrently.
+        probe_tests = [
+            TestCase(
+                args=args,
+                expected=None,
+                value_type=signature.returns,
+                order_insensitive=signature.order_insensitive,
+            )
+            for args in random_arg_lists
+        ]
+        ref_random, oracle_random = await asyncio.gather(
+            _collect(ref_session, probe_tests),
+            _collect(oracle_session, probe_tests),
+        )
+        infrastructure = False
+        for args, ref_o, oracle_o in zip(
+            random_arg_lists, ref_random, oracle_random, strict=False
+        ):
+            if ref_o.verdict in (Verdict.ERROR, Verdict.TIMEOUT):
+                infrastructure = infrastructure or _infrastructure_failure(ref_o)
                 disagreements.append(
                     Disagreement(
-                        "generator_failed",
-                        f"seed={seed} verdict={outcome.verdict} error={outcome.error}",
+                        "reference_oracle_mismatch",
+                        f"args={args} reference crashed: {ref_o.error}",
                     )
                 )
                 continue
-            random_arg_lists.append(outcome.value)
-
-        if random_arg_lists:
-            probe_tests = [
-                TestCase(
-                    args=args,
-                    expected=None,
-                    value_type=signature.returns,
-                    order_insensitive=signature.order_insensitive,
+            if oracle_o.verdict in (Verdict.ERROR, Verdict.TIMEOUT):
+                infrastructure = infrastructure or _infrastructure_failure(oracle_o)
+                disagreements.append(
+                    Disagreement(
+                        "reference_oracle_mismatch",
+                        f"args={args} oracle crashed: {oracle_o.error}",
+                    )
                 )
-                for args in random_arg_lists
-            ]
-            ref_random = [o async for o in ref_session.run(probe_tests)]
-            oracle_random = [o async for o in oracle_session.run(probe_tests)]
-            for args, ref_o, oracle_o in zip(
-                random_arg_lists, ref_random, oracle_random, strict=False
+                continue
+            if not values_equal(
+                ref_o.value,
+                oracle_o.value,
+                signature.returns,
+                order_insensitive=signature.order_insensitive,
             ):
-                if ref_o.verdict in (Verdict.ERROR, Verdict.TIMEOUT):
-                    disagreements.append(
-                        Disagreement(
-                            "reference_oracle_mismatch",
-                            f"args={args} reference crashed: {ref_o.error}",
-                        )
+                disagreements.append(
+                    Disagreement(
+                        "reference_oracle_mismatch",
+                        f"args={args} reference={ref_o.value!r} oracle={oracle_o.value!r}",
                     )
-                    continue
-                if oracle_o.verdict in (Verdict.ERROR, Verdict.TIMEOUT):
-                    disagreements.append(
-                        Disagreement(
-                            "reference_oracle_mismatch",
-                            f"args={args} oracle crashed: {oracle_o.error}",
-                        )
-                    )
-                    continue
-                agree = values_equal(
-                    ref_o.value,
-                    oracle_o.value,
-                    signature.returns,
-                    order_insensitive=signature.order_insensitive,
                 )
-                if not agree:
-                    disagreements.append(
-                        Disagreement(
-                            "reference_oracle_mismatch",
-                            f"args={args} reference={ref_o.value!r} oracle={oracle_o.value!r}",
-                        )
-                    )
 
-    return VerifyResult(ok=not disagreements, disagreements=disagreements)
+    return VerifyResult(
+        ok=not disagreements,
+        disagreements=disagreements,
+        retryable_infrastructure=infrastructure if disagreements else False,
+    )

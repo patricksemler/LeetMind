@@ -8,6 +8,7 @@ import json
 import uuid
 
 from leetmind.planner import (
+    Plan,
     PlanOutput,
     PlanReviewOutput,
     _call_planner,
@@ -18,7 +19,7 @@ from leetmind.planner import (
     plan_generation,
 )
 from leetmind.selection import TypeSignal, target_band
-from leetmind.taxonomy import PROBLEM_TYPES, SHAPES
+from leetmind.taxonomy import PROBLEM_TYPES, SHAPES, TYPE_SHAPES
 from tests.llm_fixtures import PLANNER_MARKER, FakeLLM, fresh_user_plan_output
 
 
@@ -128,7 +129,7 @@ class TestDeterministicPlan:
         assert plan.problem_rating == 1000
 
 
-async def test_call_planner_falls_back_after_two_bad_attempts():
+async def test_legacy_call_planner_falls_back_after_one_invalid_logical_call():
     llm = FakeLLM(
         [(PLANNER_MARKER, {**_valid_output().model_dump(), "primary_type": "not_in_shortlist"})]
     )
@@ -143,36 +144,10 @@ async def test_call_planner_falls_back_after_two_bad_attempts():
     )
     assert output.primary_type == "arrays_hashing"
     assert "fallback" in output.rationale
-    # one original call + one re-ask, both violating, then the deterministic path — no third call
-    assert len(llm.calls) == 2
+    assert len(llm.calls) == 1
 
 
-async def test_call_planner_recovers_on_reask():
-    good = _valid_output().model_dump()
-    bad = {**good, "primary_type": "not_in_shortlist"}
-    calls = {"n": 0}
-
-    class OnceBadLLM:
-        async def complete(self, prompt, schema):  # noqa: ANN001, ANN201, D102
-            if schema is PlanReviewOutput:
-                return schema.model_validate({"aligned_with_activity": True, "issues": []})
-            calls["n"] += 1
-            return schema.model_validate(bad if calls["n"] == 1 else good)
-
-    output = await _call_planner(
-        OnceBadLLM(),
-        f"{PLANNER_MARKER} ...",
-        shortlist_slugs=set(SHORTLIST),
-        shape_for=SHAPE_FOR,
-        signal_by_slug=SIGNAL_BY_SLUG,
-        support_pool=SUPPORT_POOL,
-        fallback_primary="arrays_hashing",
-    )
-    assert output.primary_type == "arrays_hashing"
-    assert calls["n"] == 2
-
-
-async def test_call_planner_reasks_when_semantic_review_rejects_premise():
+async def test_legacy_call_planner_falls_back_when_semantic_review_rejects():
     candidate = _valid_output().model_dump()
     calls = {"planner": 0, "reviewer": 0}
 
@@ -206,7 +181,7 @@ async def test_call_planner_reasks_when_semantic_review_rejects_premise():
     )
 
     assert output.primary_type == "arrays_hashing"
-    assert calls == {"planner": 2, "reviewer": 2}
+    assert calls == {"planner": 1, "reviewer": 1}
 
 
 async def test_plan_generation_fresh_user_is_deterministically_shortlisted(pool):
@@ -219,10 +194,10 @@ async def test_plan_generation_fresh_user_is_deterministically_shortlisted(pool)
         )
         plan = await plan_generation(conn, llm, user_id=user_id, job_id=job_id)
 
-    # No history ties every type's score, so the shortlist is PROBLEM_TYPES[:3] and the LRU
-    # shape is SHAPES[0] — exactly what the fixture's canned plan output already matches.
+    # No history ties every type's score, so the shortlist head is deterministic and shape
+    # rotation starts at that concept's canonical compatible shape.
     assert plan.primary_type == PROBLEM_TYPES[0]
-    assert plan.shape == SHAPES[0]
+    assert plan.shape == TYPE_SHAPES[PROBLEM_TYPES[0]][0]
     assert plan.is_probe is True
     assert plan.problem_rating == 1000  # probe forces this regardless of the LLM's suggestion
     assert plan.support_types == []  # probe forces this too
@@ -240,7 +215,7 @@ async def test_plan_generation_falls_back_when_llm_violates_shortlist(pool):
         plan = await plan_generation(conn, llm, user_id=user_id, job_id=job_id)
 
     assert plan.primary_type == PROBLEM_TYPES[0]  # fell back to the shortlist head
-    assert plan.shape == SHAPES[0]
+    assert plan.shape == TYPE_SHAPES[PROBLEM_TYPES[0]][0]
 
 
 async def test_reservations_prevent_a_second_job_from_repeating_type_and_shape(pool):
@@ -260,8 +235,8 @@ async def test_reservations_prevent_a_second_job_from_repeating_type_and_shape(p
             json.dumps(plan1.to_json()),
         )
 
-        # A second job's planning pass sees plan1's reservation: arrays_hashing/optimize_subarray
-        # is now "just used", so its LRU shape should differ.
+        # A second job's planning pass sees plan1's type/shape as "just used", so its LRU
+        # compatible shape should differ.
         await conn.fetchval(
             "INSERT INTO generation_jobs (user_id) VALUES ($1) RETURNING id", user_id
         )
@@ -269,3 +244,101 @@ async def test_reservations_prevent_a_second_job_from_repeating_type_and_shape(p
         assert plan1.primary_type in reserved_types
         next_shape = await _lru_shape_for_type(conn, user_id, plan1.primary_type, reserved_shapes)
         assert next_shape != plan1.shape
+
+
+def test_every_problem_type_has_three_compatible_shapes():
+    assert set(TYPE_SHAPES) == set(PROBLEM_TYPES)
+    for type_slug, shapes in TYPE_SHAPES.items():
+        assert len(shapes) == 3, type_slug
+        assert len(set(shapes)) == 3, type_slug
+        assert set(shapes) <= set(SHAPES), type_slug
+
+
+def test_plan_json_v2_and_legacy_v1_are_both_recoverable():
+    current = Plan(
+        primary_type="trees",
+        support_types=["arrays_hashing"],
+        shape="path_search",
+        problem_rating=1300,
+        premise="",
+        is_probe=False,
+        recent_problems=[{"title": "Old", "premise": "Avoid this."}],
+    )
+    assert Plan.from_json(current.to_json()) == current
+
+    legacy = {
+        "primary_type": "arrays_hashing",
+        "support_types": ["two_pointers"],
+        "shape": "count_structures",
+        "problem_rating": 1100,
+        "premise": "A persisted legacy scenario.",
+        "is_probe": False,
+    }
+    recovered = Plan.from_json(legacy)
+    assert recovered.premise == legacy["premise"]
+    assert recovered.support_types == legacy["support_types"]
+
+
+async def test_plan_generation_uses_shortlist_head_midpoint_supports_and_recent_context(
+    monkeypatch,
+):
+    from leetmind import planner as planner_module
+
+    ratings = dict.fromkeys(PROBLEM_TYPES, 1450.0)
+    ratings.update(
+        {
+            "arrays_hashing": 1200.0,
+            "binary_search": 1600.0,
+            "trees": 1550.0,
+        }
+    )
+    signals = [
+        TypeSignal(
+            slug=slug,
+            rating=ratings[slug],
+            attempts=5,
+            days_since_resolved=None,
+            repetition_count=0,
+        )
+        for slug in PROBLEM_TYPES
+    ]
+    recent = [
+        {"title": f"Recent {index}", "premise": f"Scenario {index}"} for index in range(8)
+    ]
+
+    async def generation_index(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        return 1
+
+    async def gathered(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        return signals
+
+    async def reservations(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        return [], {}
+
+    async def shape(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        return "count_structures"
+
+    async def recent_context(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        return recent
+
+    monkeypatch.setattr(planner_module, "_generation_index", generation_index)
+    monkeypatch.setattr(planner_module, "gather_signals", gathered)
+    monkeypatch.setattr(planner_module, "_reservations", reservations)
+    monkeypatch.setattr(planner_module, "_lru_shape_for_type", shape)
+    monkeypatch.setattr(planner_module, "_recent_titles_and_premises", recent_context)
+
+    class NoLLM:
+        async def complete(self, prompt, schema):  # noqa: ANN001, ANN201
+            raise AssertionError("deterministic planning must not call an LLM")
+
+    plan = await plan_generation(
+        object(),  # type: ignore[arg-type]
+        NoLLM(),  # type: ignore[arg-type]
+        user_id=uuid.uuid4(),
+        job_id=uuid.uuid4(),
+    )
+
+    assert plan.primary_type == "arrays_hashing"
+    assert plan.problem_rating == 1250
+    assert plan.support_types == ["binary_search", "trees"]
+    assert plan.recent_problems == recent

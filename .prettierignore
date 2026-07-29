@@ -5,6 +5,7 @@ coverage
 pnpm-lock.yaml
 test-results
 playwright-report
+benchmark-results
 
 # Snapshot files are generated and compared byte-for-byte by vitest.
 **/__snapshots__

@@ -8,6 +8,8 @@ import asyncio
 import uuid
 from datetime import UTC, datetime
 
+import pytest
+
 from .conftest import insert_problem, make_access_token
 
 
@@ -30,13 +32,88 @@ async def test_next_is_stalled_for_a_brand_new_user(authed_client):
 async def test_next_reports_a_live_generating_job(authed_client, pool):
     user_id = uuid.uuid4()
     await pool.execute(
-        "INSERT INTO generation_jobs (user_id, status, repair_count) VALUES ($1, 'building', 1)",
+        """
+        INSERT INTO generation_jobs (user_id, status, phase, repair_count)
+        VALUES ($1, 'building', 'drafting', 1)
+        """,
         user_id,
     )
     resp = await authed_client.get("/api/practice/next", headers=_headers(str(user_id)))
     body = resp.json()
     assert body["state"] == "generating"
-    assert body["job"] == {"status": "building", "repair_count": 1}
+    assert body["job"]["status"] == "building"
+    assert body["job"]["phase"] == "drafting"
+    assert body["job"]["repair_count"] == 1
+    assert body["job"]["attempt"] == 2
+    assert body["job"]["max_attempts"] == 2
+    assert body["job"]["job_id"]
+    assert body["job"]["started_at"]
+    assert body["job"]["phase_started_at"]
+
+
+async def test_next_prefers_the_claimed_job_over_a_waiting_reserve(authed_client, pool):
+    user_id = uuid.uuid4()
+    waiting_id = await pool.fetchval(
+        """
+        INSERT INTO generation_jobs (user_id, status, phase, created_at)
+        VALUES ($1, 'queued', 'waiting', now())
+        RETURNING id
+        """,
+        user_id,
+    )
+    claimed_id = await pool.fetchval(
+        """
+        INSERT INTO generation_jobs (
+          user_id, status, phase, created_at, claimed_at, lease_token
+        )
+        VALUES (
+          $1, 'building', 'drafting', now() - interval '1 second', now(), $2
+        )
+        RETURNING id
+        """,
+        user_id,
+        uuid.uuid4(),
+    )
+
+    resp = await authed_client.get("/api/practice/next", headers=_headers(str(user_id)))
+
+    assert resp.status_code == 200
+    assert resp.json()["job"]["job_id"] == str(claimed_id)
+    assert resp.json()["job"]["job_id"] != str(waiting_id)
+    assert resp.json()["job"]["phase"] == "drafting"
+
+
+@pytest.mark.parametrize(
+    ("phase", "status"),
+    [
+        ("waiting", "queued"),
+        ("selecting", "planning"),
+        ("drafting", "building"),
+        ("independent_review", "building"),
+        ("checking_examples", "verifying"),
+        ("stress_testing", "verifying"),
+        ("repairing", "building"),
+        ("finalizing", "verifying"),
+    ],
+)
+async def test_next_reconciles_every_live_detailed_phase(
+    authed_client, pool, phase: str, status: str
+):
+    user_id = uuid.uuid4()
+    await pool.execute(
+        """
+        INSERT INTO generation_jobs (user_id, status, phase)
+        VALUES ($1, $2, $3)
+        """,
+        user_id,
+        status,
+        phase,
+    )
+
+    resp = await authed_client.get("/api/practice/next", headers=_headers(str(user_id)))
+
+    assert resp.status_code == 200
+    assert resp.json()["job"]["phase"] == phase
 
 
 async def test_next_returns_active_problem_stub_never_the_statement(authed_client, pool):
@@ -50,9 +127,7 @@ async def test_next_returns_active_problem_stub_never_the_statement(authed_clien
     assert body["opened"] is False
     assert "statement_md" not in body  # amendments 36/41: stub only, never the statement
 
-    await pool.execute(
-        "UPDATE problems SET served_at = now() WHERE id = $1", problem_id
-    )
+    await pool.execute("UPDATE problems SET served_at = now() WHERE id = $1", problem_id)
     resp2 = await authed_client.get("/api/practice/next", headers=_headers(str(user_id)))
     assert resp2.json()["opened"] is True
 
@@ -92,6 +167,29 @@ async def test_replenish_bootstraps_two_jobs_and_is_idempotent(authed_client, po
 
     second = await authed_client.post("/api/practice/replenish", headers=_headers(user_id))
     assert second.json()["created"] == []
+
+
+async def test_next_reports_terminal_failure_with_only_a_safe_code(authed_client, pool):
+    user_id = uuid.uuid4()
+    await pool.execute(
+        """
+        INSERT INTO generation_jobs (
+          user_id, status, phase, failure_code, error
+        ) VALUES (
+          $1, 'failed', 'failed', 'verification_failed',
+          'private args=[[secret]] expected=123 traceback=do-not-expose'
+        )
+        """,
+        user_id,
+    )
+
+    resp = await authed_client.get("/api/practice/next", headers=_headers(str(user_id)))
+    body = resp.json()
+
+    assert body["state"] == "generation_failed"
+    assert body["job"]["failure_code"] == "verification_failed"
+    assert "error" not in body["job"]
+    assert "secret" not in resp.text
 
 
 async def test_concurrent_replenishes_produce_no_duplicate_jobs(authed_client, pool):

@@ -65,3 +65,49 @@ async def test_queue_invariant_unique_indexes(pool):
     await insert("active")
     with pytest.raises(asyncpg.UniqueViolationError, match="one_active_per_user"):
         await insert("active")
+
+
+async def test_generation_progress_columns_and_transition_constraints(pool):
+    user_id = "00000000-0000-0000-0000-000000000002"
+    job_id = await pool.fetchval(
+        "INSERT INTO generation_jobs (user_id) VALUES ($1) RETURNING id", user_id
+    )
+    row = await pool.fetchrow(
+        """
+        SELECT phase, phase_started_at, claimed_at, failure_code, recovery_reason,
+               background_restart_count
+        FROM generation_jobs
+        WHERE id = $1
+        """,
+        job_id,
+    )
+    assert row["phase"] == "waiting"
+    assert row["phase_started_at"] is not None
+    assert row["claimed_at"] is None
+    assert row["background_restart_count"] == 0
+    assert (
+        await pool.fetchval(
+            """
+            SELECT COUNT(*) FROM generation_job_transitions
+            WHERE job_id = $1 AND phase = 'waiting' AND attempt = 1
+            """,
+            job_id,
+        )
+        == 1
+    )
+
+    await pool.execute(
+        """
+        INSERT INTO generation_job_transitions (job_id, phase, attempt, recovery_reason)
+        VALUES ($1, 'drafting', 1, 'format')
+        """,
+        job_id,
+    )
+    with pytest.raises(asyncpg.CheckViolationError):
+        await pool.execute(
+            """
+            INSERT INTO generation_job_transitions (job_id, phase, attempt)
+            VALUES ($1, 'drafting', 3)
+            """,
+            job_id,
+        )

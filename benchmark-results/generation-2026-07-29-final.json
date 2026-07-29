@@ -1,0 +1,290 @@
+{
+  "generated_at": "2026-07-29T08:27:08.576049+00:00",
+  "llm_cli": "claude",
+  "llm_model": "claude-sonnet-5",
+  "llm_effort": "low",
+  "timeout_seconds": 120.0,
+  "resumed_from": "../../benchmark-results/generation-2026-07-29-low-effort.json",
+  "rerun_activities": [
+    "queue_deque"
+  ],
+  "summary": {
+    "successful": 8,
+    "first_pass": 7,
+    "successful_p95_seconds": 103.865,
+    "criteria": {
+      "all_eight_ready": true,
+      "at_least_six_first_pass": true,
+      "successful_p95_at_most_120_seconds": true
+    }
+  },
+  "cases": [
+    {
+      "activity": {
+        "primary_type": "arrays_hashing",
+        "shape": "count_structures",
+        "support_types": [
+          "two_pointers"
+        ]
+      },
+      "status": "ready",
+      "started_at": "2026-07-29T08:14:55.616235+00:00",
+      "wall_seconds": 51.66,
+      "repair_count": 0,
+      "logical_llm_calls": 2,
+      "subprocess_invocations": 2,
+      "phase_seconds": {
+        "drafting": 41.641,
+        "independent_review": 3.316,
+        "checking_examples": 1.693,
+        "stress_testing": 5.01,
+        "finalizing": 0.0
+      },
+      "failure_category": null,
+      "disagreement_kinds": [],
+      "summary": {
+        "title": "Divisible Pair Count",
+        "statement_md": "You are given an integer array `nums` and an integer `k`. Count the number of index pairs `(i, j)` with `i < j` such that `nums[i] + nums[j]` is divisible by `k`.\n\n`nums` may contain negative numbers, zero, and duplicate values. Return the total count of such pairs.",
+        "primary_type": "arrays_hashing",
+        "support_types": [],
+        "shape": "count_structures",
+        "problem_rating": 1200
+      }
+    },
+    {
+      "activity": {
+        "primary_type": "queue_deque",
+        "shape": "simulate_process",
+        "support_types": [
+          "arrays_hashing"
+        ]
+      },
+      "status": "ready",
+      "started_at": "2026-07-29T08:26:15.077343+00:00",
+      "wall_seconds": 53.498,
+      "repair_count": 0,
+      "logical_llm_calls": 2,
+      "subprocess_invocations": 2,
+      "phase_seconds": {
+        "drafting": 42.822,
+        "independent_review": 3.995,
+        "checking_examples": 1.587,
+        "stress_testing": 5.094,
+        "finalizing": 0.0
+      },
+      "failure_category": null,
+      "disagreement_kinds": [],
+      "summary": {
+        "title": "Priority Boarding Line",
+        "statement_md": "A bus line is modeled as a sequence of events, processed in order. Each event is an integer:\n\n- A positive value `id` means passenger `id` joins the back of the waiting line.\n- A negative value `-id` means passenger `id` cuts in and joins the *front* of the line (priority boarding).\n- A `0` means the bus boards the passenger currently at the front of the line, removing them from it. If the line is empty, this event does nothing.\n\nGiven the list of events, return the list of passenger ids in the order they actually boarded the bus.",
+        "primary_type": "queue_deque",
+        "support_types": [],
+        "shape": "simulate_process",
+        "problem_rating": 1200
+      }
+    },
+    {
+      "activity": {
+        "primary_type": "binary_search",
+        "shape": "query_answering",
+        "support_types": [
+          "arrays_hashing"
+        ]
+      },
+      "status": "ready",
+      "started_at": "2026-07-29T08:17:47.287908+00:00",
+      "wall_seconds": 78.545,
+      "repair_count": 0,
+      "logical_llm_calls": 2,
+      "subprocess_invocations": 2,
+      "phase_seconds": {
+        "drafting": 68.514,
+        "independent_review": 3.114,
+        "checking_examples": 1.583,
+        "stress_testing": 5.335,
+        "finalizing": 0.0
+      },
+      "failure_category": null,
+      "disagreement_kinds": [],
+      "summary": {
+        "title": "Hotel Occupancy Queries",
+        "statement_md": "A hotel logs guest stays as two arrays `arrivals` and `departures` (same length), where guest `i` checks in at `arrivals[i]` and checks out at `departures[i]` (a guest counts as present for any time `t` with `arrivals[i] <= t < departures[i]`).\n\nGiven a list of `queries` (times), return an array where the `k`-th value is the number of guests present at `queries[k]`.",
+        "primary_type": "binary_search",
+        "support_types": [
+          "arrays_hashing"
+        ],
+        "shape": "query_answering",
+        "problem_rating": 1200
+      }
+    },
+    {
+      "activity": {
+        "primary_type": "sliding_window",
+        "shape": "min_max_window",
+        "support_types": [
+          "arrays_hashing"
+        ]
+      },
+      "status": "ready",
+      "started_at": "2026-07-29T08:19:05.833407+00:00",
+      "wall_seconds": 43.344,
+      "repair_count": 0,
+      "logical_llm_calls": 2,
+      "subprocess_invocations": 2,
+      "phase_seconds": {
+        "drafting": 32.859,
+        "independent_review": 3.59,
+        "checking_examples": 1.614,
+        "stress_testing": 5.282,
+        "finalizing": 0.0
+      },
+      "failure_category": null,
+      "disagreement_kinds": [],
+      "summary": {
+        "title": "Longest Stable Sensor Run",
+        "statement_md": "A sensor logs a sequence of integer readings. A contiguous run of readings is called *stable* if the difference between its maximum and minimum value does not exceed a given limit.\n\nGiven the readings array and the limit, return the length of the longest stable contiguous run.",
+        "primary_type": "sliding_window",
+        "support_types": [
+          "arrays_hashing"
+        ],
+        "shape": "min_max_window",
+        "problem_rating": 1200
+      }
+    },
+    {
+      "activity": {
+        "primary_type": "trees",
+        "shape": "path_search",
+        "support_types": [
+          "queue_deque"
+        ]
+      },
+      "status": "ready",
+      "started_at": "2026-07-29T08:19:49.177634+00:00",
+      "wall_seconds": 90.742,
+      "repair_count": 0,
+      "logical_llm_calls": 2,
+      "subprocess_invocations": 2,
+      "phase_seconds": {
+        "drafting": 67.322,
+        "independent_review": 16.484,
+        "checking_examples": 1.698,
+        "stress_testing": 5.238,
+        "finalizing": 0.0
+      },
+      "failure_category": null,
+      "disagreement_kinds": [],
+      "summary": {
+        "title": "Shortest Root-to-Leaf Path Sum",
+        "statement_md": "You are given a binary tree in level-order array form (nulls mark missing children) and an integer `target`. Find a root-to-leaf path whose node values sum exactly to `target`.\n\nAmong all valid paths, return the one with the fewest nodes. If several shortest paths tie, return the leftmost one (the one a left-to-right, top-to-bottom scan would find first). Return the path as a list of values from root to leaf.\n\nIf no root-to-leaf path sums to `target`, return an empty list.",
+        "primary_type": "trees",
+        "support_types": [
+          "queue_deque"
+        ],
+        "shape": "path_search",
+        "problem_rating": 1200
+      }
+    },
+    {
+      "activity": {
+        "primary_type": "graphs_bfs_dfs",
+        "shape": "path_search",
+        "support_types": [
+          "queue_deque"
+        ]
+      },
+      "status": "ready",
+      "started_at": "2026-07-29T08:21:19.919245+00:00",
+      "wall_seconds": 103.865,
+      "repair_count": 0,
+      "logical_llm_calls": 2,
+      "subprocess_invocations": 2,
+      "phase_seconds": {
+        "drafting": 90.775,
+        "independent_review": 6.492,
+        "checking_examples": 1.603,
+        "stress_testing": 4.995,
+        "finalizing": 0.0
+      },
+      "failure_category": null,
+      "disagreement_kinds": [],
+      "summary": {
+        "title": "Breakthrough Maze Path",
+        "statement_md": "You are given a rectangular grid of 0s (open) and 1s (wall) and an integer k. Starting at the top-left cell, you want to reach the bottom-right cell moving up/down/left/right one cell at a time.\n\nYou may move onto a wall cell, but doing so uses up one of your k available \"breaks\" (breaking that single wall cell). Entering an open cell costs no break. The starting cell never costs a break even if it is a wall itself.\n\nReturn the minimum number of moves to reach the bottom-right cell using at most k breaks total, or -1 if it is impossible.",
+        "primary_type": "graphs_bfs_dfs",
+        "support_types": [],
+        "shape": "path_search",
+        "problem_rating": 1200
+      }
+    },
+    {
+      "activity": {
+        "primary_type": "dp_1d",
+        "shape": "optimize_subarray",
+        "support_types": [
+          "arrays_hashing"
+        ]
+      },
+      "status": "ready",
+      "started_at": "2026-07-29T08:23:03.784740+00:00",
+      "wall_seconds": 56.272,
+      "repair_count": 0,
+      "logical_llm_calls": 2,
+      "subprocess_invocations": 2,
+      "phase_seconds": {
+        "drafting": 44.341,
+        "independent_review": 4.795,
+        "checking_examples": 1.744,
+        "stress_testing": 5.391,
+        "finalizing": 0.0
+      },
+      "failure_category": null,
+      "disagreement_kinds": [],
+      "summary": {
+        "title": "One Deletion Boost",
+        "statement_md": "You are given an array of integers `nums`. Choose a non-empty contiguous subarray, and optionally delete **at most one** element from it (the subarray must remain non-empty after the deletion). Return the maximum possible sum achievable.\n\nThe deleted element does not have to be an endpoint \u2014 deleting an interior element joins the two remaining pieces into one contiguous sum. If no deletion helps, you may keep the subarray unchanged.",
+        "primary_type": "dp_1d",
+        "support_types": [
+          "arrays_hashing"
+        ],
+        "shape": "optimize_subarray",
+        "problem_rating": 1200
+      }
+    },
+    {
+      "activity": {
+        "primary_type": "greedy",
+        "shape": "partition_grouping",
+        "support_types": [
+          "arrays_hashing"
+        ]
+      },
+      "status": "ready",
+      "started_at": "2026-07-29T08:24:00.056586+00:00",
+      "wall_seconds": 82.917,
+      "repair_count": 1,
+      "logical_llm_calls": 4,
+      "subprocess_invocations": 4,
+      "phase_seconds": {
+        "drafting": 50.81,
+        "independent_review": 10.641,
+        "checking_examples": 3.438,
+        "repairing": 13.006,
+        "stress_testing": 5.021,
+        "finalizing": 0.0
+      },
+      "failure_category": null,
+      "disagreement_kinds": [],
+      "summary": {
+        "title": "River Crossing Kayaks",
+        "statement_md": "A group of hikers needs to cross a river using kayaks. Each kayak can carry at most two hikers, and the combined weight of the hikers in a kayak must not exceed a given limit. Given the weights of the hikers and the weight limit per kayak, determine the minimum number of kayaks needed to ferry everyone across. A hiker may ride alone if they cannot be paired with anyone else within the limit.",
+        "primary_type": "greedy",
+        "support_types": [
+          "arrays_hashing"
+        ],
+        "shape": "partition_grouping",
+        "problem_rating": 1200
+      }
+    }
+  ]
+}

@@ -63,33 +63,57 @@ async function authHeaders(): Promise<Record<string, string>> {
   return token ? { authorization: `Bearer ${token}` } : {};
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      ...(await authHeaders()),
-      ...(init?.headers ?? {}),
-    },
-  });
+async function request<T>(path: string, init?: RequestInit, timeoutMs?: number): Promise<T> {
+  const controller = new AbortController();
+  const parentSignal = init?.signal;
+  const abortFromParent = () => controller.abort(parentSignal?.reason);
+  if (parentSignal?.aborted) abortFromParent();
+  else parentSignal?.addEventListener("abort", abortFromParent, { once: true });
 
-  const correlationId = res.headers.get("x-correlation-id") ?? undefined;
+  let timedOut = false;
+  const timeout =
+    timeoutMs === undefined
+      ? undefined
+      : window.setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, timeoutMs);
 
-  if (!res.ok) {
-    let message = res.statusText || `HTTP ${res.status}`;
-    let code: string | undefined;
-    try {
-      const body = (await res.json()) as { detail?: string };
-      if (typeof body?.detail === "string") message = body.detail;
-      code = String(res.status);
-    } catch {
-      // body wasn't JSON, fall back to statusText
+  try {
+    const res = await fetch(path, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        "content-type": "application/json",
+        ...(await authHeaders()),
+        ...(init?.headers ?? {}),
+      },
+    });
+
+    const correlationId = res.headers.get("x-correlation-id") ?? undefined;
+
+    if (!res.ok) {
+      let message = res.statusText || `HTTP ${res.status}`;
+      let code: string | undefined;
+      try {
+        const body = (await res.json()) as { detail?: string };
+        if (typeof body?.detail === "string") message = body.detail;
+        code = String(res.status);
+      } catch {
+        // body wasn't JSON, fall back to statusText
+      }
+      throw new ApiError(res.status, message, code, correlationId);
     }
-    throw new ApiError(res.status, message, code, correlationId);
-  }
 
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+    if (res.status === 204) return undefined as T;
+    return (await res.json()) as T;
+  } catch (error) {
+    if (timedOut) throw new ApiError(408, "The request timed out.", "request_timeout");
+    throw error;
+  } finally {
+    if (timeout !== undefined) window.clearTimeout(timeout);
+    parentSignal?.removeEventListener("abort", abortFromParent);
+  }
 }
 
 function postJson<T>(path: string, body?: unknown): Promise<T> {
@@ -103,7 +127,8 @@ export const api = {
 
   /** The practice loop's single read: what's active, what's generating, or nothing at all —
    * never the statement (amendments 36, 41). */
-  practiceNext: () => request<PracticeNextResponse>("/api/practice/next"),
+  practiceNext: (signal?: AbortSignal) =>
+    request<PracticeNextResponse>("/api/practice/next", { signal }, 10_000),
 
   /** Idempotent bootstrap/self-heal: tops the queue up to the invariant. */
   practiceReplenish: () => postJson<ReplenishResponse>("/api/practice/replenish"),

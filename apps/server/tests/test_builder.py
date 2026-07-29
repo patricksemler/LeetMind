@@ -9,8 +9,8 @@ from pydantic import ValidationError
 from leetmind.builder import (
     STATEMENT_MAX_CHARS,
     BuilderOutput,
-    OracleOutput,
-    QualityReviewOutput,
+    IndependentReviewOutput,
+    ReviewRejected,
     _render_builder_prompt,
     _validate_structure,
     build_problem,
@@ -144,9 +144,9 @@ def test_builder_schema_enforces_compact_generation_limits():
     assert properties["constraints"]["minItems"] == 2
     assert properties["constraints"]["maxItems"] == 6
     assert properties["public_tests"]["minItems"] == 3
-    assert properties["public_tests"]["maxItems"] == 4
+    assert properties["public_tests"]["maxItems"] == 3
     assert properties["private_tests"]["minItems"] == 8
-    assert properties["private_tests"]["maxItems"] == 12
+    assert properties["private_tests"]["maxItems"] == 8
     assert properties["hints"]["minItems"] == 4
     assert properties["hints"]["maxItems"] == 4
 
@@ -160,55 +160,88 @@ def test_builder_prompt_routes_display_sections_to_dedicated_fields():
     assert "mentally execute the final reference_solution" in prompt
 
 
+def test_builder_prompt_includes_recent_anti_repetition_context():
+    plan = _plan()
+    plan = Plan(
+        **{
+            **plan.__dict__,
+            "recent_problems": [
+                {"title": f"Recent {index}", "premise": f"Scenario {index}"}
+                for index in range(8)
+            ],
+        }
+    )
+
+    prompt = _render_builder_prompt(plan)
+
+    assert '"Recent 0": Scenario 0' in prompt
+    assert '"Recent 7": Scenario 7' in prompt
+
+
 def _plan() -> Plan:
     return Plan(
         primary_type="arrays_hashing",
         support_types=[],
-        shape="optimize_subarray",
+        shape="count_structures",
         problem_rating=1000,
         premise="Sum a batch of package weights.",
         is_probe=True,
     )
 
 
-async def test_semantic_mismatch_is_rebuilt_before_oracle():
-    bad = sum_problem_builder_output(title="Wrong technique")
-    good = sum_problem_builder_output(title="Aligned technique")
+async def test_happy_path_is_one_draft_and_one_independent_review():
+    draft = sum_problem_builder_output(title="Aligned technique")
 
-    class ReviewThenAcceptLLM:
+    class DraftThenReviewLLM:
         def __init__(self):
             self.builder_calls = 0
             self.review_calls = 0
-            self.oracle_calls = 0
             self.prompts: list[str] = []
 
         async def complete(self, prompt, schema):  # noqa: ANN001, ANN201
             self.prompts.append(prompt)
             if schema is BuilderOutput:
                 self.builder_calls += 1
-                return schema.model_validate(bad if self.builder_calls == 1 else good)
-            if schema is QualityReviewOutput:
+                return schema.model_validate(draft)
+            if schema is IndependentReviewOutput:
                 self.review_calls += 1
                 return schema.model_validate(
                     {
-                        "aligned_with_plan": self.review_calls > 1,
-                        "issues": (
-                            []
-                            if self.review_calls > 1
-                            else ["The solution uses binary search, not arrays and hashing."]
-                        ),
+                        "aligned_with_plan": True,
+                        "issues": [],
+                        "brute_solution": sum_problem_oracle_output()["brute_solution"],
                     }
                 )
-            if schema is OracleOutput:
-                self.oracle_calls += 1
-                return schema.model_validate(sum_problem_oracle_output())
             raise AssertionError(f"unexpected schema: {schema}")
 
-    llm = ReviewThenAcceptLLM()
+    llm = DraftThenReviewLLM()
     built = await build_problem(llm, _plan())
 
     assert built.output.title == "Aligned technique"
-    assert llm.builder_calls == 2
-    assert llm.review_calls == 2
-    assert llm.oracle_calls == 1
-    assert "does not match the activity-selected plan" in llm.prompts[2]
+    assert llm.builder_calls == 1
+    assert llm.review_calls == 1
+    assert len(llm.prompts) == 2
+    assert draft["reference_solution"] not in llm.prompts[1]
+    assert str(draft["private_tests"]) not in llm.prompts[1]
+
+
+async def test_semantic_mismatch_returns_one_targeted_repair_candidate():
+    draft = sum_problem_builder_output(title="Wrong technique")
+
+    class RejectingReviewer:
+        async def complete(self, prompt, schema):  # noqa: ANN001, ANN201
+            if schema is BuilderOutput:
+                return schema.model_validate(draft)
+            return schema.model_validate(
+                {
+                    "aligned_with_plan": False,
+                    "issues": ["The efficient solution does not use arrays and hashing."],
+                    "brute_solution": None,
+                }
+            )
+
+    with pytest.raises(ReviewRejected) as raised:
+        await build_problem(RejectingReviewer(), _plan())
+
+    assert raised.value.output.title == "Wrong technique"
+    assert raised.value.reason == "activity_fit"
