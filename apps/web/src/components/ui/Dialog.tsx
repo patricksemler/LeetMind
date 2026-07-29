@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import type { ReactNode } from "react";
 
 export interface DialogProps {
@@ -15,12 +15,7 @@ const FOCUSABLE_SELECTOR =
 
 export function Dialog({ open, onClose, title, children, footer }: DialogProps) {
   const ref = useRef<HTMLDivElement>(null);
-  // Read through a ref, not a dependency — `onClose` is an inline arrow function at every call
-  // site (`() => setOpen(false)`), so it gets a new identity on every parent re-render. Depending
-  // on it directly would re-run this effect (recapturing "previously focused", re-stealing focus)
-  // on every keystroke/mutation-state change while the dialog is open, not just on open/close.
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  const closeDialog = useEffectEvent(onClose);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -39,7 +34,7 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
 
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        onCloseRef.current();
+        closeDialog();
         return;
       }
       if (e.key !== "Tab") return;

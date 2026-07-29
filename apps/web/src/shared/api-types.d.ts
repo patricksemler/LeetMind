@@ -89,23 +89,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/problems/{problem_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Problem */
-        get: operations["get_problem_api_problems__problem_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/problems/{problem_id}/open": {
         parameters: {
             query?: never;
@@ -189,23 +172,6 @@ export interface paths {
         put?: never;
         /** Reveal Hint */
         post: operations["reveal_hint_api_problems__problem_id__hints__rung__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/progress": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Progress */
-        get: operations["progress_api_progress_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -383,29 +349,6 @@ export interface components {
             /** Revealed Hints */
             revealed_hints: string[];
         };
-        /** ProgressResponse */
-        ProgressResponse: {
-            /** Rating History */
-            rating_history: components["schemas"]["RatingHistoryPoint"][];
-            /** Recent Problems */
-            recent_problems: components["schemas"]["ResolvedProblemSummary"][];
-        };
-        /** RatingHistoryPoint */
-        RatingHistoryPoint: {
-            /** Type Slug */
-            type_slug: string;
-            /** Rating Before */
-            rating_before: number;
-            /** Rating After */
-            rating_after: number;
-            /** Delta */
-            delta: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
         /**
          * RatingUpdateView
          * @description §9, #22: every resolution response carries a full rating-update breakdown.
@@ -436,21 +379,6 @@ export interface components {
         ReplenishResponse: {
             /** Created */
             created: string[];
-        };
-        /** ResolvedProblemSummary */
-        ResolvedProblemSummary: {
-            /** Id */
-            id: string;
-            /** Title */
-            title: string;
-            /** Primary Type */
-            primary_type: string;
-            /** Status */
-            status: string;
-            /** Resolved At */
-            resolved_at: string | null;
-            /** Problem Rating */
-            problem_rating: number;
         };
         /**
          * ResolvedProblemView
@@ -756,37 +684,6 @@ export interface operations {
             };
         };
     };
-    get_problem_api_problems__problem_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                problem_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProblemView"] | components["schemas"]["ResolvedProblemView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     open_problem_api_problems__problem_id__open_post: {
         parameters: {
             query?: never;
@@ -947,26 +844,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    progress_api_progress_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProgressResponse"];
                 };
             };
         };

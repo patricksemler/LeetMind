@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from leetmind.config import get_settings
 from leetmind.db import create_pool, run_migrations
 from leetmind.judge import JudgeClient
-from leetmind.routes import events, execution, health, hints, me, practice, problems, progress
+from leetmind.routes import events, execution, health, hints, me, practice, problems
 from leetmind.worker import GenerationWorker
 
 MAX_BODY_BYTES = 128 * 1024  # §9: JSON bodies capped at 128 KB
@@ -84,8 +84,6 @@ def create_app() -> FastAPI:
     app.include_router(problems.router)
     app.include_router(execution.router)
     app.include_router(hints.router)
-    app.include_router(progress.router)
-
     return app
 
 

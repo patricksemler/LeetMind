@@ -1,16 +1,21 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Link, Route, Routes } from "react-router-dom";
 import { RequireAuth } from "./components/auth/RequireAuth";
 import { NavBar } from "./components/layout/NavBar";
 import { ShortcutHelp } from "./components/shortcuts/ShortcutHelp";
-import { CenteredPage } from "./components/ui";
-import { DemoExperience } from "./demo/DemoExperience";
+import { CenteredPage, RouteLoading } from "./components/ui";
 import { useHotkeys } from "./hooks/useHotkeys";
 import { AuthProvider } from "./lib/auth";
 import { Concepts } from "./routes/Concepts";
 import { Practice } from "./routes/Practice";
-import { Problem } from "./routes/Problem";
 import { SignIn, SignUp } from "./routes/SignIn";
+
+const DemoExperience = lazy(() =>
+  import("./demo/DemoExperience").then(({ DemoExperience }) => ({ default: DemoExperience })),
+);
+const Problem = lazy(() =>
+  import("./routes/Problem").then(({ Problem }) => ({ default: Problem })),
+);
 
 function NotFound() {
   return (
@@ -39,41 +44,40 @@ export function App() {
         </a>
         <NavBar />
         <main id="main-content" className="min-h-0 min-w-0 flex-1">
-          <Routes>
-            {/* The only two routes reachable without a session. */}
-            <Route path="/login" element={<SignIn />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/demo" element={<DemoExperience />} />
+          <Suspense fallback={<RouteLoading />}>
+            <Routes>
+              {/* The only two routes reachable without a session. */}
+              <Route path="/login" element={<SignIn />} />
+              <Route path="/signup" element={<SignUp />} />
+              <Route path="/demo" element={<DemoExperience />} />
 
-            <Route
-              path="/"
-              element={
-                <RequireAuth>
-                  <Practice />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/problem/:problemId"
-              element={
-                <RequireAuth>
-                  <Problem />
-                </RequireAuth>
-              }
-            />
-            {/* `/concepts` is the only route that isn't the loop itself: the concept tree with a
-                rating on each node. Everything else the app used to report about itself —
-                `/progress` — is gone. */}
-            <Route
-              path="/concepts"
-              element={
-                <RequireAuth>
-                  <Concepts />
-                </RequireAuth>
-              }
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              <Route
+                path="/"
+                element={
+                  <RequireAuth>
+                    <Practice />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/problem/:problemId"
+                element={
+                  <RequireAuth>
+                    <Problem />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/concepts"
+                element={
+                  <RequireAuth>
+                    <Concepts />
+                  </RequireAuth>
+                }
+              />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
         </main>
         <ShortcutHelp open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       </div>

@@ -10,6 +10,7 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+benchmark-results/
 
 # Python (apps/server)
 .venv/

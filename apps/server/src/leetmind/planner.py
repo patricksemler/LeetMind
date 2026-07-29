@@ -9,18 +9,15 @@ for the creative premise.
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 import asyncpg
-from pydantic import BaseModel, ConfigDict, ValidationError
 
 from leetmind.db import load_jsonb
 from leetmind.elo import DEFAULT_RATING
-from leetmind.llm import LLMClient, LLMError
 from leetmind.ratings import ensure_ratings
 from leetmind.selection import (
     PROBE_RATING,
@@ -33,8 +30,6 @@ from leetmind.selection import (
 )
 from leetmind.taxonomy import PROBLEM_TYPES, TYPE_SHAPES
 
-logger = logging.getLogger("leetmind.planner")
-
 RECENT_WINDOW = 8  # §6.2 repetition window; also how far back anti-repetition context looks
 
 DIFFICULTY_RUBRIC = """\
@@ -46,27 +41,6 @@ DIFFICULTY_RUBRIC = """\
 | 1400-1600 | a multi-step insight; tight constraints; adversarial edge cases |
 | 1600+ | layered insights or an unusual reformulation of a known pattern |"""
 
-_PREMISE_MAX_CHARS = 2000
-
-
-class PlanOutput(BaseModel):
-    """Legacy planner output retained for fixture/backward-compatible helper tests."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    primary_type: str
-    support_types: list[str] = []
-    shape: str
-    problem_rating: int
-    premise: str
-    rationale: str = ""
-
-
-class PlanReviewOutput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    aligned_with_activity: bool
-    issues: list[str]
 
 @dataclass(frozen=True)
 class Plan:
@@ -286,225 +260,8 @@ async def gather_signals(conn: asyncpg.Connection, user_id: UUID) -> list[TypeSi
     return signals
 
 
-def _render_prompt(
-    *,
-    signals: list[TypeSignal],
-    picks_slugs: list[str],
-    shape_for: dict[str, str],
-    support_pool: dict[str, list[str]],
-    recent: list[dict[str, str]],
-    reserved_types: list[str],
-) -> str:
-    signal_by_slug = {s.slug: s for s in signals}
-    profile_lines = [
-        f"- {s.slug}: rating={s.rating:.0f} attempts={s.attempts} "
-        f"evidenced={'yes' if s.evidenced else 'no'}"
-        for s in signals
-    ]
-    shortlist_lines = []
-    for slug in picks_slugs:
-        s = signal_by_slug[slug]
-        lo, hi = target_band(s.rating) if s.evidenced else (PROBE_RATING, PROBE_RATING)
-        support = support_pool.get(slug) or []
-        shortlist_lines.append(
-            f"- {slug}: rating={s.rating:.0f} evidenced={'yes' if s.evidenced else 'no'} "
-            f"required_shape={shape_for[slug]!r} target_rating_band=[{lo:.0f}, {hi:.0f}] "
-            f"support_candidates={support}"
-        )
-    recent_lines = [f'- "{r["title"]}": {r["premise"]}' for r in recent] or ["- (none yet)"]
-
-    return f"""\
-You are picking the next practice problem to generate for a LeetCode-style learning app.
-
-Full per-type learner profile (rating is an Elo-style estimate, attempts=0 means unevidenced):
-{chr(10).join(profile_lines)}
-
-You MUST choose `primary_type` from this shortlist only (already scored by weakness, coverage,
-staleness, and anti-repetition — do not second-guess the selection, only pick among them):
-{chr(10).join(shortlist_lines)}
-
-For whichever primary_type you choose, `shape` MUST be exactly its `required_shape` above — this
-is fixed by a least-recently-used rotation, not your choice to make.
-
-`support_types`: 0-2 types drawn ONLY from that primary type's `support_candidates` list above.
-Support types are scaffolding only (their rating never changes) — pick types the learner is
-already strong in, when they'd plausibly help frame the problem. Leave empty if none fit.
-
-`problem_rating`: an integer inside the chosen type's `target_rating_band`. An unevidenced type's
-band is exactly [{PROBE_RATING}, {PROBE_RATING}] because coverage probes must be direct,
-beginner-level applications of the type's basic pattern.
-
-Difficulty rubric — justify the rating against this table:
-{DIFFICULTY_RUBRIC}
-
-Before responding, silently reject any candidate premise whose natural efficient solution does
-not centrally use the chosen primary_type and required_shape, whose input properties break that
-technique, or whose insight falls outside the exact target_rating_band. For a 1000 probe, avoid
-famous harder variants and use only the direct canonical pattern.
-
-Reserved types already in flight for this user (avoid echoing their premise/flavor):
-{", ".join(sorted(set(reserved_types))) or "(none)"}
-
-The user's last {len(recent)} problems (avoid repeating these titles or premises):
-{chr(10).join(recent_lines)}
-
-Write `premise`: a 2-3 sentence ORIGINAL scenario (not a known LeetCode problem's premise
-verbatim) that the primary_type's technique will solve. Write `rationale`: one sentence for logs.
-
-Respond with ONLY a JSON object with exactly these keys: primary_type, support_types, shape,
-problem_rating, premise, rationale. No markdown fences, no prose outside the JSON.
-"""
-
-
-def _render_plan_review_prompt(output: PlanOutput) -> str:
-    return f"""\
-You are an independent curriculum reviewer for an algorithm-practice app. Review this candidate
-plan before any problem is built:
-
-- primary_type: {output.primary_type}
-- support_types: {output.support_types}
-- shape: {output.shape}
-- problem_rating: {output.problem_rating}
-- premise: {output.premise}
-
-Difficulty rubric:
-{DIFFICULTY_RUBRIC}
-
-Set aligned_with_activity=false if ANY of these are true:
-1. The premise's natural efficient solution would not centrally exercise `primary_type`, or its
-   input properties invalidate that technique and force a materially different one.
-2. The computational task implied by the premise does not match `shape`.
-3. The required insight is implausibly easy or hard for `problem_rating`. Be strict for ratings
-   <=1000: these must be direct applications of the basic pattern, with no non-obvious invariant
-   or famous harder variant disguised as a probe.
-4. The premise is ambiguous or does not define a coherent algorithmic task.
-
-Support types may scaffold the task but must not replace the primary type. When false, provide
-1-3 short, concrete issues that tell the planner what premise or rating to change.
-
-Respond with ONLY a JSON object with exactly these keys:
-{{"aligned_with_activity": true_or_false, "issues": ["..."]}}
-No markdown fences and no prose outside the JSON.
-"""
-
-
-async def _call_plan_reviewer(llm: LLMClient, output: PlanOutput) -> PlanReviewOutput:
-    prompt = _render_plan_review_prompt(output)
-    review = await llm.complete(prompt, PlanReviewOutput)
-    if not review.aligned_with_activity and not review.issues:
-        raise LLMError("issues must explain why aligned_with_activity is false")
-    return review
-
-
-def _validate(
-    output: PlanOutput,
-    *,
-    shortlist_slugs: set[str],
-    shape_for: dict[str, str],
-    signal_by_slug: dict[str, TypeSignal],
-    support_pool: dict[str, list[str]],
-) -> str | None:
-    """First violation found, or `None` if the plan satisfies every constraint it was given."""
-    if output.primary_type not in shortlist_slugs:
-        return f"primary_type must be one of the shortlisted types: {sorted(shortlist_slugs)}"
-    if output.shape != shape_for[output.primary_type]:
-        return (
-            f"shape must be {shape_for[output.primary_type]!r} "
-            f"(the required LRU shape for {output.primary_type})"
-        )
-    if len(output.support_types) > 2:
-        return "support_types may include at most 2 types"
-    if output.primary_type in output.support_types:
-        return "support_types must not include primary_type"
-    allowed = set(support_pool.get(output.primary_type, []))
-    if not set(output.support_types) <= allowed:
-        return f"support_types must be drawn from {sorted(allowed)}"
-    signal = signal_by_slug[output.primary_type]
-    if signal.evidenced:
-        lo, hi = target_band(signal.rating)
-        if not (lo <= output.problem_rating <= hi):
-            return f"problem_rating must be within [{lo:.0f}, {hi:.0f}] for {output.primary_type}"
-    elif output.problem_rating != PROBE_RATING:
-        return f"problem_rating must be {PROBE_RATING} for an unevidenced probe type"
-    if not output.premise.strip():
-        return "premise must not be empty"
-    if len(output.premise) > _PREMISE_MAX_CHARS:
-        return "premise must be a short 2-3 sentence scenario"
-    return None
-
-
-def _deterministic_plan(
-    *, fallback_primary: str, shape_for: dict[str, str], signal_by_slug: dict[str, TypeSignal]
-) -> PlanOutput:
-    """The never-stalls fallback (§7.2): shortlist head, that type's LRU shape, the target band's
-    midpoint, a generic premise request, no support types."""
-    signal = signal_by_slug[fallback_primary]
-    if signal.evidenced:
-        lo, hi = target_band(signal.rating)
-        rating = round((lo + hi) / 2)
-    else:
-        rating = PROBE_RATING
-    return PlanOutput(
-        primary_type=fallback_primary,
-        support_types=[],
-        shape=shape_for[fallback_primary],
-        problem_rating=rating,
-        premise=f"An original scenario exercising {fallback_primary.replace('_', ' ')}.",
-        rationale="deterministic fallback: planner CLI unavailable or produced invalid output",
-    )
-
-
-async def _call_planner(
-    llm: LLMClient,
-    prompt: str,
-    *,
-    shortlist_slugs: set[str],
-    shape_for: dict[str, str],
-    signal_by_slug: dict[str, TypeSignal],
-    support_pool: dict[str, list[str]],
-    fallback_primary: str,
-) -> PlanOutput:
-    try:
-        output = await llm.complete(prompt, PlanOutput)
-    except (LLMError, ValidationError) as exc:
-        logger.warning("legacy planner call failed: %s", exc)
-    else:
-        error = _validate(
-            output,
-            shortlist_slugs=shortlist_slugs,
-            shape_for=shape_for,
-            signal_by_slug=signal_by_slug,
-            support_pool=support_pool,
-        )
-        if error is None:
-            try:
-                review = await _call_plan_reviewer(llm, output)
-            except LLMError as exc:
-                logger.warning("legacy plan reviewer failed: %s", exc)
-            else:
-                if review.aligned_with_activity:
-                    return output
-                error = (
-                    "independent curriculum review found a mismatch: "
-                    + "; ".join(review.issues)
-                )
-        logger.warning("legacy planner output violated constraints: %s", error)
-
-    logger.warning("planner falling back to a deterministic plan (primary=%s)", fallback_primary)
-    return _deterministic_plan(
-        fallback_primary=fallback_primary, shape_for=shape_for, signal_by_slug=signal_by_slug
-    )
-
-
-async def plan_generation(
-    conn: asyncpg.Connection, llm: LLMClient, *, user_id: UUID, job_id: UUID
-) -> Plan:
-    """Select the next activity without an LLM call.
-
-    `llm` remains in the signature so injected workers and older call sites stay source-compatible;
-    it is intentionally unused. Creativity belongs in the single builder call.
-    """
-    del llm
+async def plan_generation(conn: asyncpg.Connection, *, user_id: UUID, job_id: UUID) -> Plan:
+    """Select the next activity without an LLM call."""
     generation_index = await _generation_index(conn, user_id, job_id)
     signals = await gather_signals(conn, user_id)
     signal_by_slug = {s.slug: s for s in signals}
@@ -527,9 +284,7 @@ async def plan_generation(
         allowed = support_candidates(
             signals, primary_slug=primary_type, primary_rating=primary_signal.rating
         )
-        support_types = sorted(
-            allowed, key=lambda slug: (-signal_by_slug[slug].rating, slug)
-        )[:2]
+        support_types = sorted(allowed, key=lambda slug: (-signal_by_slug[slug].rating, slug))[:2]
         lo, hi = target_band(primary_signal.rating)
         problem_rating = round((lo + hi) / 2)
 

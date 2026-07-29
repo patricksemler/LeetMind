@@ -13,7 +13,6 @@ import type {
   MeResponse,
   PracticeNextResponse,
   ProblemDetail,
-  ProgressResponse,
   ReplenishResponse,
   RunResponse,
   SubmitResponse,
@@ -121,8 +120,6 @@ function postJson<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export const api = {
-  health: () => request<Record<string, boolean | string>>("/health"),
-
   me: () => request<MeResponse>("/api/me"),
 
   /** The practice loop's single read: what's active, what's generating, or nothing at all —
@@ -132,9 +129,6 @@ export const api = {
 
   /** Idempotent bootstrap/self-heal: tops the queue up to the invariant. */
   practiceReplenish: () => postJson<ReplenishResponse>("/api/practice/replenish"),
-
-  /** Requires the problem opened first (409 `not_opened` otherwise). */
-  getProblem: (problemId: string) => request<ProblemDetail>(`/api/problems/${problemId}`),
 
   /** Atomically stamps `served_at` and returns the full view — the one way to see the statement. */
   openProblem: (problemId: string) => postJson<ProblemDetail>(`/api/problems/${problemId}/open`),
@@ -149,8 +143,6 @@ export const api = {
 
   revealHint: (problemId: string, rung: number) =>
     postJson<HintResponse>(`/api/problems/${problemId}/hints/${rung}`),
-
-  progress: () => request<ProgressResponse>("/api/progress"),
 };
 
 export function eventsUrl(): string {

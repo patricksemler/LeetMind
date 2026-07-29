@@ -28,10 +28,6 @@ from leetmind.llm import LLMClient, LLMError
 from leetmind.planner import DIFFICULTY_RUBRIC, Plan
 from leetmind.schemas import Complexity, Signature, ValueType
 
-PUBLIC_TEST_RANGE = (3, 3)
-PRIVATE_TEST_RANGE = (8, 8)
-CONSTRAINT_RANGE = (2, 6)
-HINT_RUNGS = 4
 STATEMENT_MAX_CHARS = 650
 STATEMENT_PREFERRED_RANGE = (350, 550)
 CONSTRAINT_MAX_CHARS = 160
@@ -39,9 +35,7 @@ CONSTRAINT_MAX_CHARS = 160
 # `statement_md` is intentionally only the problem description. Public examples and constraints
 # have first-class fields and dedicated UI sections; accepting those headings here recreates the
 # duplicate, overly long statement this split is meant to prevent.
-_ROUTED_IO_HEADING_RE = re.compile(
-    r"(?im)^\s{0,3}(?:#{1,6}\s*)?(?:input|output)\s*:"
-)
+_ROUTED_IO_HEADING_RE = re.compile(r"(?im)^\s{0,3}(?:#{1,6}\s*)?(?:input|output)\s*:")
 _EXAMPLE_TERM_RE = re.compile(r"(?i)\bexamples?\b")
 _CONSTRAINT_TERM_RE = re.compile(r"(?i)\bconstraints?\b")
 ConstraintText = Annotated[
@@ -109,22 +103,6 @@ class BuilderOutput(BaseModel):
     input_generator: str = Field(min_length=1)
     complexity: Complexity
     par_minutes: int = Field(gt=0, le=180)
-
-
-class OracleOutput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    brute_solution: str
-
-
-class QualityReviewOutput(BaseModel):
-    """An independent semantic check that the generated content matches the activity-selected
-    plan. Executable verification cannot catch a correct problem filed under the wrong concept."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    aligned_with_plan: bool
-    issues: list[str]
 
 
 class IndependentReviewOutput(BaseModel):
@@ -195,8 +173,6 @@ def _validate_structure(output: BuilderOutput, plan: Plan | None = None) -> str 
         return "title must not be empty"
     if not output.statement_md.strip():
         return "statement_md must not be empty"
-    if len(output.statement_md) > STATEMENT_MAX_CHARS:
-        return f"statement_md must be at most {STATEMENT_MAX_CHARS} characters"
     if (
         _ROUTED_IO_HEADING_RE.search(output.statement_md)
         or _EXAMPLE_TERM_RE.search(output.statement_md)
@@ -207,31 +183,14 @@ def _validate_structure(output: BuilderOutput, plan: Plan | None = None) -> str 
             "route them to public_tests and constraints"
         )
 
-    lo, hi = CONSTRAINT_RANGE
-    if not (lo <= len(output.constraints) <= hi):
-        return f"constraints must have {lo}-{hi} entries"
-    if any(not constraint.strip() for constraint in output.constraints):
-        return "constraints must not contain empty strings"
-    if any(len(constraint) > CONSTRAINT_MAX_CHARS for constraint in output.constraints):
-        return f"each constraint must be at most {CONSTRAINT_MAX_CHARS} characters"
-
     if plan is not None:
         if plan.primary_type in output.support_types:
             return "support_types must not include primary_type"
         if not set(output.support_types) <= set(plan.support_types):
             return f"support_types must be drawn from {sorted(plan.support_types)}"
 
-    if len(output.hints) != HINT_RUNGS:
-        return f"hints must have exactly {HINT_RUNGS} entries, one per rung"
     if any(not h.strip() for h in output.hints):
         return "hints must not contain empty strings"
-
-    lo, hi = PUBLIC_TEST_RANGE
-    if not (lo <= len(output.public_tests) <= hi):
-        return f"public_tests must have {lo}-{hi} cases"
-    lo, hi = PRIVATE_TEST_RANGE
-    if not (lo <= len(output.private_tests) <= hi):
-        return f"private_tests must have {lo}-{hi} cases"
 
     sig = output.signature
     if not sig.func_name.isidentifier():
@@ -254,8 +213,6 @@ def _validate_structure(output: BuilderOutput, plan: Plan | None = None) -> str 
         return f"reference_solution must define def {sig.func_name}(...)"
     if "def generate" not in output.input_generator:
         return "input_generator must define def generate(seed)"
-    if output.par_minutes <= 0:
-        return "par_minutes must be positive"
     return None
 
 
@@ -361,75 +318,6 @@ corrected JSON object (not a diff), matching the exact schema above.
 """
 
 
-def _render_oracle_prompt(
-    statement_md: str, constraints: list[str], signature: Signature
-) -> str:
-    params = ", ".join(f"{p.name}: {_type_str(p.type)}" for p in signature.params)
-    constraint_lines = "\n".join(f"- {constraint}" for constraint in constraints)
-    return f"""\
-You are an independent verifier. You have NOT seen any proposed solution, test cases, or prior
-conversation about this problem — only the statement below. Write a deliberately NAIVE but
-obviously-correct Python solution (favor correctness over performance; brute force is fine, as
-inputs are kept small).
-
-Problem statement:
-{statement_md}
-
-Constraints:
-{constraint_lines}
-
-Required function signature: def {signature.func_name}({params}) -> {_type_str(signature.returns)}
-
-Value contract:
-{VALUE_GRAMMAR}
-
-Respond with ONLY a JSON object with exactly one key, "brute_solution", whose value is the
-complete Python source (as a single string) defining `def {signature.func_name}(...):`. No
-markdown fences, no prose outside the JSON.
-"""
-
-
-def _render_quality_review_prompt(plan: Plan, output: BuilderOutput) -> str:
-    return f"""\
-You are an independent curriculum reviewer for an algorithm-practice app. Decide whether the
-generated problem genuinely matches the learner-activity plan below. A problem is NOT aligned
-merely because its story or metadata names the target technique.
-
-Plan:
-- primary_type: {plan.primary_type}
-- support_types: {plan.support_types}
-- shape: {plan.shape}
-- problem_rating: {plan.problem_rating}
-- premise: {plan.premise}
-
-Difficulty rubric:
-{DIFFICULTY_RUBRIC}
-
-Generated problem:
-- title: {output.title}
-- statement_md: {output.statement_md}
-- constraints: {output.constraints}
-- signature: {output.signature.model_dump_json()}
-- target complexity: {output.complexity.model_dump_json()}
-- reference solution:
-{output.reference_solution}
-
-Set aligned_with_plan=false if ANY of these are true:
-1. The efficient reference solution does not centrally exercise `primary_type`, or the problem's
-   input properties invalidate that technique and force a materially different one.
-2. The requested `shape` does not describe the actual computational task.
-3. The target complexity or structural difficulty is implausible for the requested rating band.
-4. The statement, constraints, and reference solution disagree about what problem is being solved.
-
-Support types may appear, but they must not replace the primary type. When false, provide 1-3
-short, concrete issues that tell the builder exactly what to change.
-
-Respond with ONLY a JSON object with exactly these keys:
-{{"aligned_with_plan": true_or_false, "issues": ["..."]}}
-No markdown fences and no prose outside the JSON.
-"""
-
-
 def _render_independent_review_prompt(plan: Plan, output: BuilderOutput) -> str:
     params = ", ".join(f"{p.name}: {_type_str(p.type)}" for p in output.signature.params)
     constraint_lines = "\n".join(f"- {constraint}" for constraint in output.constraints)
@@ -477,32 +365,6 @@ async def _call_builder(llm: LLMClient, prompt: str) -> BuilderOutput:
         return await llm.complete(prompt, BuilderOutput)
     except (LLMError, ValidationError) as exc:
         raise BuilderError(f"builder CLI could not produce a valid problem: {exc}") from exc
-
-
-async def _call_oracle(llm: LLMClient, output: BuilderOutput) -> str:
-    prompt = _render_oracle_prompt(output.statement_md, output.constraints, output.signature)
-    try:
-        oracle = await llm.complete(prompt, OracleOutput)
-    except (LLMError, ValidationError) as exc:
-        raise BuilderError(f"oracle CLI could not produce a valid solution: {exc}") from exc
-    if f"def {output.signature.func_name}" not in oracle.brute_solution:
-        raise BuilderError(
-            f"brute_solution must define def {output.signature.func_name}(...)"
-        )
-    return oracle.brute_solution
-
-
-async def _call_quality_reviewer(
-    llm: LLMClient, plan: Plan, output: BuilderOutput
-) -> QualityReviewOutput:
-    prompt = _render_quality_review_prompt(plan, output)
-    try:
-        review = await llm.complete(prompt, QualityReviewOutput)
-    except (LLMError, ValidationError) as exc:
-        raise BuilderError(f"quality reviewer could not produce a valid review: {exc}") from exc
-    if not review.aligned_with_plan and not review.issues:
-        raise BuilderError("issues must explain why aligned_with_plan is false")
-    return review
 
 
 async def _call_independent_reviewer(

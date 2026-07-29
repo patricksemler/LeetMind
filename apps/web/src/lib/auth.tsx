@@ -45,7 +45,8 @@ function requireClient() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
-  const [ready, setReady] = useState(false);
+  // With no configured client there is no asynchronous session to restore.
+  const [ready, setReady] = useState(() => !supabase);
 
   // Read by the api client on every request. It asks the Supabase client directly rather than
   // reading React state: `getSession()` is the authoritative source, it resolves the persisted
@@ -62,13 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!supabase) {
-      // No Supabase project configured — there is no session to restore. `ready: true` with
-      // `session: null` still lets `RequireAuth` resolve (to `/login`, where signing in throws
-      // the same "not configured" error from `requireClient`) instead of spinning forever.
-      setReady(true);
-      return;
-    }
+    if (!supabase) return;
     let cancelled = false;
 
     void (async () => {

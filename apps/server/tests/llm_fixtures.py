@@ -1,8 +1,8 @@
-"""Shared canned LLM responses for planner/builder/worker tests (PLAN_BACKEND.md §12: "the LLM CLI
+"""Shared canned LLM responses for builder/worker tests (PLAN_BACKEND.md §12: "the LLM CLI
 stubbed with recorded fixtures"). `FakeLLM` is a duck-typed stand-in for `leetmind.llm.LLMClient`
-— same `async complete(prompt, schema) -> BaseModel` shape — so it drops into `plan_generation`,
-`build_problem`, and `GenerationWorker` without a real subprocess; `llm.py`'s own subprocess
-mechanics are covered separately in test_llm.py.
+— same `async complete(prompt, schema) -> BaseModel` shape — so it drops into `build_problem` and
+`GenerationWorker` without a real subprocess; `llm.py`'s own subprocess mechanics are covered
+separately in test_llm.py.
 
 The canned data itself lives in `leetmind.fixtures`, shared with the live server's `LLM_CLI=fixture`
 adapter mode (used by the Playwright e2e smoke) so both exercise the exact same problem instead of
@@ -19,14 +19,7 @@ from leetmind.fixtures import (
     BUILDER_MARKER,
     BUILDER_REPAIR_MARKER,
     INDEPENDENT_REVIEW_MARKER,
-    ORACLE_MARKER,
-    PLAN_REVIEW_MARKER,
-    PLANNER_MARKER,
-    QUALITY_REVIEW_MARKER,
-    aligned_quality_review_output,
     aligned_independent_review_output,
-    aligned_plan_review_output,
-    fresh_user_plan_output,
     sum_problem_builder_output,
     sum_problem_oracle_output,
 )
@@ -35,15 +28,8 @@ __all__ = [
     "BUILDER_MARKER",
     "BUILDER_REPAIR_MARKER",
     "INDEPENDENT_REVIEW_MARKER",
-    "ORACLE_MARKER",
-    "PLAN_REVIEW_MARKER",
-    "PLANNER_MARKER",
-    "QUALITY_REVIEW_MARKER",
     "FakeLLM",
-    "aligned_quality_review_output",
     "aligned_independent_review_output",
-    "aligned_plan_review_output",
-    "fresh_user_plan_output",
     "sum_problem_builder_output",
     "sum_problem_oracle_output",
 ]
@@ -59,8 +45,6 @@ class FakeLLM:
 
     async def complete(self, prompt: str, schema: type[BaseModel]) -> BaseModel:
         self.calls.append(prompt)
-        if schema.__name__ == "PlanReviewOutput":
-            return schema.model_validate(aligned_plan_review_output())
         for marker, data in self._rules:
             if marker in prompt:
                 return schema.model_validate(data)

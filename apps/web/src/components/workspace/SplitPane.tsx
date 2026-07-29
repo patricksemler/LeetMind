@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { loadNumberPref, savePref } from "../../lib/prefs";
 
@@ -73,7 +73,7 @@ export function SplitPane({
   );
 
   const onPointerMove = useCallback(
-    (e: PointerEvent) => {
+    (e: React.PointerEvent<HTMLDivElement>) => {
       if (!dragging.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       clampAndSet(
@@ -86,14 +86,13 @@ export function SplitPane({
   );
 
   const stopDragging = useCallback(() => {
+    if (!dragging.current) return;
     dragging.current = false;
     setIsDragging(false);
-    window.removeEventListener("pointermove", onPointerMove);
-    window.removeEventListener("pointerup", stopDragging);
     document.body.style.cursor = "";
     document.body.style.userSelect = "";
     persist(latestPct.current);
-  }, [onPointerMove, persist]);
+  }, [persist]);
 
   // `userSelect: none` for the duration of the drag, plus `preventDefault` on the pointerdown that
   // starts it. A drag across the divider is a sweep over the statement and the editor, which the
@@ -106,12 +105,19 @@ export function SplitPane({
       e.preventDefault();
       dragging.current = true;
       setIsDragging(true);
-      window.addEventListener("pointermove", onPointerMove);
-      window.addEventListener("pointerup", stopDragging);
+      e.currentTarget.setPointerCapture?.(e.pointerId);
       document.body.style.cursor = vertical ? "row-resize" : "col-resize";
       document.body.style.userSelect = "none";
     },
-    [onPointerMove, stopDragging, vertical],
+    [vertical],
+  );
+
+  useEffect(
+    () => () => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    },
+    [],
   );
 
   // The divider is a real control, so it takes focus and moves under the arrow keys — a pointer
@@ -181,6 +187,10 @@ export function SplitPane({
         aria-valuemax={maxFirstPct}
         tabIndex={0}
         onPointerDown={startDragging}
+        onPointerMove={onPointerMove}
+        onPointerUp={stopDragging}
+        onPointerCancel={stopDragging}
+        onLostPointerCapture={stopDragging}
         onKeyDown={onKeyDown}
         // `z-10`: the grab area below overflows the divider on BOTH sides, but the pane that follows
         // it in the DOM painted over the half that reaches into it — so the divider could only be

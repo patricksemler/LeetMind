@@ -245,13 +245,12 @@ class GenerationWorker:
         recorded = await self._fail_job(
             job.id,
             job.lease_token,
-            None,
             str(failure),
             failure_code=failure.code,
         )
         if not recorded:
             return
-        await self._notify(job.user_id, job.id, GenerationJobStatus.FAILED)
+        await self._notify(job.user_id, job.id)
         replacement_id = await self._restart_failed_background_job(job)
         if replacement_id is not None:
             logger.info(
@@ -303,13 +302,6 @@ class GenerationWorker:
                         failure_report="; ".join(exc.issues),
                     )
                     repair_reason = GenerationRecoveryReason(exc.reason)
-                    await self._transition(
-                        job,
-                        GenerationPhase.REPAIRING,
-                        status=GenerationJobStatus.BUILDING,
-                        repair_count=repair_count,
-                        recovery_reason=repair_reason,
-                    )
                     continue
                 code = (
                     GenerationFailureCode.DEADLINE_EXCEEDED
@@ -371,13 +363,6 @@ class GenerationWorker:
                     failure_report=result.report(),
                 )
                 repair_reason = GenerationRecoveryReason.TEST_DISAGREEMENT
-                await self._transition(
-                    job,
-                    GenerationPhase.REPAIRING,
-                    status=GenerationJobStatus.BUILDING,
-                    repair_count=repair_count,
-                    recovery_reason=repair_reason,
-                )
                 continue
 
             code = (
@@ -396,7 +381,7 @@ class GenerationWorker:
         )
         if not await self._promote_and_finish(job.id, job.lease_token, job.user_id, problem_id):
             return
-        await self._notify(job.user_id, job.id, GenerationJobStatus.READY, problem_id=problem_id)
+        await self._notify(job.user_id, job.id, problem_id=problem_id)
         await self.replenish(job.user_id)
 
     def _remaining(self, deadline: float) -> float:
@@ -424,23 +409,13 @@ class GenerationWorker:
             return None
 
         async with self._pool.acquire() as conn:
-            plan = await plan_generation(conn, self._llm, user_id=job.user_id, job_id=job.id)
+            plan = await plan_generation(conn, user_id=job.user_id, job_id=job.id)
 
         if not await self._write_plan(job.id, job.lease_token, plan):
             return None
         return plan
 
     # -- fenced writes --------------------------------------------------------------------------
-
-    async def _advance_status(self, job_id: uuid.UUID, lease_token: uuid.UUID, status: str) -> bool:
-        result = await self._pool.execute(
-            "UPDATE generation_jobs SET status = $3, updated_at = now() "
-            "WHERE id = $1 AND lease_token = $2",
-            job_id,
-            lease_token,
-            status,
-        )
-        return _rowcount(result) == 1
 
     async def _transition(
         self,
@@ -509,7 +484,7 @@ class GenerationWorker:
             duration_ms,
             recovery_reason,
         )
-        await self._notify(job.user_id, job.id, status)
+        await self._notify(job.user_id, job.id)
         return True
 
     async def _write_plan(self, job_id: uuid.UUID, lease_token: uuid.UUID, plan: Plan) -> bool:
@@ -519,19 +494,6 @@ class GenerationWorker:
             job_id,
             lease_token,
             json.dumps(plan.to_json()),
-        )
-        return _rowcount(result) == 1
-
-    async def _set_repair_and_status(
-        self, job_id: uuid.UUID, lease_token: uuid.UUID, repair_count: int, status: str
-    ) -> bool:
-        result = await self._pool.execute(
-            "UPDATE generation_jobs SET repair_count = $3, status = $4, updated_at = now() "
-            "WHERE id = $1 AND lease_token = $2",
-            job_id,
-            lease_token,
-            repair_count,
-            status,
         )
         return _rowcount(result) == 1
 
@@ -674,7 +636,6 @@ class GenerationWorker:
         self,
         job_id: uuid.UUID,
         lease_token: uuid.UUID,
-        problem_id: uuid.UUID | None,
         error: str,
         *,
         failure_code: GenerationFailureCode,
@@ -703,7 +664,7 @@ class GenerationWorker:
                 job_id,
                 min(int(row["repair_count"]) + 1, MAX_CANDIDATE_ATTEMPTS),
             )
-            problem_id = problem_id or row["problem_id"]
+            problem_id = row["problem_id"]
             if problem_id is not None:
                 # Amendment 42: a dead 'building' row must not reserve its type/shape forever.
                 await conn.execute(
@@ -845,7 +806,6 @@ class GenerationWorker:
         self,
         user_id: uuid.UUID,
         job_id: uuid.UUID,
-        status: GenerationJobStatus,
         *,
         problem_id: uuid.UUID | None = None,
     ) -> None:

@@ -1,7 +1,6 @@
-"""`GET /api/problems/{id}`, `POST /api/problems/{id}/open` (PLAN_BACKEND.md §9, §14 Phase 4).
+"""`POST /api/problems/{id}/open` tests with real Postgres and authentication.
 
-Real Postgres, real auth. No Docker/LLM needed — problems are inserted directly via
-`insert_problem` (conftest.py)."""
+No Docker/LLM is needed; problems are inserted directly through the shared fixture."""
 
 from __future__ import annotations
 
@@ -36,8 +35,8 @@ output = 2
     ]
 
 
-async def test_get_problem_requires_auth(client):
-    resp = await client.get(f"/api/problems/{uuid.uuid4()}")
+async def test_open_problem_requires_auth(client):
+    resp = await client.post(f"/api/problems/{uuid.uuid4()}/open")
     assert resp.status_code == 401
 
 
@@ -46,18 +45,8 @@ async def test_foreign_problem_id_is_404(authed_client, pool):
     stranger = str(uuid.uuid4())
     problem_id = await insert_problem(pool, owner, served_at=datetime.now(UTC))
 
-    resp = await authed_client.get(f"/api/problems/{problem_id}", headers=_headers(stranger))
+    resp = await authed_client.post(f"/api/problems/{problem_id}/open", headers=_headers(stranger))
     assert resp.status_code == 404
-
-
-async def test_unopened_problem_is_409(authed_client, pool):
-    user_id = uuid.uuid4()
-    problem_id = await insert_problem(pool, user_id, served_at=None)
-
-    resp = await authed_client.get(
-        f"/api/problems/{problem_id}", headers=_headers(str(user_id))
-    )
-    assert resp.status_code == 409
 
 
 async def test_open_stamps_served_at_once_and_is_idempotent(authed_client, pool):
@@ -81,8 +70,8 @@ async def test_unresolved_problem_view_never_leaks_private_fields(authed_client,
     user_id = uuid.uuid4()
     problem_id = await insert_problem(pool, user_id, served_at=datetime.now(UTC))
 
-    resp = await authed_client.get(
-        f"/api/problems/{problem_id}", headers=_headers(str(user_id))
+    resp = await authed_client.post(
+        f"/api/problems/{problem_id}/open", headers=_headers(str(user_id))
     )
     body = resp.json()
     assert "private_tests" not in body
@@ -103,8 +92,8 @@ async def test_resolved_problem_view_includes_reference_and_private_tests(authed
         resolved_at=datetime.now(UTC),
     )
 
-    resp = await authed_client.get(
-        f"/api/problems/{problem_id}", headers=_headers(str(user_id))
+    resp = await authed_client.post(
+        f"/api/problems/{problem_id}/open", headers=_headers(str(user_id))
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -121,8 +110,8 @@ async def test_revealed_hints_reflects_only_revealed_rungs(authed_client, pool):
         "INSERT INTO hint_reveals (problem_id, rung) VALUES ($1, 1), ($1, 2)", problem_id
     )
 
-    resp = await authed_client.get(
-        f"/api/problems/{problem_id}", headers=_headers(str(user_id))
+    resp = await authed_client.post(
+        f"/api/problems/{problem_id}/open", headers=_headers(str(user_id))
     )
     body = resp.json()
     assert body["revealed_hints"] == ["orientation hint", "conceptual hint"]

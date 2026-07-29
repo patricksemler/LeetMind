@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SplitPane } from "./SplitPane";
 
 function renderSplit(storageKey?: string) {
@@ -65,6 +65,31 @@ describe("SplitPane", () => {
     });
 
     expect(separator).toHaveAttribute("aria-valuenow", "48");
+  });
+
+  it("tracks a pointer-captured drag and persists once on release", () => {
+    renderSplit("test-split");
+    const separator = screen.getByRole("separator");
+    vi.spyOn(separator.parentElement!, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 200,
+      bottom: 100,
+      width: 200,
+      height: 100,
+      toJSON: () => ({}),
+    });
+
+    fireEvent(separator, new MouseEvent("pointerdown", { bubbles: true, clientX: 84 }));
+    fireEvent(separator, new MouseEvent("pointermove", { bubbles: true, clientX: 120 }));
+    expect(separator).toHaveAttribute("aria-valuenow", "60");
+    expect(document.body.style.userSelect).toBe("none");
+
+    fireEvent(separator, new MouseEvent("pointerup", { bubbles: true, clientX: 120 }));
+    expect(document.body.style.userSelect).toBe("");
+    expect(window.localStorage.getItem("leetmind:pref:test-split")).toBe("60");
   });
 
   it("ignores a stored width that is out of range or unparseable", () => {

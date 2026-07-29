@@ -1,4 +1,4 @@
-"""`GET /api/problems/{id}`, `POST /api/problems/{id}/open` (PLAN_BACKEND.md §9).
+"""`POST /api/problems/{id}/open` (PLAN_BACKEND.md §9).
 
 `require_problem` is the shared ownership dependency (§9: "every problem-scoped query filters
 `WHERE id = $1 AND user_id = $auth_user` ... checked in one shared dependency, not per-route") —
@@ -127,17 +127,6 @@ async def build_view(
     )
     revealed_hints = [hints[r["rung"] - 1] for r in rows]
     return ProblemView(**base, revealed_hints=revealed_hints)
-
-
-@router.get("/problems/{problem_id}")
-async def get_problem(
-    problem_id: uuid.UUID,
-    request: Request,
-    problem: asyncpg.Record = Depends(require_problem),
-) -> ProblemView | ResolvedProblemView:
-    if problem["served_at"] is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "not_opened")
-    return await build_view(request.app.state.pool, problem)
 
 
 @router.post("/problems/{problem_id}/open")

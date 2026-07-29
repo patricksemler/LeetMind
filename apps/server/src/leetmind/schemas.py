@@ -361,25 +361,3 @@ class HintResponse(BaseModel):
 class GiveUpResponse(BaseModel):
     reference_solution: str
     rating_update: RatingUpdateView
-
-
-class RatingHistoryPoint(BaseModel):
-    type_slug: str
-    rating_before: float
-    rating_after: float
-    delta: float
-    created_at: datetime
-
-
-class ResolvedProblemSummary(BaseModel):
-    id: str
-    title: str
-    primary_type: str
-    status: str
-    resolved_at: datetime | None
-    problem_rating: int
-
-
-class ProgressResponse(BaseModel):
-    rating_history: list[RatingHistoryPoint]
-    recent_problems: list[ResolvedProblemSummary]

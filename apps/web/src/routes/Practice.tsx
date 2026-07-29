@@ -145,21 +145,6 @@ const FAILURE_MESSAGE: Record<GenerationFailureCode, string> = {
   deadline_exceeded: "Generation reached its two-minute safety deadline.",
 };
 
-function jobFromEvent(event: GenerationEvent): JobStub {
-  return {
-    job_id: event.job_id,
-    status: event.status,
-    phase: event.phase,
-    repair_count: event.repair_count,
-    attempt: event.attempt,
-    max_attempts: event.max_attempts,
-    started_at: event.started_at,
-    phase_started_at: event.phase_started_at,
-    recovery_reason: event.recovery_reason,
-    failure_code: event.failure_code,
-  };
-}
-
 function applyGenerationEvent(
   current: PracticeNextResponse | undefined,
   event: GenerationEvent,
@@ -181,12 +166,13 @@ function applyGenerationEvent(
     return undefined;
   }
 
+  const { problem_id: _problemId, ...job } = event;
   if (event.status === "failed") {
     return {
       state: "generation_failed",
       problem_id: null,
       opened: false,
-      job: jobFromEvent(event),
+      job,
     };
   }
 
@@ -194,7 +180,7 @@ function applyGenerationEvent(
     state: "generating",
     problem_id: null,
     opened: false,
-    job: jobFromEvent(event),
+    job,
   };
 }
 

@@ -48,15 +48,11 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "no-console": "error",
 
-      // eslint-plugin-react-hooks v7 turns on the React Compiler rule set. These three fire on
-      // working, shipped code in useSubmissionEvents.ts and Problem.tsx — the SSE lifecycle and the
-      // submission state machine, which are the two most delicate files in the app and the ones
-      // with the least test coverage. Satisfying them means real behaviour changes (restructuring
-      // effects and ref access), not a lint tidy-up, so they are warnings here: the signal stays
-      // visible without blocking CI on a refactor that needs tests written first.
-      "react-hooks/refs": "warn",
-      "react-hooks/immutability": "warn",
-      "react-hooks/set-state-in-effect": "warn",
+      // These compiler-aware rules guard state and event lifecycles that previously regressed in
+      // the workspace and SSE hook. Keep them blocking now that those paths are covered.
+      "react-hooks/refs": "error",
+      "react-hooks/immutability": "error",
+      "react-hooks/set-state-in-effect": "error",
     },
   },
 

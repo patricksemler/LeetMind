@@ -18,11 +18,7 @@ export type JobStub = components["schemas"]["JobStub"];
 export type PracticeNextResponse = components["schemas"]["PracticeNextResponse"];
 export type ReplenishResponse = components["schemas"]["ReplenishResponse"];
 
-export type ValueType = components["schemas"]["ValueType"];
-export type SignatureParam = components["schemas"]["SignatureParam"];
 export type Signature = components["schemas"]["Signature"];
-export type Complexity = components["schemas"]["Complexity"];
-export type TestCaseView = components["schemas"]["TestCaseView"];
 
 export type ProblemView = components["schemas"]["ProblemView"];
 export type ResolvedProblemView = components["schemas"]["ResolvedProblemView"];
@@ -30,7 +26,6 @@ export type ResolvedProblemView = components["schemas"]["ResolvedProblemView"];
 export type ProblemDetail = ProblemView | ResolvedProblemView;
 
 export type CodeRequest = components["schemas"]["CodeRequest"];
-export type Verdict = components["schemas"]["Verdict"];
 export type TestOutcome = components["schemas"]["TestOutcome"];
 export type RunResponse = components["schemas"]["RunResponse"];
 export type FailingCaseView = components["schemas"]["FailingCaseView"];
@@ -38,10 +33,6 @@ export type RatingUpdateView = components["schemas"]["RatingUpdateView"];
 export type SubmitResponse = components["schemas"]["SubmitResponse"];
 export type HintResponse = components["schemas"]["HintResponse"];
 export type GiveUpResponse = components["schemas"]["GiveUpResponse"];
-
-export type RatingHistoryPoint = components["schemas"]["RatingHistoryPoint"];
-export type ResolvedProblemSummary = components["schemas"]["ResolvedProblemSummary"];
-export type ProgressResponse = components["schemas"]["ProgressResponse"];
 
 export * from "./events";
 

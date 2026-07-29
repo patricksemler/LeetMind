@@ -25,13 +25,8 @@ from tests.llm_fixtures import (
     BUILDER_MARKER,
     BUILDER_REPAIR_MARKER,
     INDEPENDENT_REVIEW_MARKER,
-    ORACLE_MARKER,
-    PLANNER_MARKER,
-    QUALITY_REVIEW_MARKER,
     FakeLLM,
     aligned_independent_review_output,
-    aligned_quality_review_output,
-    fresh_user_plan_output,
     sum_problem_builder_output,
     sum_problem_oracle_output,
 )
@@ -137,7 +132,15 @@ async def test_fenced_write_rejected_after_lease_reclaimed(pool):
         "UPDATE generation_jobs SET lease_token = $1 WHERE id = $2", new_token, job_id
     )
 
-    ok = await worker._advance_status(job_id, claimed.lease_token, "planning")
+    plan = Plan(
+        primary_type="arrays_hashing",
+        support_types=[],
+        shape="count_structures",
+        problem_rating=1000,
+        premise="",
+        is_probe=True,
+    )
+    ok = await worker._write_plan(job_id, claimed.lease_token, plan)
     assert ok is False
 
     row = await _job_row(pool, job_id)
@@ -330,9 +333,6 @@ async def test_problem_row_marked_failed_when_builder_crashes_mid_repair(pool, m
             (BUILDER_REPAIR_MARKER, {"title": "incomplete, missing required fields"}),
             (BUILDER_MARKER, sum_problem_builder_output()),
             (INDEPENDENT_REVIEW_MARKER, aligned_independent_review_output()),
-            (QUALITY_REVIEW_MARKER, aligned_quality_review_output()),
-            (ORACLE_MARKER, sum_problem_oracle_output()),
-            (PLANNER_MARKER, fresh_user_plan_output()),
         ]
     )
 
@@ -482,6 +482,11 @@ async def test_semantic_rejection_gets_one_targeted_repair_and_persists_support_
     assert row["repair_count"] == 1
     assert llm.drafts == 2
     assert llm.reviews == 2
+    repairing_transitions = await pool.fetchval(
+        "SELECT COUNT(*) FROM generation_job_transitions WHERE job_id = $1 AND phase = 'repairing'",
+        job_id,
+    )
+    assert repairing_transitions == 1
     problem = await pool.fetchrow(
         "SELECT title, support_types FROM problems WHERE id = $1", row["problem_id"]
     )
@@ -502,9 +507,6 @@ async def test_full_lifecycle_with_repair_produces_an_active_verified_problem(po
             (BUILDER_REPAIR_MARKER, sum_problem_builder_output(buggy=False)),
             (BUILDER_MARKER, sum_problem_builder_output(buggy=True)),
             (INDEPENDENT_REVIEW_MARKER, aligned_independent_review_output()),
-            (QUALITY_REVIEW_MARKER, aligned_quality_review_output()),
-            (ORACLE_MARKER, sum_problem_oracle_output()),
-            (PLANNER_MARKER, fresh_user_plan_output()),
         ]
     )
     judge_settings = Settings(

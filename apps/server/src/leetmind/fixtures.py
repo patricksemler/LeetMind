@@ -1,6 +1,6 @@
 """Canned LLM responses shared by the test suite and `LLM_CLI=fixture` (PLAN_BACKEND.md §12: "the
 LLM CLI stubbed with recorded fixtures"). Marker-based: the first substring match against the
-*real* prompt templates (planner.py, builder.py) wins, so a prompt-text change breaks matching
+real builder prompt templates wins, so a prompt-text change breaks matching
 loudly instead of silently.
 
 Living in `src/leetmind` (not `tests/`) so both the pytest suite (`tests/llm_fixtures.py`, which
@@ -14,12 +14,8 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-PLANNER_MARKER = "You are picking the next practice problem to generate"
-PLAN_REVIEW_MARKER = "Review this candidate\nplan before any problem is built"
 BUILDER_MARKER = "Generate one algorithm practice problem as JSON"
 BUILDER_REPAIR_MARKER = "Your previous attempt failed verification"
-ORACLE_MARKER = "You are an independent verifier"
-QUALITY_REVIEW_MARKER = "You are an independent curriculum reviewer"
 INDEPENDENT_REVIEW_MARKER = "independent reviewer and brute-force oracle author"
 
 # -- a tiny, judge-executable "sum a list" problem, shared by builder/verify/worker/e2e -----------
@@ -100,36 +96,12 @@ def sum_problem_oracle_output() -> dict[str, str]:
     }
 
 
-def aligned_quality_review_output() -> dict[str, Any]:
-    return {"aligned_with_plan": True, "issues": []}
-
-
 def aligned_independent_review_output() -> dict[str, Any]:
     return {
         "aligned_with_plan": True,
         "issues": [],
         "brute_solution": sum_problem_oracle_output()["brute_solution"],
     }
-
-
-def aligned_plan_review_output() -> dict[str, Any]:
-    return {"aligned_with_activity": True, "issues": []}
-
-
-def fresh_user_plan_output(**overrides: Any) -> dict[str, Any]:
-    """A valid `PlanOutput` for a brand-new (all-unevidenced) user's very first job: with no
-    history, `selection.py`'s scores tie across all 20 types, so the shortlist is deterministically
-    the first 3 of `taxonomy.PROBLEM_TYPES` and the LRU shape is deterministically `SHAPES[0]`."""
-    data: dict[str, Any] = {
-        "primary_type": "arrays_hashing",
-        "support_types": [],
-        "shape": "count_structures",
-        "problem_rating": 1000,
-        "premise": "A warehouse robot needs the total weight of a batch of packages.",
-        "rationale": "fixture",
-    }
-    data.update(overrides)
-    return data
 
 
 def fixture_response(prompt: str) -> dict[str, Any]:
@@ -140,14 +112,6 @@ def fixture_response(prompt: str) -> dict[str, Any]:
         return sum_problem_builder_output()
     if INDEPENDENT_REVIEW_MARKER in prompt:
         return aligned_independent_review_output()
-    if PLANNER_MARKER in prompt:
-        return fresh_user_plan_output()
-    if PLAN_REVIEW_MARKER in prompt:
-        return aligned_plan_review_output()
     if BUILDER_MARKER in prompt:
         return sum_problem_builder_output()
-    if QUALITY_REVIEW_MARKER in prompt:
-        return aligned_quality_review_output()
-    if ORACLE_MARKER in prompt:
-        return sum_problem_oracle_output()
     raise LookupError(f"fixture LLM: no rule matched this prompt:\n{prompt[:500]}")

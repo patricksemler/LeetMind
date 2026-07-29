@@ -10,12 +10,10 @@
  * as "something changed, go re-read `/api/practice/next`" (a pure, idempotent read), so a missed
  * event during a drop self-heals on the next poll of that read rather than needing its own replay.
  *
- * The effect depends on nothing but `enabled` — `onEvent` is read through a ref refreshed every
- * render, so callers can pass an inline closure without retriggering the subscribe/reconnect
- * dance on every render (see `useSubmissionEvents`'s file-level comment for why that matters: a
- * dependency on a fresh-every-render function is a reconnect-loop bug, not a hypothetical one).
+ * The effect depends on nothing but `enabled`. Effect Events read the latest callback and retry
+ * settings without reconnecting when an inline callback gets a new identity.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import type { GenerationEvent } from "@shared";
 import { currentAccessToken, eventsUrl } from "../lib/api";
 
@@ -66,19 +64,13 @@ export function useGenerationEvents(options: UseGenerationEventsOptions = {}): {
   const { enabled = true, baseBackoffMs = 1000, maxBackoffMs = 16000 } = options;
 
   const [connectionState, setConnectionState] = useState<SSEConnectionState>("idle");
-
-  const onEventRef = useRef(options.onEvent);
-  onEventRef.current = options.onEvent;
-  const baseBackoffRef = useRef(baseBackoffMs);
-  baseBackoffRef.current = baseBackoffMs;
-  const maxBackoffRef = useRef(maxBackoffMs);
-  maxBackoffRef.current = maxBackoffMs;
+  const handleEvent = useEffectEvent((event: GenerationEvent) => options.onEvent?.(event));
+  const reconnectDelay = useEffectEvent((attempt: number) =>
+    Math.min(maxBackoffMs, baseBackoffMs * 2 ** attempt),
+  );
 
   useEffect(() => {
-    if (!enabled) {
-      setConnectionState("idle");
-      return;
-    }
+    if (!enabled) return;
 
     let stopped = false;
     let attempt = 0;
@@ -87,7 +79,7 @@ export function useGenerationEvents(options: UseGenerationEventsOptions = {}): {
 
     function scheduleReconnect() {
       if (stopped) return;
-      const delay = Math.min(maxBackoffRef.current, baseBackoffRef.current * 2 ** attempt);
+      const delay = reconnectDelay(attempt);
       attempt += 1;
       setConnectionState("reconnecting");
       timer = setTimeout(() => void connect(), delay);
@@ -121,7 +113,7 @@ export function useGenerationEvents(options: UseGenerationEventsOptions = {}): {
           buffer = consumeFrames(buffer, (event, data) => {
             if (event !== "generation") return;
             try {
-              onEventRef.current?.(JSON.parse(data) as GenerationEvent);
+              handleEvent(JSON.parse(data) as GenerationEvent);
             } catch {
               // malformed frame — ignore, the next one is still trustworthy
             }
@@ -145,5 +137,5 @@ export function useGenerationEvents(options: UseGenerationEventsOptions = {}): {
     };
   }, [enabled]);
 
-  return { connectionState };
+  return { connectionState: enabled ? connectionState : "idle" };
 }

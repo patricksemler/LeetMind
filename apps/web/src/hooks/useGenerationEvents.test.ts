@@ -101,4 +101,34 @@ describe("useGenerationEvents", () => {
     expect(result.current.connectionState).toBe("open");
     unmount();
   });
+
+  it("uses the latest callback without reconnecting the stream", async () => {
+    const encoder = new TextEncoder();
+    let streamController!: ReadableStreamDefaultController<Uint8Array>;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        streamController = controller;
+      },
+    });
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, body: stream }));
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const first = vi.fn();
+    const second = vi.fn();
+    const { rerender, unmount } = renderHook(
+      ({ onEvent }: { onEvent: (event: unknown) => void }) => useGenerationEvents({ onEvent }),
+      { initialProps: { onEvent: first } },
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    rerender({ onEvent: second });
+    streamController.enqueue(
+      encoder.encode('event: generation\r\ndata: {"jobId":"latest"}\r\n\r\n'),
+    );
+
+    await waitFor(() => expect(second).toHaveBeenCalledWith({ jobId: "latest" }));
+    expect(first).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    unmount();
+  });
 });

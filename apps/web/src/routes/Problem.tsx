@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isResolved } from "@shared";
@@ -16,51 +16,49 @@ import { SolutionPane } from "../components/workspace/SolutionPane";
 
 export function Problem() {
   const { problemId } = useParams<{ problemId: string }>();
-  const queryClient = useQueryClient();
-
-  // `POST .../open` rather than a GET (PLAN_BACKEND.md amendment 41): `next` only ever supplies a
-  // stub id, and `open` is the one call that both stamps `served_at` (starting the timer) and
-  // returns the full view — idempotent afterwards, so refetching through the same call after a
-  // solve or give-up is exactly as safe as a GET and comes back as the resolved view once the
-  // server says so.
   const problemQuery = useQuery({
     queryKey: ["problem", problemId],
+    // Opening is idempotent and is the only endpoint that both stamps `served_at` and returns the
+    // full view. Refetching it after resolution safely returns the resolved view.
     queryFn: () => api.openProblem(problemId!),
     enabled: !!problemId,
   });
-  const problem = problemQuery.data;
-  const resolved = problem ? isResolved(problem) : false;
 
+  if (!problemId) return null;
+  if (problemQuery.isLoading) return <RouteLoading message="Opening problem…" />;
+
+  if (problemQuery.isError || !problemQuery.data) {
+    return (
+      <CenteredPage className="flex-col gap-3 text-center text-text-dim">
+        <p>Couldn't load that problem.</p>
+        <Link to="/" className="text-accent underline">
+          Back to practice
+        </Link>
+      </CenteredPage>
+    );
+  }
+
+  return (
+    <ProblemSession key={problemQuery.data.id} problemId={problemId} problem={problemQuery.data} />
+  );
+}
+
+function ProblemSession({ problemId, problem }: { problemId: string; problem: ProblemDetail }) {
+  const queryClient = useQueryClient();
+  const resolved = isResolved(problem);
   const [leftTab, setLeftTab] = useState<WorkspaceTab>("problem");
-  const [source, setSource] = useState("");
+  const [source, setSource] = useState(() => loadDraft(problemId) ?? problem.starter_code);
   const [lastResult, setLastResult] = useState<LastResult | null>(null);
   const [ratingUpdate, setRatingUpdate] = useState<RatingUpdateView | null>(null);
   const [gaveUp, setGaveUp] = useState<GiveUpResponse | null>(null);
 
-  // Reset per-problem UI state whenever the route moves to another problem (the draft comes back
-  // via the effect below, from storage rather than from here).
-  useEffect(() => {
-    setLeftTab("problem");
-    setLastResult(null);
-    setRatingUpdate(null);
-    setGaveUp(null);
-  }, [problemId]);
-
-  // Load starter code / draft once the problem is known.
-  useEffect(() => {
-    if (!problem || !problemId) return;
-    const draft = loadDraft(problemId);
-    setSource(draft ?? problem.starter_code);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [problem?.id]);
-
   function handleSourceChange(next: string) {
     setSource(next);
-    if (problemId) saveDraft(problemId, next);
+    saveDraft(problemId, next);
   }
 
   const runMutation = useMutation({
-    mutationFn: () => api.run(problemId!, { code: source }),
+    mutationFn: () => api.run(problemId, { code: source }),
     onSuccess: (res) => {
       setLastResult({
         kind: "run",
@@ -73,7 +71,7 @@ export function Problem() {
   });
 
   const submitMutation = useMutation({
-    mutationFn: () => api.submit(problemId!, { code: source }),
+    mutationFn: () => api.submit(problemId, { code: source }),
     onSuccess: (res) => {
       setLastResult({
         kind: res.kind,
@@ -108,9 +106,7 @@ export function Problem() {
     void queryClient.invalidateQueries({ queryKey: ["me"] });
   }
 
-  // Guards a rapid double-click (or the click racing the Cmd+Enter hotkey) from firing two
-  // requests in the same tick — the server's own per-user in-flight guard would just 409 the
-  // second one, but there's no reason to round-trip for that.
+  // Stops a click racing its keyboard shortcut before React Query updates `isPending`.
   const actionInFlightRef = useRef(false);
   const attemptOver = resolved || !!gaveUp;
   function guarded(run: () => void) {
@@ -136,23 +132,6 @@ export function Problem() {
     ],
     [problemId, source, attemptOver],
   );
-
-  if (!problemId) return null;
-
-  if (problemQuery.isLoading) {
-    return <RouteLoading message="Opening problem…" />;
-  }
-
-  if (problemQuery.isError || !problem) {
-    return (
-      <CenteredPage className="flex-col gap-3 text-center text-text-dim">
-        <p>Couldn't load that problem.</p>
-        <Link to="/" className="text-accent underline">
-          Back to practice
-        </Link>
-      </CenteredPage>
-    );
-  }
 
   const revealedHints = isResolved(problem) ? problem.hints : problem.revealed_hints;
   const referenceSolution =
