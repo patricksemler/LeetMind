@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import type { HintResponse, RatingUpdateView } from "@shared";
 import { Button, CenteredPage, Dialog, Panel, SectionLabel } from "../components/ui";
 import { buttonClassName } from "../components/ui/Button";
@@ -8,6 +9,7 @@ import { BrandName } from "../components/layout/BrandName";
 import { HintLadder } from "../components/workspace/HintLadder";
 import { ProblemWorkspace, type WorkspaceTab } from "../components/workspace/ProblemWorkspace";
 import type { LastResult } from "../components/workspace/ResultPanel";
+import { queryClient } from "../lib/queryClient";
 import { CoachMark } from "./CoachMark";
 import { createDemoExecutor, DEMO_PROBLEM, DEMO_SOURCE, type DemoExecutor } from "./demoScenario";
 
@@ -302,13 +304,15 @@ export function DemoExperience({
 
 export function StaticDemoApp() {
   return (
-    <div className="flex h-screen flex-col bg-bg text-text">
-      <AppHeader>
-        <BrandName />
-      </AppHeader>
-      <main className="min-h-0 flex-1">
-        <DemoExperience />
-      </main>
-    </div>
+    <QueryClientProvider client={queryClient}>
+      <div className="flex h-screen flex-col bg-bg text-text">
+        <AppHeader>
+          <BrandName />
+        </AppHeader>
+        <main className="min-h-0 flex-1">
+          <DemoExperience />
+        </main>
+      </div>
+    </QueryClientProvider>
   );
 }

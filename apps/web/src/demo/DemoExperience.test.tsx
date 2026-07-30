@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Providers } from "../test/testUtils";
-import { DemoExperience } from "./DemoExperience";
+import { DemoExperience, StaticDemoApp } from "./DemoExperience";
 import { createDemoExecutor } from "./demoScenario";
 
 vi.mock("../components/workspace/EditorPane", () => ({
@@ -12,6 +12,16 @@ vi.mock("../components/workspace/EditorPane", () => ({
 }));
 
 describe("DemoExperience", () => {
+  it("provides the data client required by the static demo workspace", async () => {
+    const user = userEvent.setup();
+    render(<StaticDemoApp />);
+
+    await user.click(screen.getByRole("button", { name: "Begin demo" }));
+    await user.click(screen.getByRole("button", { name: "Start" }));
+
+    expect(await screen.findByText(/Explore, then reveal a hint/i)).toBeInTheDocument();
+  });
+
   it("guides the full practice loop and concludes with the repository link", async () => {
     const user = userEvent.setup();
     render(
